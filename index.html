@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Balatro Project</title>
+    <!-- 引入像素字体 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Jersey+10&family=VT323&display=swap" rel="stylesheet">
     <style>
       html,
       body {
@@ -13,7 +17,7 @@
         height: 100%;
         overflow: hidden;
         background-color: #2c3e50;
-        font-family: "Microsoft YaHei", system-ui, sans-serif;
+        font-family: "Jersey 10", "VT323", "Microsoft YaHei", system-ui, sans-serif;
         color: #fff;
       }
       #app {
@@ -38,6 +42,118 @@
   <body>
     <div id="app"></div>
     <div id="loading">正在初始化 WebGPU 引擎与游戏资源...</div>
+
+    <!--
+      运行时调参面板（参考 docs/wheels/control-panel-capsule）
+      ------------------------------------------------------------
+      约定：
+        - 隐藏触发器 #panel-trigger 平时只显示"调试"两个字；连点 3 次（600ms 内）打开面板。
+        - 面板内每一个 .panel-group 自动被 ControlPanel 抽成左侧 tab。
+        - 每个控件用 id="inp-xxx" + id="val-xxx" 一对绑定，JS 端用 bindSlider/bindNumber/... 串起来。
+        - 想加新参数：在 RuntimeConfig 加字段 → 在这里加一行 .panel-row → 在 ControlPanel 里 bindXxx 一行。
+    -->
+    <div
+      id="panel-trigger"
+      role="button"
+      tabindex="0"
+      aria-label="打开调试面板"
+    >调试</div>
+
+    <aside
+      id="control-panel"
+      style="display: none"
+      aria-label="运行时调参面板"
+    >
+      <div id="panel-header">
+        <span>Control Panel <span id="panel-version">v1</span></span>
+        <button id="toggle-panel" type="button">隐藏</button>
+      </div>
+
+      <div id="panel-body">
+        <nav id="panel-tabs" aria-label="参数分组"></nav>
+
+        <div id="panel-content">
+          <!--
+            分组规划（为后续设计预留，内容暂留空）：
+              1. 存档专项     - 保留 preset 保存/读取/导入/导出/恢复默认。
+              2. 牌的绘制专项 - 卡牌视觉绘制相关参数（尺寸、字号、颜色等）。
+              3. 界面UI专项   - HUD/侧栏/按钮/面板布局相关参数。
+              4. 卡牌逻辑专项 - 手牌数、出弃次数、目标分、选牌上限等规则参数。
+              5. 卡牌视效专项 - 卡牌移动/悬停/飞出/翻面等动效参数。
+              6. 文字视效专项 - 计分弹字/牌型显示/数字滚动等文字动效参数。
+
+            约定：除"存档专项"是已实现的预设管理外，其余分组目前为空 .panel-row 占位，
+            未来在 RuntimeConfig 加字段后，往对应分组里加 .panel-row + 在 ControlPanel
+            里 bindXxx 一行即可。
+          -->
+
+          <!-- 1. 存档专项 -->
+          <details class="panel-group" open>
+            <summary>存档</summary>
+            <div class="panel-row">
+              <button id="btn-save-config" type="button">把当前参数存为本地默认</button>
+            </div>
+            <div class="panel-row">
+              <button id="btn-reset-config" type="button">恢复出厂默认</button>
+            </div>
+            <div class="panel-row">
+              <input
+                class="panel-text"
+                id="inp-preset-name"
+                type="text"
+                placeholder="预设名"
+              />
+              <button id="btn-save-preset" type="button">保存当前为预设</button>
+            </div>
+            <div class="panel-row">
+              <select class="panel-select" id="sel-preset-list">
+                <option value="">-- 选择预设 --</option>
+              </select>
+            </div>
+            <div class="panel-row panel-actions">
+              <button id="btn-load-preset" type="button">载入</button>
+              <button id="btn-delete-preset" type="button">删除</button>
+            </div>
+            <div class="panel-row panel-actions">
+              <button id="btn-export-preset" type="button">导出 JSON</button>
+              <button id="btn-import-preset" type="button">导入 JSON</button>
+              <input
+                id="inp-import-preset"
+                type="file"
+                accept=".json,application/json"
+                hidden
+              />
+            </div>
+          </details>
+
+          <!-- 2. 牌的绘制专项（占位） -->
+          <details class="panel-group">
+            <summary>牌的绘制</summary>
+          </details>
+
+          <!-- 3. 界面UI专项（占位） -->
+          <details class="panel-group">
+            <summary>界面UI</summary>
+          </details>
+
+          <!-- 4. 卡牌逻辑专项（占位） -->
+          <details class="panel-group">
+            <summary>卡牌逻辑</summary>
+          </details>
+
+          <!-- 5. 卡牌视效专项（占位） -->
+          <details class="panel-group">
+            <summary>卡牌视效</summary>
+          </details>
+
+          <!-- 6. 文字视效专项（占位） -->
+          <details class="panel-group">
+            <summary>文字视效</summary>
+          </details>
+        </div>
+      </div>
+    </aside>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

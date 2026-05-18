@@ -1,0 +1,333 @@
+/*
+ * 运行时调参面板样式
+ * --------------------------------------------------------
+ * 设计目标：
+ *   1. 面板浮在游戏上方，不干扰画面布局。
+ *   2. 桌面 / 移动端都能用，max-height 用 100dvh 而不是 100vh。
+ *   3. 左侧 tab 与右侧内容各自独立滚动；非激活分组直接 display:none。
+ *   4. 面板内的指针 / 滚轮事件 JS 端会阻断冒泡，避免误触底下的 PIXI 画布。
+ */
+
+:root {
+  --panel-opacity: 1;
+  --accent: #91c53a;
+  --accent-soft: rgba(145, 197, 58, 0.28);
+  --panel-bg: rgba(15, 12, 30, 0.92);
+}
+
+#panel-trigger {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 90;
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.62);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  font-size: 12px;
+  letter-spacing: 1px;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#panel-trigger:hover,
+#panel-trigger.is-hit {
+  color: var(--accent);
+  background: rgba(0, 0, 0, 0.46);
+}
+
+#control-panel {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 100;
+  width: min(380px, calc(100vw - 20px));
+  max-width: calc(100vw - 20px);
+  max-height: calc(100dvh - 20px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 12px;
+  border: 1px solid rgba(145, 197, 58, 0.22);
+  border-radius: 14px;
+  color: #eee;
+  background: linear-gradient(180deg, rgba(26, 21, 50, 0.94), var(--panel-bg));
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.52),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+  opacity: var(--panel-opacity);
+  font: 11px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  touch-action: pan-x pan-y;
+}
+
+#panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  margin-bottom: 10px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+#panel-version {
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 400;
+  margin-left: 4px;
+}
+
+#toggle-panel {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  color: white;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  font: inherit;
+}
+
+#panel-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 8px;
+  overflow: hidden;
+}
+
+#panel-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 6px;
+  width: 104px;
+  min-width: 104px;
+  padding: 4px 6px 8px 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-right: 1px solid rgba(145, 197, 58, 0.18);
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-gutter: stable;
+}
+
+.panel-tab {
+  width: 100%;
+  padding: 8px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.84);
+  background: rgba(255, 255, 255, 0.05);
+  text-align: left;
+  font: inherit;
+  line-height: 1.3;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.panel-tab.is-active {
+  color: var(--accent);
+  border-color: rgba(145, 197, 58, 0.36);
+  background: linear-gradient(180deg, var(--accent-soft), rgba(94, 85, 162, 0.18));
+}
+
+#panel-content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  gap: 8px;
+  overflow-y: auto;
+  padding-right: 8px;
+  padding-bottom: 12px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-gutter: stable;
+}
+
+.panel-group {
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+/* 单分组可见：未激活直接隐藏，避免页面滚动堆叠。 */
+.panel-group:not([open]) {
+  display: none;
+}
+
+.panel-group[open] {
+  flex: 1 1 auto;
+  min-height: 0;
+  border-color: rgba(145, 197, 58, 0.22);
+  background: rgba(15, 12, 30, 0.72);
+}
+
+/* summary 留作 tab 文本源，但不显示在右侧内容里。 */
+.panel-group summary {
+  display: none;
+}
+
+.panel-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.panel-row:last-child {
+  border-bottom: none;
+}
+
+.panel-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.panel-row-header span:last-child {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+#control-panel input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  touch-action: pan-x;
+}
+
+#control-panel input[type="color"] {
+  width: 100%;
+  min-height: 32px;
+  padding: 2px;
+  border: 1px solid rgba(145, 197, 58, 0.35);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.panel-number,
+.panel-text,
+.panel-select {
+  width: 100%;
+  min-height: 28px;
+  padding: 5px 8px;
+  border: 1px solid rgba(145, 197, 58, 0.35);
+  border-radius: 5px;
+  outline: none;
+  color: #e7f3c8;
+  background: rgba(0, 0, 0, 0.35);
+  font: inherit;
+}
+
+.panel-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel-actions {
+  display: flex;
+  flex-direction: row !important;
+  gap: 6px;
+}
+
+.panel-actions button,
+.panel-row button {
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  color: white;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  font: inherit;
+  touch-action: manipulation;
+}
+
+.panel-actions button {
+  flex: 1;
+}
+
+/* 曲线编辑器子组件 */
+.bezier-panel {
+  padding: 8px;
+  border: 1px solid rgba(145, 197, 58, 0.2);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.bezier-header,
+.bezier-scales,
+.bezier-presets {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.bezier-header {
+  justify-content: space-between;
+}
+
+.bezier-scales label {
+  flex: 1;
+}
+
+.bezier-scales span {
+  display: block;
+  margin-bottom: 3px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.bezier-presets button {
+  flex: 1;
+  min-width: 0;
+  padding-inline: 4px;
+}
+
+.bezier-canvas {
+  width: 100%;
+  height: 150px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  touch-action: none;
+  display: block;
+}
+
+@media (max-width: 460px) {
+  #control-panel {
+    top: 8px;
+    left: 8px;
+    width: min(380px, calc(100vw - 16px));
+    max-height: calc(100dvh - 16px);
+    padding: 10px;
+  }
+
+  #panel-tabs {
+    width: 86px;
+    min-width: 86px;
+  }
+
+  .panel-tab {
+    padding: 6px;
+    font-size: 10px;
+  }
+}

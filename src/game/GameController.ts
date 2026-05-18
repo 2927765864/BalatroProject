@@ -179,7 +179,11 @@ export class GameController {
     CardFx.moveTo(
       this.tween,
       view,
-      { x: view.x, y: view.y - 10, rotation: view.rotation },
+      {
+        x: view.x,
+        y: view.y - GameConfig.animation.hoverLiftPx,
+        rotation: view.rotation,
+      },
       120
     );
   }
