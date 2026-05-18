@@ -198,7 +198,8 @@ export class GameController {
     this.store.setState({ currentResult: result });
 
     this.hud.scorePanel.setHandName(result.handType);
-    this.hud.scorePanel.setChipsMult(result.totalChips, result.mult);
+    // HUD 预览只显示牌型对应的基础筹码与倍率，不计入所选牌的点数
+    this.hud.scorePanel.setChipsMult(result.baseChips, result.mult);
     this.hud.scorePanel.setExpectScore(result.score);
 
     this.updateButtons();

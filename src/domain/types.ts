@@ -54,7 +54,7 @@ export interface CardData {
 
 export type HandTypeName =
   | "高牌"
-  | "一对"
+  | "对子"
   | "两对"
   | "三条"
   | "顺子"
@@ -69,6 +69,8 @@ export interface HandTypeInfo {
   name: HandTypeName;
   chips: number;
   mult: number;
+  /** 该牌型下参与计分的牌（用于累加每张牌自身的 chips） */
+  scoringCards: readonly CardData[];
 }
 
 export interface ScoreResult {

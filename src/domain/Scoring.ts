@@ -4,7 +4,8 @@ import { evaluateHand } from "./HandEvaluator";
 /**
  * 计分管线
  *
- * 当前实现：base + 每张牌自身 chips，再乘 mult。
+ * 当前实现：base + 参与计分的牌（scoringCards）自身 chips，再乘 mult。
+ * 未参与构成牌型的"打酱油"牌（如三条里的两张杂牌）不计入 chips。
  *
  * 未来插入点（保留接口形态以便后续扩展）：
  *   - beforeEvaluate(cards)         // 小丑牌可加倍/修改牌型
@@ -15,7 +16,7 @@ import { evaluateHand } from "./HandEvaluator";
  */
 export function calculateScore(cards: readonly CardData[]): ScoreResult {
   const info = evaluateHand(cards);
-  const cardChips = cards.reduce((s, c) => s + c.chips, 0);
+  const cardChips = info.scoringCards.reduce((s, c) => s + c.chips, 0);
   const totalChips = info.chips + cardChips;
   return {
     handType: info.name,
