@@ -1,0 +1,21 @@
+{
+  "name": "balatro-project",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PixiJS v8 + WebGPU implementation of a Balatro-like poker roguelike (refactored skeleton).",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pixi.js": "^8.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  }
+}

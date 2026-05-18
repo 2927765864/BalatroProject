@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# build artifacts
+dist/
+.vite/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
+
+# env
+.env
+.env.*
+!.env.example
