@@ -2,6 +2,7 @@ import type { Container } from "pixi.js";
 import { Text } from "pixi.js";
 import type { TweenManager } from "@tween/TweenManager";
 import { Easing } from "@tween/Easing";
+import { Theme } from "@ui/theme";
 
 /**
  * 文字视效（占位起步）
@@ -26,7 +27,7 @@ export const TextFx = {
     const t = new Text({
       text: opts.text,
       style: {
-        fontFamily: "Microsoft YaHei",
+        fontFamily: Theme.fontFamily,
         fontSize: opts.fontSize ?? 32,
         fill: opts.color ?? 0xffffff,
         fontWeight: "bold",

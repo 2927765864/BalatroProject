@@ -1,5 +1,7 @@
-import { Container, Graphics, Text } from "pixi.js";
+import { Graphics } from "pixi.js";
 import { Theme } from "../theme";
+import { UINode } from "@ui/hierarchy";
+import { UIText } from "./UIText";
 
 /**
  * 通用按钮（状态机：normal / hover / down / disabled）
@@ -11,6 +13,10 @@ import { Theme } from "../theme";
 export type ButtonState = "normal" | "hover" | "down" | "disabled";
 
 export interface ButtonOptions {
+  /** UI Hierarchy 中的稳定 id。 */
+  id: string;
+  /** Hierarchy 中显示的名字。 */
+  displayName: string;
   text: string;
   width?: number;
   height?: number;
@@ -19,9 +25,9 @@ export interface ButtonOptions {
   onClick: () => void;
 }
 
-export class Button extends Container {
+export class Button extends UINode {
   private readonly g = new Graphics();
-  private readonly labelText: Text;
+  private readonly labelText: UIText;
   private state: ButtonState = "normal";
 
   private readonly w: number;
@@ -31,14 +37,18 @@ export class Button extends Container {
   private enabled = true;
 
   constructor(opts: ButtonOptions) {
-    super();
+    super({ id: opts.id, displayName: opts.displayName });
     this.w = opts.width ?? 140;
     this.h = opts.height ?? 60;
     this.idleColor = opts.idleColor ?? Theme.colors.btnIdle;
     this.activeColor = opts.activeColor ?? Theme.colors.playBtn;
 
     this.addChild(this.g);
-    this.labelText = new Text({
+    // Button 内文字独立成 UIText 节点，于是在 Hierarchy 里能看见 "出牌按钮 > 文字"。
+    // 注意 id 必须依赖外部传入的 opts.id，否则多按钮会冲突。
+    this.labelText = new UIText({
+      id: `${opts.id}.label`,
+      displayName: "文字",
       text: opts.text,
       style: {
         fontFamily: Theme.fontFamily,
@@ -47,7 +57,7 @@ export class Button extends Container {
         fontWeight: "bold",
       },
     });
-    this.labelText.anchor.set(0.5);
+    this.labelText.setAnchor(0.5);
     this.labelText.position.set(this.w / 2, this.h / 2);
     this.addChild(this.labelText);
 

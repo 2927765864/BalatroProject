@@ -1,12 +1,20 @@
-import { Container, Graphics } from "pixi.js";
+import { Graphics } from "pixi.js";
+import { UINode } from "@ui/hierarchy";
 
 /**
  * 通用圆角面板
  *
  * 不持有逻辑，只负责绘制矩形 + 圆角 + 可选描边。
  * 通过 setSize 支持运行时改尺寸（layout 阶段使用）。
+ *
+ * 继承自 UINode：构造时必须传入稳定的 hierarchy id 与显示名，
+ * 这样它会自动出现在调参面板的 Hierarchy 树里。
  */
 export interface PanelOptions {
+  /** UI Hierarchy 中的稳定 id，例如 "hud.leftPanel"。 */
+  id: string;
+  /** Hierarchy 中显示的名字。 */
+  displayName: string;
   width: number;
   height: number;
   fill: number;
@@ -15,12 +23,12 @@ export interface PanelOptions {
   borderWidth?: number;
 }
 
-export class Panel extends Container {
+export class Panel extends UINode {
   private readonly g = new Graphics();
   private opts: PanelOptions;
 
   constructor(opts: PanelOptions) {
-    super();
+    super({ id: opts.id, displayName: opts.displayName });
     this.opts = opts;
     this.addChild(this.g);
     this.redraw();

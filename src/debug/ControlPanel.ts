@@ -29,6 +29,8 @@ import {
 } from "@game/config";
 import { assets } from "@core/AssetManager";
 import { CardAtlas } from "@render/CardSkin";
+import { HierarchyView } from "./HierarchyView";
+import type { Container } from "pixi.js";
 
 // ===== 类型 =========================================================
 
@@ -45,6 +47,11 @@ export interface SetupControlPanelOptions {
    * 当 preset 整体载入时会以 key = "*" 触发，value = CONFIG。
    */
   onChange?: ConfigChangeHandler;
+  /**
+   * 世界根 Container。
+   * "界面UI"分组里的 Hierarchy 视图需要它来处理"拖到空白处"的 reparent 操作。
+   */
+  worldRoot?: Container;
 }
 
 export interface ControlPanelHandle {
@@ -100,7 +107,7 @@ function hexColorToNumber(hex: string): number {
 export function setupControlPanel(
   options: SetupControlPanelOptions = {},
 ): ControlPanelHandle {
-  const { onChange = () => {} } = options;
+  const { onChange = () => {}, worldRoot } = options;
 
   const panelEl = document.getElementById("control-panel") as HTMLElement | null;
   const trigger = document.getElementById("panel-trigger");
@@ -450,6 +457,7 @@ export function setupControlPanel(
       if (tapCount >= requiredTaps) {
         reset();
         panel.style.display = "flex";
+        clampPanelToViewport();
       }
     };
 
@@ -465,6 +473,125 @@ export function setupControlPanel(
         hit();
       }
     });
+  }
+
+  // ---- 面板拖动 ----
+
+  let dragState: {
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    startLeft: number;
+    startTop: number;
+    nextLeft: number;
+    nextTop: number;
+    width: number;
+    height: number;
+    frameId: number | null;
+  } | null = null;
+  let dragHeader: HTMLElement | null = null;
+
+  function schedulePanelMove(): void {
+    if (!dragState) return;
+    if (dragState.frameId !== null) return;
+
+    dragState.frameId = window.requestAnimationFrame(() => {
+      if (!dragState) return;
+      dragState.frameId = null;
+      const x = dragState.nextLeft - dragState.startLeft;
+      const y = dragState.nextTop - dragState.startTop;
+      panel.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    });
+  }
+
+  function clampPanelToViewport(): void {
+    if (panel.style.display === "none") return;
+
+    const rect = panel.getBoundingClientRect();
+    const maxLeft = Math.max(0, window.innerWidth - rect.width);
+    const maxTop = Math.max(0, window.innerHeight - rect.height);
+    const left = Math.min(Math.max(0, rect.left), maxLeft);
+    const top = Math.min(Math.max(0, rect.top), maxTop);
+
+    panel.style.right = "auto";
+    panel.style.bottom = "auto";
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+  }
+
+  const onPanelDragMove = (event: PointerEvent): void => {
+    if (!dragState || event.pointerId !== dragState.pointerId) return;
+    event.preventDefault();
+
+    const maxLeft = Math.max(0, window.innerWidth - dragState.width);
+    const maxTop = Math.max(0, window.innerHeight - dragState.height);
+    dragState.nextLeft = Math.min(
+      Math.max(0, dragState.startLeft + event.clientX - dragState.startClientX),
+      maxLeft,
+    );
+    dragState.nextTop = Math.min(
+      Math.max(0, dragState.startTop + event.clientY - dragState.startClientY),
+      maxTop,
+    );
+    schedulePanelMove();
+  };
+
+  const stopPanelDrag = (event?: PointerEvent): void => {
+    if (!dragState) return;
+    if (event && event.pointerId !== dragState.pointerId) return;
+
+    const { pointerId, nextLeft, nextTop, frameId } = dragState;
+    if (frameId !== null) window.cancelAnimationFrame(frameId);
+    dragState = null;
+    panel.style.left = `${nextLeft}px`;
+    panel.style.top = `${nextTop}px`;
+    panel.style.transform = "";
+    panel.classList.remove("is-dragging");
+    if (dragHeader?.hasPointerCapture?.(pointerId)) {
+      dragHeader.releasePointerCapture(pointerId);
+    }
+  };
+
+  const onPanelDragStart = (event: PointerEvent): void => {
+    if (event.button !== 0) return;
+    if ((event.target as HTMLElement | null)?.closest("button, input, select, textarea, a")) {
+      return;
+    }
+
+    const rect = panel.getBoundingClientRect();
+    dragState = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startLeft: rect.left,
+      startTop: rect.top,
+      nextLeft: rect.left,
+      nextTop: rect.top,
+      width: rect.width,
+      height: rect.height,
+      frameId: null,
+    };
+    panel.style.right = "auto";
+    panel.style.bottom = "auto";
+    panel.style.left = `${rect.left}px`;
+    panel.style.top = `${rect.top}px`;
+    panel.style.transform = "";
+    panel.classList.add("is-dragging");
+    event.preventDefault();
+    dragHeader?.setPointerCapture?.(event.pointerId);
+  };
+
+  function setupPanelDrag(): void {
+    const header = document.getElementById("panel-header");
+    if (!header) return;
+
+    dragHeader = header;
+    header.addEventListener("pointerdown", onPanelDragStart);
+    header.addEventListener("pointermove", onPanelDragMove, { passive: false });
+    header.addEventListener("pointerup", stopPanelDrag);
+    header.addEventListener("pointercancel", stopPanelDrag);
+
+    window.addEventListener("resize", clampPanelToViewport);
   }
 
   // ---- Preset 系统 ----
@@ -692,15 +819,32 @@ export function setupControlPanel(
 
   setupTabs();
   setupHiddenTrigger();
+  setupPanelDrag();
   setupPresets();
   refreshAllControls();
+
+  // 界面UI 分组：渲染 Hierarchy 树（依赖 worldRoot）。
+  let hierarchyView: HierarchyView | null = null;
+  const treeMount = document.getElementById("ui-hierarchy-tree");
+  if (treeMount && worldRoot) {
+    hierarchyView = new HierarchyView({ mount: treeMount, worldRoot });
+  } else if (treeMount && !worldRoot) {
+    treeMount.textContent = "（未注入 worldRoot，Hierarchy 视图不可用）";
+  }
 
   return {
     refresh: refreshAllControls,
     destroy(): void {
+      hierarchyView?.destroy();
       for (const name of eventsToStop) {
         panel.removeEventListener(name, stopEvent);
       }
+      dragHeader?.removeEventListener("pointerdown", onPanelDragStart);
+      dragHeader?.removeEventListener("pointermove", onPanelDragMove);
+      dragHeader?.removeEventListener("pointerup", stopPanelDrag);
+      dragHeader?.removeEventListener("pointercancel", stopPanelDrag);
+      window.removeEventListener("resize", clampPanelToViewport);
+      stopPanelDrag();
     },
   };
 }

@@ -1,9 +1,9 @@
-import { Container } from "pixi.js";
 import { Theme } from "./theme";
 import { Panel } from "./components/Panel";
 import { Button } from "./components/Button";
 import { ScorePanel } from "./components/ScorePanel";
 import { DeckView } from "@render/DeckView";
+import { UINode } from "@ui/hierarchy";
 
 /**
  * HUD：左侧侧栏 + 底部按钮 + 牌堆位置
@@ -21,7 +21,7 @@ export interface HUDOptions {
   onDiscard: () => void;
 }
 
-export class HUD extends Container {
+export class HUD extends UINode {
   private readonly leftPanel: Panel;
   readonly scorePanel: ScorePanel;
   readonly playBtn: Button;
@@ -35,13 +35,15 @@ export class HUD extends Container {
   readonly handBaseY: number;
 
   constructor(opts: HUDOptions) {
-    super();
+    super({ id: "hud", displayName: "HUD" });
     const { worldWidth, worldHeight } = opts;
 
     const sidebarWidth = 280;
 
     // 左侧深色面板背景
     this.leftPanel = new Panel({
+      id: "hud.leftPanel",
+      displayName: "左侧侧栏",
       width: sidebarWidth,
       height: worldHeight,
       fill: Theme.colors.panelDark,
@@ -58,6 +60,8 @@ export class HUD extends Container {
     const bottomY = worldHeight - 80;
 
     this.playBtn = new Button({
+      id: "hud.playBtn",
+      displayName: "出牌按钮",
       text: "出牌",
       width: 140,
       height: 60,
@@ -68,6 +72,8 @@ export class HUD extends Container {
     this.addChild(this.playBtn);
 
     this.discardBtn = new Button({
+      id: "hud.discardBtn",
+      displayName: "弃牌按钮",
       text: "弃牌",
       width: 140,
       height: 60,

@@ -73,6 +73,20 @@
   margin-bottom: 10px;
   color: var(--accent);
   font-weight: 700;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#control-panel.is-dragging #panel-header {
+  cursor: grabbing;
+}
+
+#control-panel.is-dragging {
+  will-change: transform;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 #panel-version {
@@ -90,6 +104,7 @@
   background: rgba(255, 255, 255, 0.08);
   cursor: pointer;
   font: inherit;
+  touch-action: manipulation;
 }
 
 #panel-body {
@@ -355,6 +370,192 @@
   background: rgba(0, 0, 0, 0.35);
   touch-action: none;
   display: block;
+}
+
+/* =====================================================
+ * UI Hierarchy 视图
+ * ===================================================== */
+.ui-hier-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+}
+
+.ui-hier-empty {
+  padding: 8px;
+  color: rgba(255, 255, 255, 0.45);
+  text-align: center;
+}
+
+.ui-hier-node {
+  display: flex;
+  flex-direction: column;
+}
+
+.ui-hier-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px 4px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+}
+
+.ui-hier-header:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ui-hier-header.is-dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+/* 拖拽提示线：放兄弟前 / 放兄弟后 / 放进去 */
+.ui-hier-header.drop-before::before,
+.ui-hier-header.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.ui-hier-header.drop-before::before { top: -1px; }
+.ui-hier-header.drop-after::after { bottom: -1px; }
+.ui-hier-header.drop-inside {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ui-hier-arrow {
+  display: inline-block;
+  width: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: center;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.ui-hier-name {
+  flex: 1;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-hier-handle {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 12px;
+  cursor: grab;
+  padding: 0 2px;
+}
+
+.ui-hier-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0 6px 0;
+}
+
+.ui-hier-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ---- 组件卡片 ---- */
+.ui-comp-card {
+  border: 1px solid rgba(145, 197, 58, 0.18);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.ui-comp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  background: rgba(145, 197, 58, 0.12);
+}
+
+.ui-comp-title {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ui-comp-del {
+  padding: 2px 8px !important;
+  min-height: 0 !important;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.65) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.ui-comp-del:hover {
+  color: #ff8080 !important;
+}
+
+.ui-comp-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+}
+
+.ui-comp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ui-comp-row-label {
+  width: 78px;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 10px;
+}
+
+.ui-comp-row input.panel-number,
+.ui-comp-row input[type="number"] {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px !important;
+  min-height: 24px !important;
+}
+
+.ui-comp-row select.panel-select {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px !important;
+  min-height: 24px !important;
+}
+
+.ui-comp-error {
+  padding: 6px 8px;
+  color: #ff9090;
+  font-size: 10px;
+}
+
+.ui-comp-add {
+  padding: 2px 0;
+}
+
+.ui-comp-add select {
+  min-height: 26px !important;
 }
 
 @media (max-width: 460px) {

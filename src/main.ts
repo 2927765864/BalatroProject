@@ -2,6 +2,7 @@ import { App } from "@core/App";
 import { assets } from "@core/AssetManager";
 import { GameController } from "@game/GameController";
 import { CONFIG, loadSavedConfig } from "@game/config";
+import { uiHierarchy } from "@ui/hierarchy";
 import { setupControlPanel } from "@/debug/ControlPanel";
 
 /**
@@ -38,9 +39,16 @@ async function bootstrap(): Promise<void> {
 
   // 安装运行时调参面板。onChange 里集中处理"哪些参数需要主动 apply"。
   setupControlPanel({
+    worldRoot: app.worldRoot,
     onChange(key) {
       // 大部分参数（手牌数、动画时长、hoverLift...）都是业务每次执行时
       // 直接读 CONFIG.xxx，改完即生效。这里只处理少数需要主动通知引擎的：
+
+      // preset 整体载入：CONFIG.uiNodes 整张表被换了，需要把 hierarchy 也同步回灌。
+      if (key === "*") {
+        uiHierarchy.hydrateFromConfig(app.worldRoot);
+      }
+
       if (key === "*" || key === "world.backgroundColor") {
         try {
           // PixiJS v8: renderer.background.color 是 Color 对象，

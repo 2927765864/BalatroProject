@@ -1,6 +1,8 @@
-import { Container, Graphics, Sprite, Text } from "pixi.js";
+import { Container, Graphics, Sprite } from "pixi.js";
 import { assets } from "@core/AssetManager";
 import { CONFIG } from "@game/config";
+import { UINode } from "@ui/hierarchy";
+import { UIText } from "@ui/components/UIText";
 import { CardSkin } from "./CardSkin";
 import { getPixelOutlineTexture } from "./PixelOutlineTexture";
 
@@ -17,19 +19,21 @@ import { getPixelOutlineTexture } from "./PixelOutlineTexture";
  * 牌背是会被运行时切换的（ControlPanel 里能选行列）。所以 refresh() 会被外部调用，
  * 它把整层 children 清空再重画一遍——成本可以忽略，因为一帧只有一个 DeckView。
  */
-export class DeckView extends Container {
+export class DeckView extends UINode {
   private readonly cardLayer = new Container();
-  private readonly countText: Text;
+  private readonly countText: UIText;
   private readonly totalCount: number;
 
   constructor(totalCount = 52) {
-    super();
+    super({ id: "hud.deckView", displayName: "牌堆" });
     this.totalCount = totalCount;
 
     this.addChild(this.cardLayer);
     this.drawStack();
 
-    this.countText = new Text({
+    this.countText = new UIText({
+      id: "hud.deckView.countText",
+      displayName: "牌堆数量文字",
       text: `${totalCount}/${totalCount}`,
       style: {
         fontFamily: CardSkin.fontFamily,
@@ -38,14 +42,14 @@ export class DeckView extends Container {
         fontWeight: "900",
       },
     });
-    this.countText.anchor.set(0.5, 0);
+    this.countText.setAnchor(0.5, 0);
     this.countText.position.set(CardSkin.width / 2, CardSkin.height + 8);
     this.addChild(this.countText);
   }
 
   /** 牌数变化时由 GameController 调用。 */
   setCount(current: number): void {
-    this.countText.text = `${current}/${this.totalCount}`;
+    this.countText.setText(`${current}/${this.totalCount}`);
   }
 
   /** 外部切换牌背后调用：清掉旧层重画一摞。 */

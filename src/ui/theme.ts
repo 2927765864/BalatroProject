@@ -1,11 +1,13 @@
+import { GameFonts } from "./fonts";
+
 /**
  * UI 全局主题
  *
  * 颜色、字号、字体一处定义，方便未来做"换肤"或与卡牌皮肤联动。
  */
 export const Theme = {
-  fontFamily: "Microsoft YaHei",
-  monoFont: "Arial",
+  fontFamily: GameFonts.textStack,
+  monoFont: GameFonts.numberStack,
 
   colors: {
     panelDark: 0x2b2d31,

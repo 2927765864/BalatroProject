@@ -1,3 +1,5 @@
+import { GameFonts } from "@ui/fonts";
+
 /**
  * 卡牌的静态视觉参数（尺寸、字体）
  *
@@ -19,7 +21,7 @@ export const CardSkin = {
   // 字体
   cornerFontSize: 20,
   centerFontSize: 46,
-  fontFamily: "'Jersey 10', 'VT323', monospace",
+  fontFamily: GameFonts.numberStack,
 
   // 选中弹起像素数（世界坐标）
   selectedRiseY: 30,

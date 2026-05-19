@@ -10,6 +10,7 @@ import type { CardData, ScoreResult, HandTypeName } from "@domain/types";
 import { CardView } from "@render/CardView";
 import { computeHandLayout } from "@render/HandLayout";
 import { HUD } from "@ui/HUD";
+import { uiHierarchy } from "@ui/hierarchy";
 import { CardFx } from "@fx/CardFx";
 import { GameConfig } from "./config";
 import type { GameEvents } from "./events";
@@ -86,6 +87,10 @@ export class GameController {
     });
     this.hud.zIndex = Layers.UI;
     this.app.worldRoot.addChild(this.hud);
+
+    // HUD 及其后代此时都已注册到 UI Hierarchy。
+    // 调一次 hydrate：把 CONFIG.uiNodes 里存档的父子顺序 / transform / 组件灌回去。
+    uiHierarchy.hydrateFromConfig(this.app.worldRoot);
 
     // 把 tween 接入 app 的更新循环
     this.app.onUpdate((dtMS) => this.tween.update(dtMS));

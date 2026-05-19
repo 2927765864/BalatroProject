@@ -17,6 +17,7 @@
 import { Assets, Rectangle, Texture } from "pixi.js";
 import type { Rank, Suit } from "@domain/types";
 import { CardAtlas } from "@render/CardSkin";
+import { GameFonts } from "@ui/fonts";
 
 const FRONT_URL = new URL(
   "../../resources/textures/8BitDeck_opt2.png",
@@ -25,6 +26,11 @@ const FRONT_URL = new URL(
 
 const BACK_URL = new URL(
   "../../resources/textures/Enhancers.png",
+  import.meta.url,
+).href;
+
+const NUMBER_FONT_URL = new URL(
+  "../../resources/fonts/m6x11plus.ttf",
   import.meta.url,
 ).href;
 
@@ -48,6 +54,8 @@ export class AssetManager {
     if (this.loaded) return;
 
     try {
+      await this.loadNumberFont();
+
       // 加载时直接指明 scaleMode=nearest，PIXI 会在创建 source 阶段就用最近邻
       // 采样上传到 GPU。再加 autoGenerateMipmaps:false 防止缩小时被 mipmap 糊掉。
       // 像素美术的"清晰锐利"取决于这两项 + 上层 antialias:false（已在 App 里设）。
@@ -121,6 +129,23 @@ export class AssetManager {
     source.autoGenerateMipmaps = false;
     // 触发 styleChange，让渲染器重新绑定 sampler。
     source.style.update();
+  }
+
+  private async loadNumberFont(): Promise<void> {
+    if (typeof FontFace === "undefined" || typeof document === "undefined") return;
+
+    try {
+      const alreadyLoaded = Array.from(document.fonts).some(
+        (font) => font.family === GameFonts.numberFamily && font.status === "loaded",
+      );
+      if (alreadyLoaded) return;
+
+      const face = new FontFace(GameFonts.numberFamily, `url(${NUMBER_FONT_URL})`);
+      const loadedFace = await face.load();
+      document.fonts.add(loadedFace);
+    } catch (err) {
+      console.warn("[AssetManager] 加载数字字体失败：", err);
+    }
   }
 
   private sliceFront(source: Texture): void {

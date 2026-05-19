@@ -12,6 +12,19 @@
 
 export const CONFIG_VERSION = 1;
 
+/**
+ * 单个 UI 节点的可持久化数据。
+ * UIHierarchy 序列化后写到 CONFIG.uiNodes[id] 上。
+ */
+export interface UINodeSerialized {
+  /** 父节点 id；null = 直接挂在 worldRoot 上。 */
+  parentId: string | null;
+  /** 在父下的兄弟顺序（PIXI children 数组下标）。 */
+  siblingIndex: number;
+  /** 节点上的所有组件序列化数据（含 transform）。 */
+  components: Array<{ type: string; data: Record<string, unknown> }>;
+}
+
 export interface BezierCurveConfig {
   enabled: boolean;
   startScale: number;
@@ -73,6 +86,12 @@ export interface RuntimeConfig {
   };
   /** 可选：示例语义曲线，留作扩展（如未来按 combo 数缩放某个倍率） */
   scoreCurve: BezierCurveConfig;
+  /**
+   * UI 节点持久化表。键是 UINode.nodeId。
+   * 由 UIHierarchy 维护：任何 transform 变化、组件增删、父子重排都会回写这里。
+   * 老 preset 没这字段是合法的——首次启动后会被 hierarchy 自动填充。
+   */
+  uiNodes?: Record<string, UINodeSerialized>;
 }
 
 /**
@@ -119,6 +138,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     p1: { x: 0.42, y: 0 },
     p2: { x: 0.58, y: 1 },
   }),
+  uiNodes: {},
 }) as RuntimeConfig;
 
 /**
@@ -149,7 +169,27 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
       p1: { ...src.scoreCurve.p1 },
       p2: { ...src.scoreCurve.p2 },
     },
+    uiNodes: cloneUINodes(src.uiNodes),
   };
+}
+
+/** 深拷贝 uiNodes 表（避免外部对运行时 CONFIG.uiNodes 的引用污染默认值）。 */
+function cloneUINodes(
+  src: RuntimeConfig["uiNodes"],
+): RuntimeConfig["uiNodes"] {
+  if (!src) return {};
+  const out: NonNullable<RuntimeConfig["uiNodes"]> = {};
+  for (const [id, node] of Object.entries(src)) {
+    out[id] = {
+      parentId: node.parentId,
+      siblingIndex: node.siblingIndex,
+      components: node.components.map((c) => ({
+        type: c.type,
+        data: { ...c.data },
+      })),
+    };
+  }
+  return out;
 }
 
 /**
@@ -193,6 +233,9 @@ export function applyConfig(source: unknown): void {
       p2: { ...merged.scoreCurve.p2, ...(incoming.scoreCurve.p2 ?? {}) },
     };
   }
+  // uiNodes：preset 里没带就清空（让 hierarchy 自己重新捕获默认值），
+  // 带了就整张表替换（这一表内部条目相互依赖，不适合按字段合并）。
+  merged.uiNodes = cloneUINodes(incoming.uiNodes ?? {});
 
   // 就地写回，保留外部对 CONFIG 的引用稳定。
   CONFIG.world = merged.world;
@@ -201,6 +244,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.debug = merged.debug;
   CONFIG.cardArt = merged.cardArt;
   CONFIG.scoreCurve = merged.scoreCurve;
+  CONFIG.uiNodes = merged.uiNodes;
 }
 
 /** 把 CONFIG 重置为 DEFAULT_CONFIG。 */
