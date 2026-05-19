@@ -34,6 +34,11 @@ class UIHierarchyImpl {
   /** 订阅者集合（ControlPanel 内的 hierarchy view）。 */
   private readonly listeners = new Set<HierarchyListener>();
   /**
+   * 首次 hydrate 完成前，节点仍在逐个注册。
+   * 此时写回 CONFIG.uiNodes 会用“尚未完整注册的树”覆盖已读取的本地存档。
+   */
+  private hydratedOnce = false;
+  /**
    * 静默模式：hydrateFromConfig 等批量重建 hierarchy 状态期间打开，
    * 跳过 persist 写回 + 暂缓向 listener 派发"tree"重绘信号，
    * 避免反序列化过程中把"还没完成同步"的中间态写回 CONFIG。
@@ -62,7 +67,7 @@ class UIHierarchyImpl {
       this.silent = wasSilent;
     }
 
-    if (!this.silent) this.persist();
+    if (!this.silent && this.hydratedOnce) this.persist();
     this.emit("nodeAdded", node);
     this.emit("tree");
   }
@@ -188,6 +193,7 @@ class UIHierarchyImpl {
     const target = newParent ?? worldRoot;
     if (child.parent === target) return;
     target.addChild(child);
+    this.normalizeRenderOrder(worldRoot);
     this.emit("nodeReparented", child);
     this.emit("tree");
     this.persist();
@@ -211,25 +217,84 @@ class UIHierarchyImpl {
     const parent = node.parent;
     if (!parent) return;
     const all = parent.children;
-    const oldIdx = all.indexOf(node);
+    if (!all.includes(node)) return;
+
+    // targetIndex 是 UINode 兄弟序列里的下标，不是 PIXI children 的绝对下标。
+    // 只重排 UINode 槽位，保持背景 Graphics 等父级内部显示对象停在原位置。
+    const slots: number[] = [];
+    const uiChildren: UINode[] = [];
+    all.forEach((child, index) => {
+      if (!this.isUINode(child)) return;
+      slots.push(index);
+      uiChildren.push(child as UINode);
+    });
+    const oldIdx = uiChildren.indexOf(node);
     if (oldIdx < 0) return;
-    const clamped = Math.max(0, Math.min(targetIndex, all.length - 1));
-    parent.setChildIndex(node, clamped);
+    uiChildren.splice(oldIdx, 1);
+    const clamped = Math.max(0, Math.min(targetIndex, uiChildren.length));
+    uiChildren.splice(clamped, 0, node);
+    uiChildren.forEach((child, index) => {
+      const slot = slots[index];
+      if (slot !== undefined) parent.setChildIndex(child, slot);
+    });
+    this.normalizeContainer(parent as import("pixi.js").Container);
     this.emit("nodeReordered", node);
     this.emit("tree");
     this.persist();
+  }
+
+  /**
+   * 统一渲染规则：
+   * - 同一层级：Hierarchy 里从上到下，就是 PIXI 里从先到后渲染；
+   * - 父子关系：父 UINode 自己的内部显示对象先渲染，UINode 子节点后渲染。
+   */
+  private normalizeRenderOrder(worldRoot: import("pixi.js").Container): void {
+    this.normalizeContainer(worldRoot);
+  }
+
+  private normalizeContainer(container: import("pixi.js").Container): void {
+    if (this.isUINode(container)) {
+      container.sortableChildren = false;
+      const uiChildren = container.children.filter((child) => this.isUINode(child));
+      for (const child of uiChildren) {
+        container.setChildIndex(child, container.children.length - 1);
+      }
+    }
+
+    for (const child of [...container.children]) {
+      if (this.isUINode(child)) {
+        this.normalizeContainer(child as import("pixi.js").Container);
+      }
+    }
+  }
+
+  private uiSiblingIndex(node: UINode): number {
+    const parent = node.parent;
+    if (!parent) return 0;
+    let index = 0;
+    for (const child of parent.children) {
+      if (!this.isUINode(child)) continue;
+      if (child === node) return index;
+      index += 1;
+    }
+    return index;
   }
 
   // ---- 组件变化（仅广播 + 持久化）-------------------------------
 
   notifyComponentsChanged(node: UINode): void {
     if (this.silent) return;
+    // 节点尚未 register（典型场景：UINode 子类 constructor 里调 addComponent）
+    // 此时它自己都还不在 this.nodes 里，去 persist 没有意义，反而可能让 persist
+    // 拿到“半成品”的兄弟顺序。等节点真正 register 时会自动写入 CONFIG.uiNodes。
+    if (!this.nodes.has(node.nodeId)) return;
     this.emit("componentsChanged", node);
     this.persist();
   }
 
   notifyTransformChanged(node: UINode): void {
     if (this.silent) return;
+    if (!this.nodes.has(node.nodeId)) return;
     this.emit("transformChanged", node);
     this.persist();
   }
@@ -319,6 +384,15 @@ class UIHierarchyImpl {
     }
 
     // 第二遍：每个父下兄弟按存档的 siblingIndex 排序（缺省值放最后）
+    //
+    // ⚠️ 重要：PIXI children 数组里除了 UINode 还可能混着"非 UINode 的子"
+    // （典型例子：Panel 内部 addChild 的背景 Graphics `g`）。如果直接对 UINode
+    // 用 setChildIndex(node, 0/1/2...)，会把那些非 UINode 子挤到数组末尾，
+    // 视觉上就是"背景被画到了最上面、把里面的文字/图标盖住"——这正是
+    // 之前"父盖子"的根本原因。
+    //
+    // 正确做法：把 UINode 子按存档顺序排好后，逐个放到"原本属于 UINode 的槽位"，
+    // 非 UINode 子保持它们当前在 children 中的位置不动。
     const byParent = new Map<unknown, Array<{ node: UINode; idx: number }>>();
     for (const id of Object.keys(data)) {
       const node = this.nodes.get(id);
@@ -330,26 +404,51 @@ class UIHierarchyImpl {
     }
     for (const [parent, list] of byParent.entries()) {
       list.sort((a, b) => a.idx - b.idx);
+      const container = parent as import("pixi.js").Container;
+      // 找出当前 children 数组里属于 UINode 的"槽位"（绝对下标，升序）。
+      // 注意：这些下标在 setChildIndex 期间会随着 UINode 子之间互相移动
+      // 而变化，但因为我们只在 UINode 之间互相重排、不动非 UINode 子，
+      // 所以"第 k 个 UINode 子所在的下标"始终等于 uiNodeSlots[k]。
+      const uiNodeSlots: number[] = [];
+      container.children.forEach((c, i) => {
+        if (this.isUINode(c)) uiNodeSlots.push(i);
+      });
       list.forEach(({ node }, i) => {
-        (parent as import("pixi.js").Container).setChildIndex(node, i);
+        const slot = uiNodeSlots[i];
+        if (slot === undefined) return;
+        container.setChildIndex(node, slot);
       });
     }
+
+    this.normalizeRenderOrder(worldRoot);
 
     // 第三遍：灌字段
     for (const node of this.nodes.values()) this.applyConfigToNode(node);
 
     this.silent = false;
+    this.hydratedOnce = true;
     this.persist();
     this.emit("tree");
   }
 
-  /** 把当前 hierarchy 状态写回 CONFIG.uiNodes。 */
+  /**
+   * 把当前 hierarchy 状态写回 CONFIG.uiNodes。
+   *
+   * 关键：在 hydrate 完成前，UINode 是按构造顺序逐个 register 的。期间任意一个节点
+   * 触发 notifyComponentsChanged / notifyTransformChanged 都会调到这里——但此时
+   * `this.nodes` 里只有“已 register 过的子集”。如果直接整张表覆盖写，就会把
+   *   - 还没 register 的节点（构造队列里排在后面的）的存档条目
+   *   - 通过 `hideInHierarchy` 等方式不参与 hierarchy 的节点
+   * 全部抹掉。
+   *
+   * 因此 persist 必须做“增量更新”：只覆盖已注册节点的条目，保留其余条目原样。
+   * 只有在 hydrateFromConfig 末尾（确认所有节点都注册完）才考虑“删掉孤儿条目”。
+   */
   persist(): void {
-    const out: Record<string, UINodeSerialized> = {};
+    const out: Record<string, UINodeSerialized> = { ...(CONFIG.uiNodes ?? {}) };
     for (const node of this.nodes.values()) {
       const parent = this.findNearestUINodeParent(node);
-      const siblingIndex =
-        node.parent ? node.parent.children.indexOf(node) : 0;
+      const siblingIndex = this.uiSiblingIndex(node);
       const components: SerializedComponent[] = node
         .listComponents()
         .map((c) => c.serialize());

@@ -10,6 +10,7 @@
  */
 import { UIComponent, type SerializedComponent } from "../UIComponent";
 import { uiHierarchy } from "../UIHierarchy";
+import { attachDragScrub } from "@/debug/dragScrub";
 
 const EASING_OPTIONS = [
   "linear",
@@ -69,6 +70,7 @@ export class TweenComponent extends UIComponent {
       input.min = "0";
       input.step = "10";
       input.value = String(this.data.duration);
+      attachDragScrub(input, { step: 10, min: 0, integer: true });
       input.addEventListener("input", () => {
         const v = Number(input.value);
         if (!Number.isFinite(v)) return;

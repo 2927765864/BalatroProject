@@ -16,6 +16,7 @@
  */
 
 import "./control-panel.css";
+import { attachDragScrub } from "./dragScrub";
 import {
   CONFIG,
   CONFIG_VERSION,
@@ -30,6 +31,7 @@ import {
 import { assets } from "@core/AssetManager";
 import { CardAtlas } from "@render/CardSkin";
 import { HierarchyView } from "./HierarchyView";
+import { uiHierarchy } from "@ui/hierarchy";
 import type { Container } from "pixi.js";
 
 // ===== 类型 =========================================================
@@ -144,10 +146,135 @@ export function setupControlPanel(
     } catch (err) {
       console.error("[ControlPanel] onChange 抛错：", err);
     }
+    recordHistory(key);
   }
 
   // 收集所有"按 CONFIG 当前值刷新自身"的回调，preset 加载后批量重跑。
   const syncers: Array<() => void> = [];
+
+  // ---- 参数历史：撤回 / 反撤回 -------------------------------
+
+  interface HistoryEntry {
+    key: string;
+    before: RuntimeConfig;
+    after: RuntimeConfig;
+    time: number;
+  }
+
+  const HISTORY_LIMIT = 100;
+  const HISTORY_MERGE_WINDOW_MS = 1000;
+  const undoStack: HistoryEntry[] = [];
+  const redoStack: HistoryEntry[] = [];
+  let lastHistorySnapshot = cloneConfig(CONFIG);
+  let applyingHistory = false;
+  let uiHistoryQueued = false;
+
+  function configFingerprint(config: RuntimeConfig): string {
+    return JSON.stringify(config);
+  }
+
+  function configsEqual(a: RuntimeConfig, b: RuntimeConfig): boolean {
+    return configFingerprint(a) === configFingerprint(b);
+  }
+
+  function recordHistory(key: string): void {
+    if (applyingHistory) return;
+
+    const after = cloneConfig(CONFIG);
+    if (configsEqual(lastHistorySnapshot, after)) return;
+
+    const now = performance.now();
+    const last = undoStack[undoStack.length - 1];
+    if (
+      last &&
+      key !== "*" &&
+      last.key === key &&
+      now - last.time <= HISTORY_MERGE_WINDOW_MS
+    ) {
+      last.after = after;
+      last.time = now;
+    } else {
+      undoStack.push({
+        key,
+        before: lastHistorySnapshot,
+        after,
+        time: now,
+      });
+      if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+    }
+
+    redoStack.length = 0;
+    lastHistorySnapshot = after;
+  }
+
+  function applyHistorySnapshot(snapshot: RuntimeConfig, message: string): void {
+    applyingHistory = true;
+    try {
+      applyConfig(snapshot);
+      refreshAllControls();
+      notify("*", CONFIG);
+      lastHistorySnapshot = cloneConfig(CONFIG);
+      flashMessage(message);
+    } finally {
+      applyingHistory = false;
+    }
+  }
+
+  function undoConfigChange(): void {
+    const entry = undoStack.pop();
+    if (!entry) {
+      flashMessage("没有可撤回的参数调整");
+      return;
+    }
+    redoStack.push(entry);
+    applyHistorySnapshot(entry.before, "已撤回参数调整");
+  }
+
+  function redoConfigChange(): void {
+    const entry = redoStack.pop();
+    if (!entry) {
+      flashMessage("没有可反撤回的参数调整");
+      return;
+    }
+    undoStack.push(entry);
+    applyHistorySnapshot(entry.after, "已反撤回参数调整");
+  }
+
+  function setupHistoryShortcuts(): () => void {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!event.ctrlKey || event.altKey || event.metaKey) return;
+      const key = event.key.toLowerCase();
+      if (key !== "z" && key !== "y") return;
+      if (getComputedStyle(panel).display === "none") return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      if (key === "z") undoConfigChange();
+      else redoConfigChange();
+    };
+
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
+  }
+
+  function setupHierarchyHistory(): () => void {
+    return uiHierarchy.subscribe((type) => {
+      if (
+        type !== "componentsChanged" &&
+        type !== "transformChanged" &&
+        type !== "nodeReparented" &&
+        type !== "nodeReordered"
+      ) {
+        return;
+      }
+      if (uiHistoryQueued) return;
+      uiHistoryQueued = true;
+      queueMicrotask(() => {
+        uiHistoryQueued = false;
+        recordHistory("uiNodes");
+      });
+    });
+  }
 
   // ---- 绑定助手 ----
 
@@ -214,6 +341,7 @@ export function setupControlPanel(
     sync();
     if (alreadyBound(input, path)) return;
     syncers.push(sync);
+    attachDragScrub(input, { digits, integer: opts.integer });
 
     input.addEventListener("input", (event) => {
       const raw = (event.target as HTMLInputElement).value;
@@ -368,8 +496,7 @@ export function setupControlPanel(
             setByPath(CONFIG, "cardArt.back.row", r);
             setByPath(CONFIG, "cardArt.back.col", c);
             sync();
-            notify("cardArt.back.row", r);
-            notify("cardArt.back.col", c);
+            notify("cardArt.back", CONFIG.cardArt.back);
           });
           container.appendChild(btn);
         }
@@ -643,6 +770,9 @@ export function setupControlPanel(
     const importInput = document.getElementById("inp-import-preset") as HTMLInputElement | null;
 
     document.getElementById("btn-save-config")?.addEventListener("click", () => {
+      // 主动 persist 一次，确保 hierarchy 当前最新状态被同步到 CONFIG.uiNodes
+      // 再写入 localStorage，避免“某些 hierarchy 变更没及时回写 CONFIG”导致丢失。
+      uiHierarchy.persist();
       saveCurrentConfig();
       flashMessage("已保存当前参数为本地默认");
     });
@@ -822,6 +952,8 @@ export function setupControlPanel(
   setupPanelDrag();
   setupPresets();
   refreshAllControls();
+  const removeHistoryShortcuts = setupHistoryShortcuts();
+  const removeHierarchyHistory = setupHierarchyHistory();
 
   // 界面UI 分组：渲染 Hierarchy 树（依赖 worldRoot）。
   let hierarchyView: HierarchyView | null = null;
@@ -833,9 +965,14 @@ export function setupControlPanel(
   }
 
   return {
-    refresh: refreshAllControls,
+    refresh(): void {
+      refreshAllControls();
+      lastHistorySnapshot = cloneConfig(CONFIG);
+    },
     destroy(): void {
       hierarchyView?.destroy();
+      removeHistoryShortcuts();
+      removeHierarchyHistory();
       for (const name of eventsToStop) {
         panel.removeEventListener(name, stopEvent);
       }

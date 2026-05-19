@@ -30,8 +30,22 @@ export class Panel extends UINode {
   constructor(opts: PanelOptions) {
     super({ id: opts.id, displayName: opts.displayName });
     this.opts = opts;
+    // Panel 的 Graphics 是实现细节背景，不应该参与用户调层级。
+    // 这里不用 sortableChildren，否则多层嵌套时同 zIndex 的父级内部 UI
+    // 可能在渲染排序后盖住用户拖进去的子 UINode。
+    this.g.zIndex = -1;
     this.addChild(this.g);
     this.redraw();
+
+    // 让背景始终位于 children 数组最底层（下标 0）。
+    // 否则当 Hierarchy 面板里用户把别的 UINode reparent 进来时，新子会被
+    // addChild 追加到末尾、画在背景之上是没问题，但 hydrate/reorder 会按
+    // siblingIndex 重新排，可能把背景挤到上面去——表现为"背板盖住了内容"。
+    this.on("childAdded", (child) => {
+      if (child !== this.g && this.children[0] !== this.g) {
+        this.setChildIndex(this.g, 0);
+      }
+    });
   }
 
   setSize(width: number, height: number): void {

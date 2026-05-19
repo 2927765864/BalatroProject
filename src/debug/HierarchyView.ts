@@ -40,6 +40,7 @@ export class HierarchyView {
   private readonly mount: HTMLElement;
   private readonly worldRoot: Container;
   private readonly expanded = new Set<string>();
+  private readonly expandedComponents = new Set<string>();
   /** 节流：在多个 hierarchy 事件接连发生时只重绘一次。 */
   private renderScheduled = false;
   private readonly unsubscribe: () => void;
@@ -170,10 +171,23 @@ export class HierarchyView {
 
   private renderComponent(node: UINode, comp: UIComponent): HTMLElement {
     const card = document.createElement("div");
-    card.className = "ui-comp-card";
+    const key = this.componentKey(node, comp);
+    const expanded = this.expandedComponents.has(key);
+    card.className = expanded ? "ui-comp-card is-open" : "ui-comp-card";
 
     const head = document.createElement("div");
     head.className = "ui-comp-head";
+    head.title = expanded ? "点击收起组件" : "点击展开组件";
+    head.addEventListener("click", () => {
+      if (this.expandedComponents.has(key)) this.expandedComponents.delete(key);
+      else this.expandedComponents.add(key);
+      this.scheduleRender();
+    });
+
+    const arrow = document.createElement("span");
+    arrow.className = "ui-comp-arrow";
+    arrow.textContent = expanded ? "▼" : "▶";
+    head.appendChild(arrow);
 
     const title = document.createElement("span");
     title.className = "ui-comp-title";
@@ -195,18 +209,24 @@ export class HierarchyView {
     }
     card.appendChild(head);
 
-    // 组件自身渲染
-    try {
-      const body = comp.buildInspector();
-      card.appendChild(body);
-    } catch (err) {
-      const errEl = document.createElement("div");
-      errEl.className = "ui-comp-error";
-      errEl.textContent = `inspector 抛错：${String(err)}`;
-      card.appendChild(errEl);
+    if (expanded) {
+      // 组件自身渲染
+      try {
+        const body = comp.buildInspector();
+        card.appendChild(body);
+      } catch (err) {
+        const errEl = document.createElement("div");
+        errEl.className = "ui-comp-error";
+        errEl.textContent = `inspector 抛错：${String(err)}`;
+        card.appendChild(errEl);
+      }
     }
 
     return card;
+  }
+
+  private componentKey(node: UINode, comp: UIComponent): string {
+    return `${node.nodeId}/${comp.type}`;
   }
 
   private renderAddComponent(node: UINode): HTMLElement {
@@ -315,8 +335,10 @@ export class HierarchyView {
     const targetParentUI =
       this.findUINodeAncestor(targetParent) /* 同级 UI 父，可能是 null=worldRoot */;
     uiHierarchy.reparent(src, targetParentUI, this.worldRoot);
-    // 计算新顺序
-    const siblings = targetParent.children;
+    // 计算 Hierarchy 同层顺序：面板里越靠上，PIXI 越先渲染，也就是越底层。
+    const siblings = (targetParentUI
+      ? uiHierarchy.childrenOf(targetParentUI)
+      : uiHierarchy.rootNodes()).filter((n) => n !== src);
     const targetIdx = siblings.indexOf(target);
     if (targetIdx < 0) return;
     const newIdx = zone === "before" ? targetIdx : targetIdx + 1;

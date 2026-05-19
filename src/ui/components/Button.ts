@@ -43,6 +43,9 @@ export class Button extends UINode {
     this.idleColor = opts.idleColor ?? Theme.colors.btnIdle;
     this.activeColor = opts.activeColor ?? Theme.colors.playBtn;
 
+    // 按钮背景也是实现细节，必须永远在按钮文字/用户子物体下方。
+    // 不启用 sortableChildren，避免嵌套子 UI 被按钮自身 UI 重新排序后遮挡。
+    this.g.zIndex = -1;
     this.addChild(this.g);
     // Button 内文字独立成 UIText 节点，于是在 Hierarchy 里能看见 "出牌按钮 > 文字"。
     // 注意 id 必须依赖外部传入的 opts.id，否则多按钮会冲突。

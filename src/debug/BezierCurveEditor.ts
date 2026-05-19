@@ -16,6 +16,7 @@
  */
 
 import type { BezierCurveConfig } from "@game/config";
+import { attachDragScrub } from "./dragScrub";
 
 export interface BezierCurvePanelOptions {
   label?: string;
@@ -309,6 +310,8 @@ export function buildCurvePanel(
   const enabled = mount.querySelector(".bezier-enabled") as HTMLInputElement;
   const startInput = mount.querySelector(".bezier-start") as HTMLInputElement;
   const endInput = mount.querySelector(".bezier-end") as HTMLInputElement;
+  attachDragScrub(startInput, { step: 0.1, digits: 2 });
+  attachDragScrub(endInput, { step: 0.1, digits: 2 });
 
   const editor = new BezierCurveEditor(canvas, curve, onChange);
 

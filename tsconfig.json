@@ -28,16 +28,15 @@
     "skipLibCheck": true,
     "useDefineForClassFields": true,
 
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@core/*": ["src/core/*"],
-      "@tween/*": ["src/tween/*"],
-      "@domain/*": ["src/domain/*"],
-      "@render/*": ["src/render/*"],
-      "@ui/*": ["src/ui/*"],
-      "@fx/*": ["src/fx/*"],
-      "@game/*": ["src/game/*"]
+      "@/*": ["./src/*"],
+      "@core/*": ["./src/core/*"],
+      "@tween/*": ["./src/tween/*"],
+      "@domain/*": ["./src/domain/*"],
+      "@render/*": ["./src/render/*"],
+      "@ui/*": ["./src/ui/*"],
+      "@fx/*": ["./src/fx/*"],
+      "@game/*": ["./src/game/*"]
     },
 
     "noEmit": true

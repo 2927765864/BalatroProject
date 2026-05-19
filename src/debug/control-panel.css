@@ -258,6 +258,22 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ===== drag-scrub：按住数字框水平拖动调参 ===== */
+/* 默认显示左右拖动光标，提示可拖；输入框聚焦后恢复文本光标 */
+.panel-number.drag-scrub:not(:focus) {
+  cursor: ew-resize;
+}
+.panel-number.drag-scrub:not(:focus):hover {
+  border-color: rgba(145, 197, 58, 0.65);
+  background: rgba(145, 197, 58, 0.08);
+}
+/* 拖动期间全局强制十字箭头光标，并禁止文本选择 */
+body.drag-scrub-active,
+body.drag-scrub-active * {
+  cursor: ew-resize !important;
+  user-select: none !important;
+}
+
 .panel-actions {
   display: flex;
   flex-direction: row !important;
@@ -485,16 +501,35 @@
 .ui-comp-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
   padding: 4px 8px;
   background: rgba(145, 197, 58, 0.12);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ui-comp-head:hover {
+  background: rgba(145, 197, 58, 0.18);
+}
+
+.ui-comp-arrow {
+  width: 12px;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: center;
+  font-size: 9px;
 }
 
 .ui-comp-title {
+  flex: 1;
   color: var(--accent);
   font-size: 11px;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ui-comp-del {

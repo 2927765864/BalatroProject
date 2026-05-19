@@ -11,6 +11,7 @@
  */
 import { UIComponent, type SerializedComponent } from "../UIComponent";
 import { uiHierarchy } from "../UIHierarchy";
+import { attachDragScrub } from "@/debug/dragScrub";
 
 interface TransformData {
   x: number;
@@ -120,6 +121,7 @@ export class TransformComponent extends UIComponent {
       input.className = "panel-number";
       input.step = String(step);
       input.value = Number(this.data[key]).toFixed(digits);
+      attachDragScrub(input, { step, digits });
 
       const commit = (raw: string): void => {
         const v = Number(raw);

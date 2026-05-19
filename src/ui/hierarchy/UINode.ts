@@ -38,7 +38,10 @@ export class UINode extends Container {
     this.nodeId = opts.id;
     this.displayName = opts.displayName;
     this.label = opts.id;
-    this.sortableChildren = true;
+    // 不启用 sortableChildren：保持 PIXI 默认的"addChild 顺序 == 绘制顺序"
+    // —— 先 addChild 的在下，后 addChild 的在上；父先画、子盖在父之上，
+    // 这与 Unity 中"父在底层、子在顶层"的层级直觉一致。
+    // 个别确实需要按 zIndex 排序的容器（如 worldRoot、cardLayer）自行打开即可。
 
     // 装入 Transform（不可删的默认组件）
     this.transform = new TransformComponent();
@@ -52,6 +55,27 @@ export class UINode extends Container {
       this.transform.captureFromHost();
       uiHierarchy.register(this);
     });
+
+    // UINode 作为父级时，Graphics/Text 等内部实现元素属于“父物体 UI”，
+    // 用户在 Hierarchy 里拖进去的 UINode 子物体应始终画在这些父级元素之上。
+    this.on("childAdded", (child) => {
+      if (this.isUINodeChild(child)) this.keepChildOnTop(child);
+    });
+  }
+
+  /** 确保刚挂进来的 UINode 子节点画在父节点当前内容之上。 */
+  keepChildOnTop(child: UINode): void {
+    if (child.parent !== this) return;
+    if (this.children[this.children.length - 1] === child) return;
+    this.setChildIndex(child, this.children.length - 1);
+  }
+
+  private isUINodeChild(child: unknown): child is UINode {
+    return (
+      child !== null &&
+      typeof child === "object" &&
+      typeof (child as { nodeId?: unknown }).nodeId === "string"
+    );
   }
 
   // ---- 组件 ----------------------------------------------------
