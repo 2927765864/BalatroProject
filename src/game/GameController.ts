@@ -255,6 +255,29 @@ export class GameController {
     this.recycleSelected();
   }
 
+  // --- 外部刷新钩子 ------------------------------------------------
+
+  /**
+   * 让牌堆按当前 CONFIG.cardArt 重新渲染。
+   * ControlPanel 切换牌背时调用。
+   */
+  refreshDeckArt(): void {
+    if (this.hud) this.hud.deckView.refresh();
+  }
+
+  /**
+   * 重新绘制所有已缓存的 CardView。
+   * 保留 CardView 实例本身，避免运行时调颜色/圆角时销毁交互对象导致手牌闪没。
+   */
+  refreshHandArt(): void {
+    if (!this.hud) return;
+
+    for (const view of this.viewByCardId.values()) {
+      view.refreshArt();
+    }
+    this.layoutHand();
+  }
+
   private recycleSelected(): void {
     const state = this.store.getState();
     const recycling = [...state.selected];

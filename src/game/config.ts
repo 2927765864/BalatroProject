@@ -53,6 +53,24 @@ export interface RuntimeConfig {
     /** 在 HUD 上显示一些调试文字（保留扩展位） */
     showDebugOverlay: boolean;
   };
+  /**
+   * 卡牌美术参数。
+   *   - useSprites: true 时 CardView/DeckView 走精灵图渲染；false 时退回程序化绘制。
+   *   - back.row/back.col: 选用 Enhancers.png 中第几行第几列作为牌背（0 基）。
+   */
+  cardArt: {
+    useSprites: boolean;
+    /** 卡牌可见外缘圆角半径（世界坐标）。改值后需要重绘 CardView + DeckView。 */
+    cornerRadius: number;
+    /** 卡面底色（PixiJS 数字色）。改值后需要 refreshHandArt + refreshDeckArt。 */
+    faceColor: number;
+    /** 卡牌外缘 1 像素描边颜色（PixiJS 数字色）。改值后需要 refreshHandArt + refreshDeckArt。 */
+    outlineColor: number;
+    back: {
+      row: number;
+      col: number;
+    };
+  };
   /** 可选：示例语义曲线，留作扩展（如未来按 combo 数缩放某个倍率） */
   scoreCurve: BezierCurveConfig;
 }
@@ -83,6 +101,17 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     panelOpacity: 1,
     showDebugOverlay: false,
   }),
+  cardArt: Object.freeze({
+    useSprites: true,
+    cornerRadius: 6,
+    faceColor: 0xffffff,
+    outlineColor: 0x000000,
+    back: Object.freeze({
+      // 默认：Enhancers 第三行第一列（0 基为 row=2, col=0）。
+      row: 2,
+      col: 0,
+    }),
+  }),
   scoreCurve: Object.freeze({
     enabled: false,
     startScale: 1,
@@ -111,6 +140,10 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     rules: { ...src.rules },
     animation: { ...src.animation },
     debug: { ...src.debug },
+    cardArt: {
+      ...src.cardArt,
+      back: { ...src.cardArt.back },
+    },
     scoreCurve: {
       ...src.scoreCurve,
       p1: { ...src.scoreCurve.p1 },
@@ -145,6 +178,13 @@ export function applyConfig(source: unknown): void {
   if (incoming.rules) Object.assign(merged.rules, incoming.rules);
   if (incoming.animation) Object.assign(merged.animation, incoming.animation);
   if (incoming.debug) Object.assign(merged.debug, incoming.debug);
+  if (incoming.cardArt) {
+    merged.cardArt = {
+      ...merged.cardArt,
+      ...incoming.cardArt,
+      back: { ...merged.cardArt.back, ...(incoming.cardArt.back ?? {}) },
+    };
+  }
   if (incoming.scoreCurve) {
     merged.scoreCurve = {
       ...merged.scoreCurve,
@@ -159,6 +199,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.rules = merged.rules;
   CONFIG.animation = merged.animation;
   CONFIG.debug = merged.debug;
+  CONFIG.cardArt = merged.cardArt;
   CONFIG.scoreCurve = merged.scoreCurve;
 }
 

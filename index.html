@@ -126,9 +126,63 @@
             </div>
           </details>
 
-          <!-- 2. 牌的绘制专项（占位） -->
+          <!-- 2. 牌的绘制专项 -->
           <details class="panel-group">
             <summary>牌的绘制</summary>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>使用精灵图</span>
+                <span id="val-useSprites">开</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;">
+                <input id="inp-useSprites" type="checkbox" />
+                <span style="color:rgba(255,255,255,0.62);">关闭后会退回程序化绘制</span>
+              </label>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>卡面底色</span>
+                <span id="val-faceColor">#ffffff</span>
+              </div>
+              <input id="inp-faceColor" type="color" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>卡牌圆角</span>
+                <span id="val-cardCornerRadius">6.0</span>
+              </div>
+              <input
+                id="inp-cardCornerRadius"
+                type="number"
+                min="0"
+                max="24"
+                step="0.5"
+              />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>外缘描边色</span>
+                <span id="val-outlineColor">#000000</span>
+              </div>
+              <input id="inp-outlineColor" type="color" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>卡牌背面</span>
+                <span id="val-cardBack">行 3 · 列 1</span>
+              </div>
+              <!--
+                牌背选择器：把整张 Enhancers.png 当背景平铺到一个网格容器里，
+                每个单元格是一个透明按钮，点击即切换 CONFIG.cardArt.back。
+                被选中的格子加上 .is-active 黄色描边。
+              -->
+              <div id="card-back-picker" class="card-back-picker"></div>
+            </div>
           </details>
 
           <!-- 3. 界面UI专项（占位） -->

@@ -27,6 +27,8 @@ import {
   saveCurrentConfig,
   type RuntimeConfig,
 } from "@game/config";
+import { assets } from "@core/AssetManager";
+import { CardAtlas } from "@render/CardSkin";
 
 // ===== 类型 =========================================================
 
@@ -322,6 +324,66 @@ export function setupControlPanel(
     });
   }
 
+  /**
+   * 牌背选择器：渲染一个 rows×cols 的网格，每个格子用 Enhancers.png 整图当背景，
+   * 通过 background-position 让每个按钮精确显示一个子图。
+   * 点击即写入 CONFIG.cardArt.back 并触发 onChange。
+   */
+  function bindCardBackPicker(containerId: string, valueLabelId: string): void {
+    const container = document.getElementById(containerId) as HTMLElement | null;
+    const valueEl = document.getElementById(valueLabelId);
+    if (!container) return;
+
+    const { rows, cols } = CardAtlas.back;
+    container.style.setProperty("--cb-cols", String(cols));
+    container.style.setProperty("--cb-rows", String(rows));
+    // 用单引号包裹 url，规避 hash 文件名里偶尔出现的特殊字符
+    container.style.setProperty("--cb-image", `url('${assets.backSrc}')`);
+
+    // 仅初始化一次：建格子；之后 sync 只更新 is-active 与 label。
+    const buildOnce = (): void => {
+      if (container.dataset["built"] === "1") return;
+      container.dataset["built"] = "1";
+      container.innerHTML = "";
+
+      for (let r = 0; r < rows; r += 1) {
+        for (let c = 0; c < cols; c += 1) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "card-back-cell";
+          btn.dataset["row"] = String(r);
+          btn.dataset["col"] = String(c);
+          // 把整图作为背景，用负偏移把对应格子推到可视区。
+          // 每个格子的宽高都由 CSS 变量给出 → 这里只算偏移量。
+          btn.style.backgroundPosition = `calc(var(--cb-cell-w) * -${c}) calc(var(--cb-cell-h) * -${r})`;
+          btn.title = `行 ${r + 1} · 列 ${c + 1}`;
+          btn.addEventListener("click", () => {
+            setByPath(CONFIG, "cardArt.back.row", r);
+            setByPath(CONFIG, "cardArt.back.col", c);
+            sync();
+            notify("cardArt.back.row", r);
+            notify("cardArt.back.col", c);
+          });
+          container.appendChild(btn);
+        }
+      }
+    };
+
+    const sync = (): void => {
+      buildOnce();
+      const { row, col } = CONFIG.cardArt.back;
+      container.querySelectorAll<HTMLButtonElement>(".card-back-cell").forEach((btn) => {
+        const br = Number(btn.dataset["row"]);
+        const bc = Number(btn.dataset["col"]);
+        btn.classList.toggle("is-active", br === row && bc === col);
+      });
+      if (valueEl) valueEl.textContent = `行 ${row + 1} · 列 ${col + 1}`;
+    };
+
+    sync();
+    syncers.push(sync);
+  }
+
   // ---- Tab 生成 ----
 
   function setupTabs(): void {
@@ -606,9 +668,15 @@ export function setupControlPanel(
     //   bindSlider("inp-handSize", "val-handSize", "rules.handSize", { digits: 0 });
     //   bindNumber("inp-targetScore", "val-targetScore", "rules.targetScore", { integer: true });
     //   bindColor("inp-backgroundColor", "val-backgroundColor", "world.backgroundColor");
-    //   bindToggle("inp-showDebugOverlay", "val-showDebugOverlay", "debug.showDebugOverlay");
     //   bindCycleButton("btn-quality", "val-quality", "debug.quality", [...]);
     applyPanelOpacity();
+
+    // === 牌的绘制 ===
+    bindToggle("inp-useSprites", "val-useSprites", "cardArt.useSprites");
+    bindNumber("inp-cardCornerRadius", "val-cardCornerRadius", "cardArt.cornerRadius", { digits: 1 });
+    bindColor("inp-faceColor", "val-faceColor", "cardArt.faceColor");
+    bindColor("inp-outlineColor", "val-outlineColor", "cardArt.outlineColor");
+    bindCardBackPicker("card-back-picker", "val-cardBack");
 
     // 已经绑定过的控件只重跑 sync，避免重复挂监听
     syncers.forEach((fn) => fn());

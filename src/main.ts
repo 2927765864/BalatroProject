@@ -1,4 +1,5 @@
 import { App } from "@core/App";
+import { assets } from "@core/AssetManager";
 import { GameController } from "@game/GameController";
 import { CONFIG, loadSavedConfig } from "@game/config";
 import { setupControlPanel } from "@/debug/ControlPanel";
@@ -26,6 +27,10 @@ async function bootstrap(): Promise<void> {
 
   await app.init();
 
+  // 预加载卡牌精灵图（8BitDeck / Enhancers）。
+  // 失败时 AssetManager 内部已捕获并打日志，CardView/DeckView 会自动退回程序化绘制。
+  await assets.loadAll();
+
   const game = new GameController(app);
   game.start();
 
@@ -46,6 +51,27 @@ async function bootstrap(): Promise<void> {
         } catch (err) {
           console.warn("[main] 应用背景色失败：", err);
         }
+      }
+
+      // 牌背切换：重画 DeckView。
+      if (key === "*" || key.startsWith("cardArt.back")) {
+        game.refreshDeckArt();
+      }
+      // 是否启用贴图：重建所有 CardView + DeckView。
+      if (key === "*" || key === "cardArt.useSprites") {
+        game.refreshHandArt();
+        game.refreshDeckArt();
+      }
+      // 卡面底色 / 外缘描边色：颜色是在 view 构造时一次性写进 Graphics 的，
+      // 改值后只能销毁重建。这里复用与 useSprites 同一条重建路径。
+      if (
+        key === "*" ||
+        key === "cardArt.cornerRadius" ||
+        key === "cardArt.faceColor" ||
+        key === "cardArt.outlineColor"
+      ) {
+        game.refreshHandArt();
+        game.refreshDeckArt();
       }
     },
   });

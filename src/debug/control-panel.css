@@ -266,6 +266,51 @@
   flex: 1;
 }
 
+/* 卡牌背面选择器：把整张 Enhancers 当 CSS 背景平铺，让每个格子刚好对齐一个子图。 */
+.card-back-picker {
+  display: grid;
+  /* cols / rows / image 由 JS 在初始化时设到 CSS 变量上 */
+  --cb-cols: 7;
+  --cb-rows: 5;
+  --cb-cell-w: 56px;
+  --cb-cell-h: calc(var(--cb-cell-w) * 95 / 71);
+  grid-template-columns: repeat(var(--cb-cols), var(--cb-cell-w));
+  grid-template-rows: repeat(var(--cb-rows), var(--cb-cell-h));
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow-x: auto;
+  touch-action: pan-x;
+}
+
+.card-back-cell {
+  width: var(--cb-cell-w);
+  height: var(--cb-cell-h);
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background-image: var(--cb-image, none);
+  background-repeat: no-repeat;
+  background-size: calc(var(--cb-cell-w) * var(--cb-cols)) calc(var(--cb-cell-h) * var(--cb-rows));
+  /* 像素美术：CSS 缩放也走最近邻，否则面板里的小预览也会糊。
+     pixelated 是 Chrome/Edge/Safari 支持的关键字，crisp-edges 是 Firefox 的对应写法。 */
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: pointer;
+  outline: none;
+}
+
+.card-back-cell:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.card-back-cell.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(145, 197, 58, 0.5);
+}
+
 /* 曲线编辑器子组件 */
 .bezier-panel {
   padding: 8px;
