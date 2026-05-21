@@ -6,6 +6,16 @@ import { CardSkin } from "./CardSkin";
 import { getPixelOutlineTexture } from "./PixelOutlineTexture";
 
 /**
+ * 手牌的四种核心状态
+ */
+export enum CardState {
+  Normal = "normal",       // 常态：没有任何特殊情况的状态
+  Hovered = "hovered",     // 被触碰态：鼠标在卡牌上游走，无点击/拖拽
+  Dragging = "dragging",   // 拖拽态：只要鼠标处于按下状态，即进入拖拽态
+  Selected = "selected",   // 点击选中态：在时间阈值内快速抬起鼠标左键进入
+}
+
+/**
  * 卡牌视图
  *
  * 一个 CardView 持有一份 CardData（只读），负责把它画出来并响应交互。
@@ -36,12 +46,32 @@ export class CardView extends Container {
   layoutRotation = 0;
   isDragging = false;
 
+  // 状态机核心字段
+  cardState: CardState = CardState.Normal;
+  isMouseOver = false;
+  private dragStartTime = 0;
+
+  // 视觉效果积累与辅助变量
+  private breathingTime = Math.random() * 100;
+  private wobbleTime = Math.random() * 100;
+  private currentScale = 1.0;
+
+  public mouseOffsetX = 0;
+  public mouseOffsetY = 0;
+
+  private breathingY = 0;
+  private wobbleRot = 0;
+  private visualOffsetX = 0;
+  private visualOffsetY = 0;
+
+  // 视觉子容器，用于承载除阴影外所有的视觉卡面，以便在不影响外部布局/拖拽计算的前提下施加各种动画/视效
+  private contentContainer: Container | null = null;
+
   private dragData: FederatedPointerEvent | null = null;
   private dragStartPointerX = 0;
   private dragStartPointerY = 0;
   private dragStartCardX = 0;
   private dragStartCardY = 0;
-  private hasMovedSignificantly = false;
   private oldStageEventMode: any = null;
   private shadowGraphics: Graphics | null = null;
 
@@ -50,6 +80,10 @@ export class CardView extends Container {
       if (child && "roundPixels" in child) {
         (child as any).roundPixels = true;
       }
+    }
+    // 视觉元素重定向：除 shadowGraphics 和 contentContainer 本身，其余全部塞进 contentContainer
+    if (this.contentContainer && children[0] !== this.contentContainer && children[0] !== this.shadowGraphics) {
+      return this.contentContainer.addChild(...children);
     }
     return super.addChild(...children);
   }
@@ -89,6 +123,12 @@ export class CardView extends Container {
   }
 
   private draw(): void {
+    // 实例化视觉子容器，并设其 pivot 为卡牌中心，确保所有视觉晃动/缩放围绕中心展开
+    this.contentContainer = new Container();
+    this.contentContainer.pivot.set(CardSkin.width / 2, CardSkin.height / 2);
+    this.contentContainer.position.set(CardSkin.width / 2, CardSkin.height / 2);
+    super.addChild(this.contentContainer);
+
     this.shadowGraphics = new Graphics();
     this.shadowGraphics.pivot.set(CardSkin.width / 2, CardSkin.height / 2);
     if (!this.isDragging && this.shadowContainer) {
@@ -398,8 +438,12 @@ export class CardView extends Container {
     if (event.button !== 0) return;
 
     this.dragData = event;
-    this.isDragging = false;
-    this.hasMovedSignificantly = false;
+    this.dragStartTime = Date.now();
+
+    // 按下鼠标左键即刻进入拖拽态（按照需求：只要鼠标处于按下状态，就会进入拖拽态）
+    this.isDragging = true;
+    this.cardState = CardState.Dragging;
+    this.callbacks.onDragStart?.(this);
 
     this.dragStartPointerX = event.global.x;
     this.dragStartPointerY = event.global.y;
@@ -424,13 +468,6 @@ export class CardView extends Container {
     const dx = event.global.x - this.dragStartPointerX;
     const dy = event.global.y - this.dragStartPointerY;
 
-    // 拖动距离超过5像素认为开始拖拽，而非普通点击
-    if (!this.hasMovedSignificantly && Math.sqrt(dx * dx + dy * dy) > 5) {
-      this.hasMovedSignificantly = true;
-      this.isDragging = true;
-      this.callbacks.onDragStart?.(this);
-    }
-
     if (this.isDragging) {
       this.x = this.dragStartCardX + dx;
       this.y = this.dragStartCardY + dy;
@@ -440,6 +477,7 @@ export class CardView extends Container {
   private onPointerUp(): void {
     if (!this.dragData) return;
 
+    const duration = Date.now() - this.dragStartTime;
     this.dragData = null;
     
     // 从 root stage 注销监听器，恢复空闲状态且还原 stage.eventMode
@@ -454,13 +492,151 @@ export class CardView extends Container {
       }
     }
 
-    if (this.isDragging) {
-      this.isDragging = false;
+    this.isDragging = false;
+
+    // 获取配置中的快速点击时间阈值
+    const threshold = CONFIG.cardVisuals?.clickThresholdMS ?? 250;
+
+    if (duration <= threshold) {
+      // 一定时间阈值内，快速抬起鼠标左键，卡牌从拖拽态进入点击选中态
+      this.callbacks.onClick(this);
+      
+      // 同步卡牌状态
+      if (this.selected) {
+        this.cardState = CardState.Selected;
+      } else {
+        this.cardState = this.isMouseOver ? CardState.Hovered : CardState.Normal;
+      }
       this.callbacks.onDragEnd?.(this);
     } else {
-      // 如果没有发生显著位移，作为点击处理
-      this.callbacks.onClick(this);
+      // 超过时间阈值抬起鼠标左键，从拖拽态回到常态（不选中）
+      if (this.selected) {
+        this.selected = false;
+      }
+      this.cardState = this.isMouseOver ? CardState.Hovered : CardState.Normal;
+      this.callbacks.onDragEnd?.(this);
     }
+  }
+
+  private onHoverMove(event: FederatedPointerEvent): void {
+    const localPos = event.getLocalPosition(this);
+    const centerX = CardSkin.width / 2;
+    const centerY = CardSkin.height / 2;
+    
+    // 鼠标在卡牌上的相对坐标（以中心为 0, 0）
+    const rawDx = localPos.x - centerX;
+    const rawDy = localPos.y - centerY;
+    
+    const visualConf = CONFIG.cardVisuals;
+    if (visualConf && visualConf.mouseOffsetEnabled) {
+      let targetOffsetX = rawDx * visualConf.mouseOffsetFactorX;
+      let targetOffsetY = rawDy * visualConf.mouseOffsetFactorY;
+      
+      const limit = visualConf.mouseOffsetLimit;
+      const dist = Math.sqrt(targetOffsetX * targetOffsetX + targetOffsetY * targetOffsetY);
+      if (dist > limit && dist > 0) {
+        targetOffsetX = (targetOffsetX / dist) * limit;
+        targetOffsetY = (targetOffsetY / dist) * limit;
+      }
+      this.mouseOffsetX = targetOffsetX;
+      this.mouseOffsetY = targetOffsetY;
+    } else {
+      this.mouseOffsetX = 0;
+      this.mouseOffsetY = 0;
+    }
+  }
+
+  /**
+   * 视觉效果更新 Ticker
+   */
+  public update(dtMS: number): void {
+    if (!this.contentContainer) return;
+
+    // 1. 常态化的手牌的呼吸晃动
+    this.updateBreathing(dtMS);
+
+    // 2. 鼠标悬停小弹性缩放
+    this.updateHoverScale(dtMS);
+
+    // 3. 鼠标在单张手牌上移动时的牌的偏移（包含常态和点击选中态）
+    this.updateMouseOffset(dtMS);
+
+    // 4. 将计算后的效果应用到视觉容器
+    this.applyVisuals();
+  }
+
+  private updateBreathing(dtMS: number): void {
+    const visualConf = CONFIG.cardVisuals;
+    if (!visualConf || !visualConf.breathingEnabled) {
+      this.breathingY = 0;
+      this.wobbleRot = 0;
+      return;
+    }
+
+    // 拖动状态下不施加呼吸晃动，避免卡牌发抖
+    if (this.cardState === CardState.Dragging) {
+      this.breathingY = 0;
+      this.wobbleRot = 0;
+      return;
+    }
+
+    // 积累时间
+    this.breathingTime += dtMS * visualConf.breathingSpeed;
+    this.wobbleTime += dtMS * visualConf.wobbleSpeed;
+
+    // y 轴位置呼吸摆动
+    this.breathingY = Math.sin(this.breathingTime) * visualConf.breathingAmplitude;
+    // z 轴旋转晃动
+    this.wobbleRot = Math.cos(this.wobbleTime) * visualConf.wobbleAmplitude;
+  }
+
+  private updateHoverScale(dtMS: number): void {
+    const visualConf = CONFIG.cardVisuals;
+    if (!visualConf || !visualConf.hoverScaleEnabled) {
+      this.contentContainer?.scale.set(1.0);
+      return;
+    }
+
+    // 如果鼠标在这个牌上游走 (Hovered) 或者是点击选中态且有鼠标悬停 (Selected + isMouseOver)
+    const isHovered = this.cardState === CardState.Hovered || (this.isMouseOver && this.cardState === CardState.Selected);
+    const targetScale = isHovered ? visualConf.hoverScaleFactor : 1.0;
+
+    // 弹性插值，基于 delta time 保证帧率无关
+    const speed = visualConf.hoverScaleSpeed;
+    this.currentScale += (targetScale - this.currentScale) * speed * (dtMS / 16.67);
+    this.contentContainer?.scale.set(this.currentScale);
+  }
+
+  private updateMouseOffset(dtMS: number): void {
+    const visualConf = CONFIG.cardVisuals;
+    if (!visualConf || !visualConf.mouseOffsetEnabled || this.cardState === CardState.Dragging) {
+      this.visualOffsetX = 0;
+      this.visualOffsetY = 0;
+      return;
+    }
+
+    // 仅在常态 (Normal)、被触碰态 (Hovered)、点击选中态 (Selected) 响应鼠标游走偏移
+    const isEffectState =
+      this.cardState === CardState.Normal ||
+      this.cardState === CardState.Hovered ||
+      this.cardState === CardState.Selected;
+
+    const targetX = (this.isMouseOver && isEffectState) ? this.mouseOffsetX : 0;
+    const targetY = (this.isMouseOver && isEffectState) ? this.mouseOffsetY : 0;
+
+    // 平滑插值，避免偏移跳变
+    const speed = 0.15;
+    this.visualOffsetX += (targetX - this.visualOffsetX) * speed * (dtMS / 16.67);
+    this.visualOffsetY += (targetY - this.visualOffsetY) * speed * (dtMS / 16.67);
+  }
+
+  private applyVisuals(): void {
+    if (!this.contentContainer) return;
+    this.contentContainer.position.set(
+      CardSkin.width / 2 + this.visualOffsetX,
+      CardSkin.height / 2 + this.breathingY + this.visualOffsetY
+    );
+    this.contentContainer.rotation = this.wobbleRot;
   }
 
   private bindEvents(): void {
@@ -470,12 +646,29 @@ export class CardView extends Container {
     this.on("pointerdown", this.onPointerDown, this);
 
     this.on("pointerover", () => {
+      this.isMouseOver = true;
+      if (this.cardState === CardState.Normal) {
+        this.cardState = CardState.Hovered;
+      }
       if (this.isDragging) return;
       this.callbacks.onHoverIn(this);
     });
+
     this.on("pointerout", () => {
+      this.isMouseOver = false;
+      if (this.cardState === CardState.Hovered) {
+        this.cardState = CardState.Normal;
+      }
+      this.mouseOffsetX = 0;
+      this.mouseOffsetY = 0;
       if (this.isDragging) return;
       this.callbacks.onHoverOut(this);
+    });
+
+    this.on("pointermove", (event) => {
+      if (!this.isDragging && this.isMouseOver) {
+        this.onHoverMove(event);
+      }
     });
   }
 }

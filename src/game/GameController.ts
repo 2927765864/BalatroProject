@@ -7,7 +7,7 @@ import { TweenManager } from "@tween/TweenManager";
 import { Deck } from "@domain/Deck";
 import { calculateScore } from "@domain/Scoring";
 import type { CardData, ScoreResult, HandTypeName } from "@domain/types";
-import { CardView } from "@render/CardView";
+import { CardView, CardState } from "@render/CardView";
 import { computeHandLayout } from "@render/HandLayout";
 import { HUD } from "@ui/HUD";
 import { uiHierarchy } from "@ui/hierarchy";
@@ -101,9 +101,10 @@ export class GameController {
     // 把 tween 接入 app 的更新循环
     this.app.onUpdate((dtMS) => {
       this.tween.update(dtMS);
-      // 更新卡牌阴影
+      // 更新卡牌状态、阴影与动画
       for (const child of this.cardLayer.children) {
         if (child instanceof CardView) {
+          child.update(dtMS);
           child.updateShadow();
         }
       }
@@ -156,7 +157,15 @@ export class GameController {
         onDragStart: (view) => {
           this.tween.killOf(view);
         },
-        onDragEnd: () => {
+        onDragEnd: (view) => {
+          // 如果长拖拽导致卡牌变为未选中状态，我们需要将其从已选中列表同步移除
+          const state = this.store.getState();
+          if (state.selected.includes(view) && !view.selected) {
+            const selected = state.selected.filter((x) => x !== view);
+            this.store.setState({ selected });
+            this.bus.emit("card:selectionChanged", { selected });
+            this.evaluateAndUpdate();
+          }
           this.layoutHand();
         }
       },
@@ -328,6 +337,7 @@ export class GameController {
     // 视觉：先飞出
     for (const v of recycling) {
       v.selected = false;
+      v.cardState = CardState.Normal;
       CardFx.flyOut(
         this.tween,
         v,

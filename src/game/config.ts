@@ -100,6 +100,28 @@ export interface RuntimeConfig {
     distanceRatio: number;
     scaleRatio: number;
   };
+  cardVisuals: {
+    // 1. 常态呼吸晃动
+    breathingEnabled: boolean;
+    breathingSpeed: number;
+    breathingAmplitude: number;
+    wobbleSpeed: number;
+    wobbleAmplitude: number;
+
+    // 2. 鼠标触碰小弹性缩放
+    hoverScaleEnabled: boolean;
+    hoverScaleFactor: number;
+    hoverScaleSpeed: number;
+
+    // 3. 鼠标在单牌移动时的偏移
+    mouseOffsetEnabled: boolean;
+    mouseOffsetFactorX: number;
+    mouseOffsetFactorY: number;
+    mouseOffsetLimit: number;
+
+    // 4. 卡牌操作逻辑参数
+    clickThresholdMS: number;
+  };
   /** 可选：示例语义曲线，留作扩展（如未来按 combo 数缩放某个倍率） */
   scoreCurve: BezierCurveConfig;
   /**
@@ -163,6 +185,24 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     distanceRatio: 0.12,
     scaleRatio: 0.88,
   }),
+  cardVisuals: Object.freeze({
+    breathingEnabled: true,
+    breathingSpeed: 0.002,
+    breathingAmplitude: 3,
+    wobbleSpeed: 0.001,
+    wobbleAmplitude: 0.04,
+
+    hoverScaleEnabled: true,
+    hoverScaleFactor: 1.05,
+    hoverScaleSpeed: 0.15,
+
+    mouseOffsetEnabled: true,
+    mouseOffsetFactorX: 0.08,
+    mouseOffsetFactorY: 0.08,
+    mouseOffsetLimit: 8,
+
+    clickThresholdMS: 250,
+  }),
   scoreCurve: Object.freeze({
     enabled: false,
     startScale: 1,
@@ -208,6 +248,9 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     },
     dragShadow: {
       ...src.dragShadow,
+    },
+    cardVisuals: {
+      ...src.cardVisuals,
     },
     scoreCurve: {
       ...src.scoreCurve,
@@ -282,6 +325,12 @@ export function applyConfig(source: unknown): void {
       ...incoming.dragShadow,
     };
   }
+  if (incoming.cardVisuals) {
+    merged.cardVisuals = {
+      ...merged.cardVisuals,
+      ...incoming.cardVisuals,
+    };
+  }
   if (incoming.scoreCurve) {
     merged.scoreCurve = {
       ...merged.scoreCurve,
@@ -302,6 +351,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.cardArt = merged.cardArt;
   CONFIG.cardShadow = merged.cardShadow;
   CONFIG.dragShadow = merged.dragShadow;
+  CONFIG.cardVisuals = merged.cardVisuals;
   CONFIG.scoreCurve = merged.scoreCurve;
   CONFIG.uiNodes = merged.uiNodes;
 }
@@ -341,6 +391,12 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.dragShadow = {
       ...activeDefaultConfig.dragShadow,
       ...incoming.dragShadow,
+    };
+  }
+  if (incoming.cardVisuals) {
+    activeDefaultConfig.cardVisuals = {
+      ...activeDefaultConfig.cardVisuals,
+      ...incoming.cardVisuals,
     };
   }
   if (incoming.scoreCurve) {

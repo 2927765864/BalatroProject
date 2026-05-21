@@ -977,6 +977,24 @@ export function setupControlPanel(
     bindNumber("inp-dragShadowDistanceRatio", "val-dragShadowDistanceRatio", "dragShadow.distanceRatio", { digits: 5 });
     bindNumber("inp-dragShadowScaleRatio", "val-dragShadowScaleRatio", "dragShadow.scaleRatio", { digits: 2 });
 
+    // === 新增卡牌视效与逻辑参数 ===
+    bindToggle("inp-breathingEnabled", "val-breathingEnabled", "cardVisuals.breathingEnabled");
+    bindNumber("inp-breathingSpeed", "val-breathingSpeed", "cardVisuals.breathingSpeed", { digits: 4 });
+    bindNumber("inp-breathingAmplitude", "val-breathingAmplitude", "cardVisuals.breathingAmplitude", { digits: 1 });
+    bindNumber("inp-wobbleSpeed", "val-wobbleSpeed", "cardVisuals.wobbleSpeed", { digits: 4 });
+    bindNumber("inp-wobbleAmplitude", "val-wobbleAmplitude", "cardVisuals.wobbleAmplitude", { digits: 3 });
+
+    bindToggle("inp-hoverScaleEnabled", "val-hoverScaleEnabled", "cardVisuals.hoverScaleEnabled");
+    bindNumber("inp-hoverScaleFactor", "val-hoverScaleFactor", "cardVisuals.hoverScaleFactor", { digits: 2 });
+    bindNumber("inp-hoverScaleSpeed", "val-hoverScaleSpeed", "cardVisuals.hoverScaleSpeed", { digits: 2 });
+
+    bindToggle("inp-mouseOffsetEnabled", "val-mouseOffsetEnabled", "cardVisuals.mouseOffsetEnabled");
+    bindNumber("inp-mouseOffsetFactorX", "val-mouseOffsetFactorX", "cardVisuals.mouseOffsetFactorX", { digits: 3 });
+    bindNumber("inp-mouseOffsetFactorY", "val-mouseOffsetFactorY", "cardVisuals.mouseOffsetFactorY", { digits: 3 });
+    bindNumber("inp-mouseOffsetLimit", "val-mouseOffsetLimit", "cardVisuals.mouseOffsetLimit", { digits: 1 });
+
+    bindNumber("inp-clickThresholdMS", "val-clickThresholdMS", "cardVisuals.clickThresholdMS", { integer: true });
+
     // 已经绑定过的控件只重跑 sync，避免重复挂监听
     syncers.forEach((fn) => fn());
   }
