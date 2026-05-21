@@ -233,317 +233,359 @@
           <details class="panel-group">
             <summary>卡牌视效</summary>
             
-            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>卡牌阴影效果</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandShadow" style="color: var(--accent);">开</span>
+                <input id="inp-expandShadow" type="checkbox" checked style="margin:0;" />
+              </label>
             </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>阴影颜色</span>
-                <span id="val-shadowColor">#000000</span>
+            <div id="sect-shadow-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影颜色</span>
+                  <span id="val-shadowColor">#000000</span>
+                </div>
+                <input id="inp-shadowColor" type="color" />
               </div>
-              <input id="inp-shadowColor" type="color" />
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>阴影透明度</span>
-                <span id="val-shadowAlpha">0.35</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影透明度</span>
+                  <span id="val-shadowAlpha">0.35</span>
+                </div>
+                <input
+                  id="inp-shadowAlpha"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                />
               </div>
-              <input
-                id="inp-shadowAlpha"
-                type="number"
-                min="0"
-                max="1"
-                step="0.05"
-              />
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>光源定点 X</span>
-                <span id="val-shadowLightX">640.0</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>光源定点 X</span>
+                  <span id="val-shadowLightX">640.0</span>
+                </div>
+                <input
+                  id="inp-shadowLightX"
+                  type="number"
+                  step="5"
+                />
               </div>
-              <input
-                id="inp-shadowLightX"
-                type="number"
-                step="5"
-              />
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>光源定点 Y</span>
-                <span id="val-shadowLightY">360.0</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>光源定点 Y</span>
+                  <span id="val-shadowLightY">360.0</span>
+                </div>
+                <input
+                  id="inp-shadowLightY"
+                  type="number"
+                  step="5"
+                />
               </div>
-              <input
-                id="inp-shadowLightY"
-                type="number"
-                step="5"
-              />
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>阴影距离比例</span>
-                <span id="val-shadowDistanceRatio">0.05000</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影距离比例</span>
+                  <span id="val-shadowDistanceRatio">0.05000</span>
+                </div>
+                <input
+                  id="inp-shadowDistanceRatio"
+                  type="number"
+                  step="0.0001"
+                />
               </div>
-              <input
-                id="inp-shadowDistanceRatio"
-                type="number"
-                step="0.0001"
-              />
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>阴影大小比例</span>
-                <span id="val-shadowScaleRatio">0.95</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影大小比例</span>
+                  <span id="val-shadowScaleRatio">0.95</span>
+                </div>
+                <input
+                  id="inp-shadowScaleRatio"
+                  type="number"
+                  min="0"
+                  max="3"
+                  step="0.01"
+                />
               </div>
-              <input
-                id="inp-shadowScaleRatio"
-                type="number"
-                min="0"
-                max="3"
-                step="0.01"
-              />
             </div>
 
-            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>卡牌拖拽阴影效果</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandDragShadow" style="color: var(--accent);">开</span>
+                <input id="inp-expandDragShadow" type="checkbox" checked style="margin:0;" />
+              </label>
             </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>拖动阴影颜色</span>
-                <span id="val-dragShadowColor">#000000</span>
+            <div id="sect-dragShadow-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>拖动阴影颜色</span>
+                  <span id="val-dragShadowColor">#000000</span>
+                </div>
+                <input id="inp-dragShadowColor" type="color" />
               </div>
-              <input id="inp-dragShadowColor" type="color" />
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>拖动阴影透明度</span>
-                <span id="val-dragShadowAlpha">0.25</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>拖动阴影透明度</span>
+                  <span id="val-dragShadowAlpha">0.25</span>
+                </div>
+                <input
+                  id="inp-dragShadowAlpha"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                />
               </div>
-              <input
-                id="inp-dragShadowAlpha"
-                type="number"
-                min="0"
-                max="1"
-                step="0.05"
-              />
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>拖动光源 X</span>
-                <span id="val-dragShadowLightX">640.0</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>拖动光源 X</span>
+                  <span id="val-dragShadowLightX">640.0</span>
+                </div>
+                <input
+                  id="inp-dragShadowLightX"
+                  type="number"
+                  step="5"
+                />
               </div>
-              <input
-                id="inp-dragShadowLightX"
-                type="number"
-                step="5"
-              />
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>拖动光源 Y</span>
-                <span id="val-dragShadowLightY">360.0</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>拖动光源 Y</span>
+                  <span id="val-dragShadowLightY">360.0</span>
+                </div>
+                <input
+                  id="inp-dragShadowLightY"
+                  type="number"
+                  step="5"
+                />
               </div>
-              <input
-                id="inp-dragShadowLightY"
-                type="number"
-                step="5"
-              />
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>拖动距离比例</span>
-                <span id="val-dragShadowDistanceRatio">0.12000</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>拖动距离比例</span>
+                  <span id="val-dragShadowDistanceRatio">0.12000</span>
+                </div>
+                <input
+                  id="inp-dragShadowDistanceRatio"
+                  type="number"
+                  step="0.0001"
+                />
               </div>
-              <input
-                id="inp-dragShadowDistanceRatio"
-                type="number"
-                step="0.0001"
-              />
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>拖动大小比例</span>
-                <span id="val-dragShadowScaleRatio">0.88</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>拖动大小比例</span>
+                  <span id="val-dragShadowScaleRatio">0.88</span>
+                </div>
+                <input
+                  id="inp-dragShadowScaleRatio"
+                  type="number"
+                  min="0"
+                  max="3"
+                  step="0.01"
+                />
               </div>
-              <input
-                id="inp-dragShadowScaleRatio"
-                type="number"
-                min="0"
-                max="3"
-                step="0.01"
-              />
             </div>
 
-            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>常态手牌呼吸晃动</span>
-            </div>
-
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>启用呼吸晃动</span>
-                <span id="val-breathingEnabled">开</span>
-              </div>
-              <label style="display:flex;align-items:center;gap:6px;">
-                <input id="inp-breathingEnabled" type="checkbox" />
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandBreathing" style="color: var(--accent);">开</span>
+                <input id="inp-expandBreathing" type="checkbox" checked style="margin:0;" />
               </label>
             </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>呼吸速度</span>
-                <span id="val-breathingSpeed">0.002</span>
+            <div id="sect-breathing-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用呼吸晃动</span>
+                  <span id="val-breathingEnabled">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-breathingEnabled" type="checkbox" />
+                </label>
               </div>
-              <input id="inp-breathingSpeed" type="number" step="0.0005" />
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>呼吸速度</span>
+                  <span id="val-breathingSpeed">0.002</span>
+                </div>
+                <input id="inp-breathingSpeed" type="number" step="0.0005" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>呼吸幅度 (像素)</span>
+                  <span id="val-breathingAmplitude">3.0</span>
+                </div>
+                <input id="inp-breathingAmplitude" type="number" step="0.5" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>旋转晃动速度</span>
+                  <span id="val-wobbleSpeed">0.001</span>
+                </div>
+                <input id="inp-wobbleSpeed" type="number" step="0.0002" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>旋转晃动幅度</span>
+                  <span id="val-wobbleAmplitude">0.04</span>
+                </div>
+                <input id="inp-wobbleAmplitude" type="number" step="0.01" />
+              </div>
             </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>呼吸幅度 (像素)</span>
-                <span id="val-breathingAmplitude">3.0</span>
-              </div>
-              <input id="inp-breathingAmplitude" type="number" step="0.5" />
-            </div>
-
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>旋转晃动速度</span>
-                <span id="val-wobbleSpeed">0.001</span>
-              </div>
-              <input id="inp-wobbleSpeed" type="number" step="0.0002" />
-            </div>
-
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>旋转晃动幅度</span>
-                <span id="val-wobbleAmplitude">0.04</span>
-              </div>
-              <input id="inp-wobbleAmplitude" type="number" step="0.01" />
-            </div>
-
-            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>鼠标触碰弹性缩放</span>
-            </div>
-
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>启用弹性缩放</span>
-                <span id="val-hoverScaleEnabled">开</span>
-              </div>
-              <label style="display:flex;align-items:center;gap:6px;">
-                <input id="inp-hoverScaleEnabled" type="checkbox" />
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandHoverScale" style="color: var(--accent);">开</span>
+                <input id="inp-expandHoverScale" type="checkbox" checked style="margin:0;" />
               </label>
             </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>过弹最高缩放</span>
-                <span id="val-hoverOvershootScale">1.10</span>
+            <div id="sect-hoverScale-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用弹性缩放</span>
+                  <span id="val-hoverScaleEnabled">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-hoverScaleEnabled" type="checkbox" />
+                </label>
               </div>
-              <input id="inp-hoverOvershootScale" type="number" step="0.01" min="0.5" max="2.0" />
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>过弹最高缩放</span>
+                  <span id="val-hoverOvershootScale">1.10</span>
+                </div>
+                <input id="inp-hoverOvershootScale" type="number" step="0.01" min="0.5" max="2.0" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>静止悬停缩放</span>
+                  <span id="val-hoverSettleScale">1.05</span>
+                </div>
+                <input id="inp-hoverSettleScale" type="number" step="0.01" min="0.5" max="2.0" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>悬停缩放时间 (ms)</span>
+                  <span id="val-hoverScaleDurationMS">250</span>
+                </div>
+                <input id="inp-hoverScaleDurationMS" type="number" step="1" min="10" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>回缩动画时间 (ms)</span>
+                  <span id="val-hoverScaleOutDurationMS">150</span>
+                </div>
+                <input id="inp-hoverScaleOutDurationMS" type="number" step="1" min="10" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>回缩动画速度</span>
+                  <span id="val-hoverScaleOutSpeed">0.15</span>
+                </div>
+                <input id="inp-hoverScaleOutSpeed" type="number" step="0.01" min="0.01" max="1.0" />
+              </div>
+
+              <div id="mount-hoverScaleCurve" style="padding: 6px 12px;"></div>
             </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>静止悬停缩放</span>
-                <span id="val-hoverSettleScale">1.05</span>
-              </div>
-              <input id="inp-hoverSettleScale" type="number" step="0.01" min="0.5" max="2.0" />
-            </div>
-
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>悬停缩放时间 (ms)</span>
-                <span id="val-hoverScaleDurationMS">250</span>
-              </div>
-              <input id="inp-hoverScaleDurationMS" type="number" step="1" min="10" max="2000" />
-            </div>
-
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>回缩动画时间 (ms)</span>
-                <span id="val-hoverScaleOutDurationMS">150</span>
-              </div>
-              <input id="inp-hoverScaleOutDurationMS" type="number" step="1" min="10" max="2000" />
-            </div>
-
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>回缩动画速度</span>
-                <span id="val-hoverScaleOutSpeed">0.15</span>
-              </div>
-              <input id="inp-hoverScaleOutSpeed" type="number" step="0.01" min="0.01" max="1.0" />
-            </div>
-
-            <div id="mount-hoverScaleCurve" style="padding: 6px 12px;"></div>
-
-            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>鼠标移动卡牌偏移</span>
-            </div>
-
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>启用移动偏移</span>
-                <span id="val-mouseOffsetEnabled">开</span>
-              </div>
-              <label style="display:flex;align-items:center;gap:6px;">
-                <input id="inp-mouseOffsetEnabled" type="checkbox" />
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandMouseOffset" style="color: var(--accent);">开</span>
+                <input id="inp-expandMouseOffset" type="checkbox" checked style="margin:0;" />
               </label>
             </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>X 方向偏移系数</span>
-                <span id="val-mouseOffsetFactorX">0.08</span>
+            <div id="sect-mouseOffset-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用移动偏移</span>
+                  <span id="val-mouseOffsetEnabled">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-mouseOffsetEnabled" type="checkbox" />
+                </label>
               </div>
-              <input id="inp-mouseOffsetFactorX" type="number" step="0.01" />
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>X 方向偏移系数</span>
+                  <span id="val-mouseOffsetFactorX">0.08</span>
+                </div>
+                <input id="inp-mouseOffsetFactorX" type="number" step="0.01" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>Y 方向偏移系数</span>
+                  <span id="val-mouseOffsetFactorY">0.08</span>
+                </div>
+                <input id="inp-mouseOffsetFactorY" type="number" step="0.01" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>最大偏移限制 (像素)</span>
+                  <span id="val-mouseOffsetLimit">8.0</span>
+                </div>
+                <input id="inp-mouseOffsetLimit" type="number" step="1" />
+              </div>
             </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>Y 方向偏移系数</span>
-                <span id="val-mouseOffsetFactorY">0.08</span>
-              </div>
-              <input id="inp-mouseOffsetFactorY" type="number" step="0.01" />
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>最大偏移限制 (像素)</span>
-                <span id="val-mouseOffsetLimit">8.0</span>
-              </div>
-              <input id="inp-mouseOffsetLimit" type="number" step="1" />
-            </div>
-
-
-            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>拖拽手牌相关参数</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandDragHandCard" style="color: var(--accent);">开</span>
+                <input id="inp-expandDragHandCard" type="checkbox" checked style="margin:0;" />
+              </label>
             </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>追踪速度上限 (像素/秒)</span>
-                <span id="val-dragMaxSpeed">3000</span>
+            <div id="sect-dragHandCard-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>追踪速度上限 (像素/秒)</span>
+                  <span id="val-dragMaxSpeed">3000</span>
+                </div>
+                <input id="inp-dragMaxSpeed" type="number" step="100" min="100" max="10000" />
               </div>
-              <input id="inp-dragMaxSpeed" type="number" step="100" min="100" max="10000" />
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>追踪插值系数 (lerp)</span>
-                <span id="val-dragLerpFactor">0.15</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>追踪插值系数 (lerp)</span>
+                  <span id="val-dragLerpFactor">0.15</span>
+                </div>
+                <input id="inp-dragLerpFactor" type="number" step="0.01" min="0.01" max="1.0" />
               </div>
-              <input id="inp-dragLerpFactor" type="number" step="0.01" min="0.01" max="1.0" />
             </div>
           </details>
 

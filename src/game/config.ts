@@ -10,7 +10,7 @@
  *   - 想新增参数 = 在 DEFAULT_CONFIG 里加一项，再在面板 HTML + bind 一行即可。
  */
 
-export const CONFIG_VERSION = 2;
+export const CONFIG_VERSION = 3;
 
 /**
  * 单个 UI 节点的可持久化数据。
@@ -108,6 +108,14 @@ export interface RuntimeConfig {
     lerpFactor: number;
   };
   cardVisuals: {
+    expandedSections: {
+      shadow: boolean;
+      dragShadow: boolean;
+      breathing: boolean;
+      hoverScale: boolean;
+      mouseOffset: boolean;
+      dragHandCard: boolean;
+    };
     // 1. 常态呼吸晃动
     breathingEnabled: boolean;
     breathingSpeed: number;
@@ -130,7 +138,7 @@ export interface RuntimeConfig {
     mouseOffsetFactorY: number;
     mouseOffsetLimit: number;
 
-    // 4. 卡牌操作逻辑参数
+    // 4. 卡牌操作 logic 参数（注：此处保持注释/格式）
     clickThresholdMS: number;
     clickDistanceThreshold: number;
   };
@@ -202,6 +210,14 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     lerpFactor: 0.15,
   }),
   cardVisuals: Object.freeze({
+    expandedSections: Object.freeze({
+      shadow: true,
+      dragShadow: true,
+      breathing: true,
+      hoverScale: true,
+      mouseOffset: true,
+      dragHandCard: true,
+    }),
     breathingEnabled: true,
     breathingSpeed: 0.002,
     breathingAmplitude: 3,
@@ -281,6 +297,9 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     },
     cardVisuals: {
       ...src.cardVisuals,
+      expandedSections: src.cardVisuals.expandedSections ? {
+        ...src.cardVisuals.expandedSections,
+      } : undefined as any,
       hoverScaleCurve: src.cardVisuals.hoverScaleCurve ? {
         ...src.cardVisuals.hoverScaleCurve,
         p1: { ...src.cardVisuals.hoverScaleCurve.p1 },
@@ -370,6 +389,12 @@ export function applyConfig(source: unknown): void {
     merged.cardVisuals = {
       ...merged.cardVisuals,
       ...incoming.cardVisuals,
+      expandedSections: incoming.cardVisuals.expandedSections
+        ? {
+            ...merged.cardVisuals.expandedSections,
+            ...incoming.cardVisuals.expandedSections,
+          }
+        : merged.cardVisuals.expandedSections,
       hoverScaleCurve: incoming.cardVisuals.hoverScaleCurve
         ? {
             ...merged.cardVisuals.hoverScaleCurve,
@@ -453,6 +478,12 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.cardVisuals = {
       ...activeDefaultConfig.cardVisuals,
       ...incoming.cardVisuals,
+      expandedSections: incoming.cardVisuals.expandedSections
+        ? {
+            ...activeDefaultConfig.cardVisuals.expandedSections,
+            ...incoming.cardVisuals.expandedSections,
+          }
+        : activeDefaultConfig.cardVisuals.expandedSections,
       hoverScaleCurve: incoming.cardVisuals.hoverScaleCurve
         ? {
             ...activeDefaultConfig.cardVisuals.hoverScaleCurve,

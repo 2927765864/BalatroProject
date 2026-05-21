@@ -409,6 +409,26 @@ export function setupControlPanel(
     });
   }
 
+  function bindSectionExpand(
+    inputId: string,
+    valueId: string,
+    path: string,
+    containerId: string,
+  ): void {
+    bindToggle(inputId, valueId, path, ["收起", "展开"]);
+    const input = document.getElementById(inputId) as HTMLInputElement | null;
+    const container = document.getElementById(containerId);
+    if (!input || !container) return;
+
+    const updateVisibility = () => {
+      container.style.display = input.checked ? "" : "none";
+    };
+
+    input.addEventListener("change", updateVisibility);
+    syncers.push(updateVisibility);
+    updateVisibility();
+  }
+
   function bindColor(inputId: string, valueId: string, path: string): void {
     const input = document.getElementById(inputId) as HTMLInputElement | null;
     const valueEl = document.getElementById(valueId);
@@ -966,6 +986,7 @@ export function setupControlPanel(
     bindCardBackPicker("card-back-picker", "val-cardBack");
 
     // === 卡牌视效 ===
+    bindSectionExpand("inp-expandShadow", "val-expandShadow", "cardVisuals.expandedSections.shadow", "sect-shadow-params");
     bindColor("inp-shadowColor", "val-shadowColor", "cardShadow.color");
     bindNumber("inp-shadowAlpha", "val-shadowAlpha", "cardShadow.alpha", { digits: 2 });
     bindNumber("inp-shadowLightX", "val-shadowLightX", "cardShadow.lightX", { digits: 1 });
@@ -973,6 +994,7 @@ export function setupControlPanel(
     bindNumber("inp-shadowDistanceRatio", "val-shadowDistanceRatio", "cardShadow.distanceRatio", { digits: 5 });
     bindNumber("inp-shadowScaleRatio", "val-shadowScaleRatio", "cardShadow.scaleRatio", { digits: 2 });
 
+    bindSectionExpand("inp-expandDragShadow", "val-expandDragShadow", "cardVisuals.expandedSections.dragShadow", "sect-dragShadow-params");
     bindColor("inp-dragShadowColor", "val-dragShadowColor", "dragShadow.color");
     bindNumber("inp-dragShadowAlpha", "val-dragShadowAlpha", "dragShadow.alpha", { digits: 2 });
     bindNumber("inp-dragShadowLightX", "val-dragShadowLightX", "dragShadow.lightX", { digits: 1 });
@@ -981,12 +1003,14 @@ export function setupControlPanel(
     bindNumber("inp-dragShadowScaleRatio", "val-dragShadowScaleRatio", "dragShadow.scaleRatio", { digits: 2 });
 
     // === 新增卡牌视效与逻辑参数 ===
+    bindSectionExpand("inp-expandBreathing", "val-expandBreathing", "cardVisuals.expandedSections.breathing", "sect-breathing-params");
     bindToggle("inp-breathingEnabled", "val-breathingEnabled", "cardVisuals.breathingEnabled");
     bindNumber("inp-breathingSpeed", "val-breathingSpeed", "cardVisuals.breathingSpeed", { digits: 4 });
     bindNumber("inp-breathingAmplitude", "val-breathingAmplitude", "cardVisuals.breathingAmplitude", { digits: 1 });
     bindNumber("inp-wobbleSpeed", "val-wobbleSpeed", "cardVisuals.wobbleSpeed", { digits: 4 });
     bindNumber("inp-wobbleAmplitude", "val-wobbleAmplitude", "cardVisuals.wobbleAmplitude", { digits: 3 });
 
+    bindSectionExpand("inp-expandHoverScale", "val-expandHoverScale", "cardVisuals.expandedSections.hoverScale", "sect-hoverScale-params");
     bindToggle("inp-hoverScaleEnabled", "val-hoverScaleEnabled", "cardVisuals.hoverScaleEnabled");
     bindNumber("inp-hoverOvershootScale", "val-hoverOvershootScale", "cardVisuals.hoverOvershootScale", { digits: 2 });
     bindNumber("inp-hoverSettleScale", "val-hoverSettleScale", "cardVisuals.hoverSettleScale", { digits: 2 });
@@ -1011,6 +1035,7 @@ export function setupControlPanel(
       });
     }
 
+    bindSectionExpand("inp-expandMouseOffset", "val-expandMouseOffset", "cardVisuals.expandedSections.mouseOffset", "sect-mouseOffset-params");
     bindToggle("inp-mouseOffsetEnabled", "val-mouseOffsetEnabled", "cardVisuals.mouseOffsetEnabled");
     bindNumber("inp-mouseOffsetFactorX", "val-mouseOffsetFactorX", "cardVisuals.mouseOffsetFactorX", { digits: 3 });
     bindNumber("inp-mouseOffsetFactorY", "val-mouseOffsetFactorY", "cardVisuals.mouseOffsetFactorY", { digits: 3 });
@@ -1019,6 +1044,7 @@ export function setupControlPanel(
     bindNumber("inp-clickThresholdMS", "val-clickThresholdMS", "cardVisuals.clickThresholdMS", { integer: true });
     bindNumber("inp-clickDistanceThreshold", "val-clickDistanceThreshold", "cardVisuals.clickDistanceThreshold", { integer: true });
 
+    bindSectionExpand("inp-expandDragHandCard", "val-expandDragHandCard", "cardVisuals.expandedSections.dragHandCard", "sect-dragHandCard-params");
     bindNumber("inp-dragMaxSpeed", "val-dragMaxSpeed", "dragHandCard.maxSpeed", { integer: true });
     bindNumber("inp-dragLerpFactor", "val-dragLerpFactor", "dragHandCard.lerpFactor", { digits: 2 });
 
