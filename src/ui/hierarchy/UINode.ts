@@ -1,99 +1,143 @@
 /**
- * UINode
+ * UINode（重做版）
  * ---------------------------------------------------------------
- * 所有"出现在 Hierarchy 里的 UI 元素"的统一基类。
+ * 设计规则（务必满足）：
+ *   1. Hierarchy 同层从上到下 = 渲染从先到后（越上越底层）。
+ *   2. 父先渲染，子后渲染。子永远盖在父之上。
  *
- * 把 PIXI.Container 包一层，做三件事：
- *   1. 构造时自动注册到全局 uiHierarchy（单例），并从 CONFIG.uiNodes 里加载持久化数据。
- *   2. 强制持有一个 TransformComponent（不可删），把 x/y/rotation/scale 暴露成"数据"。
- *   3. 提供 addComponent / removeComponent / getComponent，便于挂载更多可选组件。
- *
- * id 必须由调用方提供且全局唯一，且保持稳定（重启后能匹配到 CONFIG 中的存档）。
- * displayName 仅用于 hierarchy 树里显示，可以中文。
+ * 实现策略：
+ *   - 继续利用 PIXI 的父子树承担坐标变换。
+ *   - 不依赖 zIndex / sortableChildren 决定渲染顺序。
+ *   - 每次 PIXI children 发生变化，UINode 都会把"自己挂着的所有 UINode 子"
+ *     一律移动到 children 数组末尾，从而保证：
+ *       - 父节点自己的内部显示对象（Graphics / Sprite / Text 等非 UINode）排在前面，
+ *         先渲染；
+ *       - 所有 UINode 子节点排在后面，按它们之间相对顺序后渲染；
+ *       - UINode 子节点之间的顺序 = 注册到该父下的顺序（reparent / reorder
+ *         也会落到这个顺序里）。
+ *   - 用一个统一的 "UINODE_BRAND" 符号识别 UINode，避免循环依赖 + 跨实例不一致。
  */
-import { Container } from "pixi.js";
+import { Container, type ContainerChild } from "pixi.js";
 import { uiHierarchy } from "./UIHierarchy";
 import { TransformComponent } from "./components/TransformComponent";
 import type { UIComponent } from "./UIComponent";
 
 export interface UINodeOptions {
-  /** 全局唯一 id，例如 "hud.scorePanel"。 */
   id: string;
-  /** Hierarchy 里展示的名字，例如 "得分面板"。 */
   displayName: string;
 }
 
+/** 用 Symbol 在 PIXI 子节点里识别 UINode，比 instanceof 更稳（避免循环依赖）。 */
+export const UI_NODE_BRAND: unique symbol = Symbol.for("ui-node-brand");
+
+export function isUINode(obj: unknown): obj is UINode {
+  return (
+    obj !== null &&
+    typeof obj === "object" &&
+    (obj as { [UI_NODE_BRAND]?: boolean })[UI_NODE_BRAND] === true
+  );
+}
+
 export class UINode extends Container {
+  readonly [UI_NODE_BRAND] = true;
+
   readonly nodeId: string;
   readonly displayName: string;
-
-  /** 默认 Transform 组件，所有 UINode 都有，不可删。 */
   readonly transform: TransformComponent;
 
-  /** 当前节点上挂载的全部组件（含 transform）。 */
   private readonly components: UIComponent[] = [];
+  private registered = false;
+  /** 处于 resort 过程中：避免 setChildIndex 触发的 childAdded/Removed 递归。 */
+  private resorting = false;
 
   constructor(opts: UINodeOptions) {
     super();
     this.nodeId = opts.id;
     this.displayName = opts.displayName;
     this.label = opts.id;
-    // 不启用 sortableChildren：保持 PIXI 默认的"addChild 顺序 == 绘制顺序"
-    // —— 先 addChild 的在下，后 addChild 的在上；父先画、子盖在父之上，
-    // 这与 Unity 中"父在底层、子在顶层"的层级直觉一致。
-    // 个别确实需要按 zIndex 排序的容器（如 worldRoot、cardLayer）自行打开即可。
+    // 关闭 PIXI 自带的 zIndex 排序，自己管 children 顺序。
+    this.sortableChildren = false;
 
-    // 装入 Transform（不可删的默认组件）
     this.transform = new TransformComponent();
     this.attachComponentInternal(this.transform);
 
-    // 注册延后到节点首次被挂到任意父上时：
-    //   1) 调用方通常是 `new Node(); node.position.set(...); parent.addChild(node);`，
-    //      register 太早会让 transform 默认值 = 0/0。
-    //   2) 改在 "added" 触发点 register，可以先 capture 宿主当前位姿、再尝试反序列化存档。
+    // 第一次被挂到任意父之后，捕获初始 local 位姿，并注册到 hierarchy。
     this.once("added", () => {
       this.transform.captureFromHost();
-      uiHierarchy.register(this);
+      if (!this.registered) {
+        this.registered = true;
+        uiHierarchy.register(this);
+      }
     });
 
-    // UINode 作为父级时，Graphics/Text 等内部实现元素属于“父物体 UI”，
-    // 用户在 Hierarchy 里拖进去的 UINode 子物体应始终画在这些父级元素之上。
-    this.on("childAdded", (child) => {
-      if (this.isUINodeChild(child)) this.keepChildOnTop(child);
-    });
+    // 每次有任何子节点进来（不论 UINode 还是普通 Graphics），都重排一次，
+    // 保证 UINode 子节点最终都位于 children 数组末尾，从而后渲染。
+    // 立即同步执行：避免 persist 时拿到尚未规范化的 siblingIndex。
+    this.on("childAdded", () => this.resortChildren());
+    this.on("childRemoved", () => this.resortChildren());
   }
 
-  /** 确保刚挂进来的 UINode 子节点画在父节点当前内容之上。 */
-  keepChildOnTop(child: UINode): void {
-    if (child.parent !== this) return;
-    if (this.children[this.children.length - 1] === child) return;
-    this.setChildIndex(child, this.children.length - 1);
+  // ---- 顺序保证 ------------------------------------------------
+
+  /**
+   * 把当前节点 PIXI children 中的所有 UINode 子，按它们当前的相对顺序，
+   * 一律放到 children 数组末尾。
+   *
+   * 这是本模块唯一一处决定"父子渲染顺序"的地方。
+   */
+  resortChildren(): void {
+    if (this.destroyed) return;
+    if (this.resorting) return;
+    if (this.children.length <= 1) return;
+
+    this.resorting = true;
+    try {
+      // 把所有 UINode 子按当前出现顺序一律压到 children 末尾。
+      // PIXI 的 setChildIndex 会把节点搬到指定下标；按出现顺序逐个搬到末尾，
+      // 既能让所有 UINode 都排在非 UINode 之后，又能保留它们之间的相对顺序。
+      const uiChildren: UINode[] = [];
+      for (const child of this.children) {
+        if (isUINode(child)) uiChildren.push(child);
+      }
+      for (const child of uiChildren) {
+        this.setChildIndex(child, this.children.length - 1);
+      }
+    } finally {
+      this.resorting = false;
+    }
   }
 
-  private isUINodeChild(child: unknown): child is UINode {
-    return (
-      child !== null &&
-      typeof child === "object" &&
-      typeof (child as { nodeId?: unknown }).nodeId === "string"
-    );
+  // ---- 父子（逻辑）------------------------------------------------
+
+  /** 当前直接挂在自己 PIXI children 上的 UINode 子节点，按 hierarchy 视觉顺序返回。 */
+  listUIChildren(): UINode[] {
+    const out: UINode[] = [];
+    for (const child of this.children) {
+      if (isUINode(child)) out.push(child);
+    }
+    return out;
+  }
+
+  /** 当前节点最近的 UINode 祖先。沿 PIXI parent 链向上找。 */
+  findUINodeParent(): UINode | null {
+    let p: ContainerChild | Container | null = this.parent;
+    while (p) {
+      if (isUINode(p)) return p;
+      p = (p as Container).parent ?? null;
+    }
+    return null;
   }
 
   // ---- 组件 ----------------------------------------------------
 
-  /** 取指定类型的组件；不存在返回 undefined。 */
   getComponent<T extends UIComponent>(type: string): T | undefined {
     return this.components.find((c) => c.type === type) as T | undefined;
   }
 
-  /** 获取节点上的全部组件（顺序：transform 在最前，之后按添加顺序）。 */
   listComponents(): readonly UIComponent[] {
     return this.components;
   }
 
-  /**
-   * 给节点添加一个组件。
-   * 同 type 已存在时直接返回旧的，不再重复挂。
-   */
   addComponent<T extends UIComponent>(component: T): T {
     const existing = this.getComponent<T>(component.type);
     if (existing) {
@@ -107,10 +151,6 @@ export class UINode extends Container {
     return component;
   }
 
-  /**
-   * 删除组件。Transform 这类 removable=false 的组件会被拒绝。
-   * 返回是否真的删掉了。
-   */
   removeComponent(type: string): boolean {
     const idx = this.components.findIndex((c) => c.type === type);
     if (idx < 0) return false;
@@ -122,11 +162,34 @@ export class UINode extends Container {
     return true;
   }
 
-  /** 内部统一挂载入口（构造时初始化 transform 也走这条路径）。 */
   private attachComponentInternal(c: UIComponent): void {
     this.components.push(c);
     c.attach(this);
     c.apply();
+  }
+
+  // ---- 视觉脏标记 -------------------------------------------------
+
+  /**
+   * 通知"宿主自身的视觉内容发生了变化"——典型场景：
+   *   - UIText.setText() 改了文字；
+   *   - 业务直接动了内部 PIXI 显示对象的样式 / 颜色 / 几何形状。
+   *
+   * 任何依赖宿主当前外观做"快照型"渲染的组件（如 ShadowComponent 烤纹理），
+   * 都应该监听这个事件并在收到时安排一次重建。
+   *
+   * 不在以下场景里 emit：
+   *   - 仅仅是 transform 变化（位置、缩放、旋转）——sprite 是 child 自动跟随，
+   *     不需要重烤。
+   *   - 加 / 删 child——已经有 `childAdded` / `childRemoved` 覆盖。
+   */
+  notifyVisualChanged(): void {
+    if (this.destroyed) return;
+    // 用 PIXI Container 的 EventEmitter 直接发自定义事件。
+    // 类型上 ContainerEvents 没列出自定义名，cast 一下规避。
+    (this as unknown as { emit: (name: string) => boolean }).emit(
+      "hostVisualChanged",
+    );
   }
 
   // ---- PIXI 销毁联动 ------------------------------------------
@@ -134,7 +197,10 @@ export class UINode extends Container {
   override destroy(options?: Parameters<Container["destroy"]>[0]): void {
     for (const c of this.components) c.detach();
     this.components.length = 0;
-    uiHierarchy.unregister(this);
+    if (this.registered) {
+      uiHierarchy.unregister(this);
+      this.registered = false;
+    }
     super.destroy(options);
   }
 }

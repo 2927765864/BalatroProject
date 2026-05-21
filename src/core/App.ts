@@ -51,9 +51,8 @@ export class App {
       // 开启几何抗锯齿：平滑 Graphics 绘制出的卡牌外缘 / 圆角。
       // 像素素材本身仍由 AssetManager 强制 scaleMode=nearest，内部像素不会因此变糊。
       antialias: true,
-      // 整体禁用亚像素位置：让 Sprite 的 (x, y) 最终落到整数像素上，
-      // 避免动画过程中像素图出现"半像素采样"导致的抖动 / 模糊条纹。
-      roundPixels: true,
+      // 允许亚像素位置渲染，以便文字等平滑移动。需要精确对齐的像素卡牌由各图层容器单独开启 roundPixels。
+      roundPixels: false,
     });
 
     const mount = this.opts.mountTo ?? document.body;

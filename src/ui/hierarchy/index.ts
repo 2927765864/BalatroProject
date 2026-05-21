@@ -11,8 +11,13 @@ import { componentRegistry } from "./UIComponent";
 import { TransformComponent } from "./components/TransformComponent";
 import { TweenComponent } from "./components/TweenComponent";
 import { TextStyleComponent } from "./components/TextStyleComponent";
+import { ShadowComponent } from "./components/ShadowComponent";
+import {
+  BreathingTextComponent,
+  breathingTextCanAttach,
+} from "./components/BreathingTextComponent";
 
-export { UINode } from "./UINode";
+export { UINode, isUINode } from "./UINode";
 export { uiHierarchy } from "./UIHierarchy";
 export {
   UIComponent,
@@ -22,10 +27,13 @@ export {
 export { TransformComponent } from "./components/TransformComponent";
 export { TweenComponent } from "./components/TweenComponent";
 export { TextStyleComponent } from "./components/TextStyleComponent";
+export { ShadowComponent } from "./components/ShadowComponent";
+export { BreathingTextComponent } from "./components/BreathingTextComponent";
 
 // 组件类型注册：
 //   - transform / textStyle 是默认组件，不出现在"添加组件"下拉里。
 //   - tween 是 demo 用的可加组件。
+//   - shadow 给宿主整体加 DropShadow，可挂任意 UINode。
 componentRegistry.register({
   type: "transform",
   displayName: "Transform",
@@ -44,4 +52,19 @@ componentRegistry.register({
   type: "tween",
   displayName: "Tween",
   factory: () => new TweenComponent(),
+});
+
+componentRegistry.register({
+  type: "shadow",
+  displayName: "Shadow",
+  factory: () => new ShadowComponent(),
+});
+
+// 逐字呼吸效果：只对 UIText（文字 / 数字）有意义，
+// 通过 canAttach 限制添加菜单 —— Panel / Button 容器等节点不会出现在它们的下拉里。
+componentRegistry.register({
+  type: "breathingText",
+  displayName: "逐字呼吸",
+  factory: () => new BreathingTextComponent(),
+  canAttach: breathingTextCanAttach,
 });

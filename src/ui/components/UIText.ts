@@ -63,6 +63,9 @@ export class UIText extends UINode {
     // 保持组件字段同步（不能反过来再 apply，否则会无限循环；
     // TextStyleComponent 内部已经避免在 apply 中调 setText 触发反向写）。
     this.textStyle.syncFromHost(value);
+    // 通知"宿主视觉内容已变化"。ShadowComponent 等做"宿主快照型"渲染的
+    // 组件会监听这个事件并安排重烤。
+    this.notifyVisualChanged();
   }
 
   /** 取当前 PIXI.Text 上的真实文本。 */
@@ -74,5 +77,18 @@ export class UIText extends UINode {
   setAnchor(x: number, y: number = x): this {
     this.pixiText.anchor.set(x, y);
     return this;
+  }
+
+  /**
+   * 暴露内部 PIXI.Text 给"逐字效果"这类组件用。
+   *
+   * 设计取舍：BreathingTextComponent 需要：
+   *   - 读 PIXI TextStyle / 当前 text / anchor / 是否可见 等做"逐字拆分"；
+   *   - 临时把它隐藏起来、再渲染一组逐字小 Text。
+   * 让组件直接 down-cast 节点的 children 并不安全（顺序可能被打乱）。
+   * 走这个 getter，宿主显式说"我愿意把内部 Text 借给你看"。
+   */
+  getPixiText(): import("pixi.js").Text {
+    return this.pixiText;
   }
 }

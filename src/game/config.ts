@@ -10,7 +10,7 @@
  *   - 想新增参数 = 在 DEFAULT_CONFIG 里加一项，再在面板 HTML + bind 一行即可。
  */
 
-export const CONFIG_VERSION = 1;
+export const CONFIG_VERSION = 2;
 
 /**
  * 单个 UI 节点的可持久化数据。
@@ -142,10 +142,17 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
 }) as RuntimeConfig;
 
 /**
+ * 激活状态的默认配置，初始为出厂设置 DEFAULT_CONFIG 的深拷贝。
+ * 如果后续成功加载了 presets/shipping.json，则将被更新为该 shipping 默认参数，
+ * 从而使“恢复出厂默认参数”等操作能正确恢复至项目的 shipping 默认状态。
+ */
+export const activeDefaultConfig: RuntimeConfig = cloneConfig(DEFAULT_CONFIG);
+
+/**
  * 运行时可写副本。所有业务读这个对象。
  * 用深拷贝避免共享 frozen 引用。
  */
-export const CONFIG: RuntimeConfig = cloneConfig(DEFAULT_CONFIG);
+export const CONFIG: RuntimeConfig = cloneConfig(activeDefaultConfig);
 
 /**
  * GameConfig 是老代码的入口名。
@@ -205,7 +212,7 @@ export function migrateConfig(input: unknown): unknown {
 
 /**
  * 把任意来源（preset / localStorage / 用户导入）的数据合并进 CONFIG。
- * 用 DEFAULT_CONFIG 兜底缺失字段，保证旧 preset 升级后不丢字段。
+ * 用 activeDefaultConfig 兜底缺失字段，保证旧 preset 升级后不丢字段。
  */
 export function applyConfig(source: unknown): void {
   const migrated = migrateConfig(source);
@@ -213,7 +220,7 @@ export function applyConfig(source: unknown): void {
     ? (migrated as Partial<RuntimeConfig>)
     : {};
 
-  const merged = cloneConfig(DEFAULT_CONFIG);
+  const merged = cloneConfig(activeDefaultConfig);
   if (incoming.world) Object.assign(merged.world, incoming.world);
   if (incoming.rules) Object.assign(merged.rules, incoming.rules);
   if (incoming.animation) Object.assign(merged.animation, incoming.animation);
@@ -247,9 +254,74 @@ export function applyConfig(source: unknown): void {
   CONFIG.uiNodes = merged.uiNodes;
 }
 
-/** 把 CONFIG 重置为 DEFAULT_CONFIG。 */
+/** 把 CONFIG 重置为当前激活的默认配置。 */
 export function resetConfigToDefaults(): void {
-  applyConfig(DEFAULT_CONFIG);
+  applyConfig(activeDefaultConfig);
+}
+
+/**
+ * 将载入的 shipping 默认配置数据合并进 activeDefaultConfig
+ */
+export function applyShippingDefaults(source: unknown): void {
+  const migrated = migrateConfig(source);
+  const incoming = (migrated && typeof migrated === "object")
+    ? (migrated as Partial<RuntimeConfig>)
+    : {};
+
+  if (incoming.world) Object.assign(activeDefaultConfig.world, incoming.world);
+  if (incoming.rules) Object.assign(activeDefaultConfig.rules, incoming.rules);
+  if (incoming.animation) Object.assign(activeDefaultConfig.animation, incoming.animation);
+  if (incoming.debug) Object.assign(activeDefaultConfig.debug, incoming.debug);
+  if (incoming.cardArt) {
+    activeDefaultConfig.cardArt = {
+      ...activeDefaultConfig.cardArt,
+      ...incoming.cardArt,
+      back: { ...activeDefaultConfig.cardArt.back, ...(incoming.cardArt.back ?? {}) },
+    };
+  }
+  if (incoming.scoreCurve) {
+    activeDefaultConfig.scoreCurve = {
+      ...activeDefaultConfig.scoreCurve,
+      ...incoming.scoreCurve,
+      p1: { ...activeDefaultConfig.scoreCurve.p1, ...(incoming.scoreCurve.p1 ?? {}) },
+      p2: { ...activeDefaultConfig.scoreCurve.p2, ...(incoming.scoreCurve.p2 ?? {}) },
+    };
+  }
+  if (incoming.uiNodes) {
+    activeDefaultConfig.uiNodes = cloneUINodes(incoming.uiNodes);
+  }
+
+  // 更新底层 activeDefaultConfig 后，同时将其应用到当前的运行状态 CONFIG 之中
+  applyConfig(activeDefaultConfig);
+}
+
+/**
+ * 异步从 presets/shipping.json 载入 shipping 参数
+ */
+export async function loadShippingConfig(): Promise<void> {
+  try {
+    const response = await fetch("presets/shipping.json");
+    if (!response.ok) {
+      // 没找到 shipping 属于正常情况（开发阶段还未放置），直接返回
+      return;
+    }
+    const data = await response.json();
+    if (!data || typeof data !== "object") {
+      console.warn("[config] presets/shipping.json 格式错误，忽略加载。");
+      return;
+    }
+
+    // 支持标准的预设封装格式与直接的 CONFIG 格式
+    const configToApply = data.type === "runtime-control-preset" && data.config
+      ? data.config
+      : data;
+
+    applyShippingDefaults(configToApply);
+    console.log("[config] 成功载入默认 Shipping 预设配置:", configToApply);
+  } catch (err) {
+    // 可能是网络原因或本地文件不存在，记录 debug 级别的日志即可
+    console.debug("[config] presets/shipping.json 未载入或不存在:", err);
+  }
 }
 
 const CONFIG_STORAGE_KEY = "balatroRuntimeConfig";
@@ -258,7 +330,19 @@ export function loadSavedConfig(storageKey: string = CONFIG_STORAGE_KEY): void {
   try {
     const raw = localStorage.getItem(storageKey);
     if (!raw) return;
-    applyConfig(JSON.parse(raw));
+    const parsed = JSON.parse(raw) as Record<string, unknown> | null;
+    if (!parsed || typeof parsed !== "object") return;
+
+    // UI 序列化布局结构（uiNodes）跨版本不兼容时直接丢弃，让 hierarchy
+    // 自己用默认结构重建；其余参数仍然合并进 CONFIG。
+    const savedVersion = typeof parsed["__version"] === "number"
+      ? (parsed["__version"] as number)
+      : 0;
+    if (savedVersion !== CONFIG_VERSION) {
+      delete parsed["uiNodes"];
+    }
+
+    applyConfig(parsed);
   } catch (err) {
     console.error("[config] 读取本地保存配置失败：", err);
   }
@@ -268,7 +352,8 @@ export function saveCurrentConfig(
   storageKey: string = CONFIG_STORAGE_KEY,
 ): void {
   try {
-    localStorage.setItem(storageKey, JSON.stringify(CONFIG));
+    const payload = { __version: CONFIG_VERSION, ...CONFIG };
+    localStorage.setItem(storageKey, JSON.stringify(payload));
   } catch (err) {
     console.error("[config] 保存配置失败：", err);
   }

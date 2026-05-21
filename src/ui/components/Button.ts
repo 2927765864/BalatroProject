@@ -6,27 +6,27 @@ import { UIText } from "./UIText";
 /**
  * 通用按钮（状态机：normal / hover / down / disabled）
  *
- * 与原型相比：
- *   - 把 alpha 切换 + 颜色重绘合并进 setState；调用方只需 setEnabled(true|false)
- *     和 setActiveColor，不必每次手动 redraw。
+ * 重做后的实现：
+ *   - Button 自身是空 UINode，挂"背景 UINode" + "文字 UINode"。
+ *   - 状态切换通过修改 background 颜色 + 自身 alpha 实现。
+ *   - 这样 Hierarchy 里能看到 "按钮 > 背景 / 文字" 三个独立节点，
+ *     渲染顺序由统一规则保证。
  */
 export type ButtonState = "normal" | "hover" | "down" | "disabled";
 
 export interface ButtonOptions {
-  /** UI Hierarchy 中的稳定 id。 */
   id: string;
-  /** Hierarchy 中显示的名字。 */
   displayName: string;
   text: string;
   width?: number;
   height?: number;
   idleColor?: number;
-  activeColor?: number; // 高亮色（启用时用）
+  activeColor?: number;
   onClick: () => void;
 }
 
 export class Button extends UINode {
-  private readonly g = new Graphics();
+  private readonly background: ButtonBackground;
   private readonly labelText: UIText;
   private state: ButtonState = "normal";
 
@@ -43,12 +43,15 @@ export class Button extends UINode {
     this.idleColor = opts.idleColor ?? Theme.colors.btnIdle;
     this.activeColor = opts.activeColor ?? Theme.colors.playBtn;
 
-    // 按钮背景也是实现细节，必须永远在按钮文字/用户子物体下方。
-    // 不启用 sortableChildren，避免嵌套子 UI 被按钮自身 UI 重新排序后遮挡。
-    this.g.zIndex = -1;
-    this.addChild(this.g);
-    // Button 内文字独立成 UIText 节点，于是在 Hierarchy 里能看见 "出牌按钮 > 文字"。
-    // 注意 id 必须依赖外部传入的 opts.id，否则多按钮会冲突。
+    this.background = new ButtonBackground({
+      id: `${opts.id}.background`,
+      displayName: "背景",
+      width: this.w,
+      height: this.h,
+      color: this.activeColor,
+    });
+    this.addChild(this.background);
+
     this.labelText = new UIText({
       id: `${opts.id}.label`,
       displayName: "文字",
@@ -76,8 +79,6 @@ export class Button extends UINode {
     });
     this.on("pointerup", () => this.setState("hover"));
     this.on("pointerupoutside", () => this.setState("normal"));
-
-    this.redraw();
   }
 
   setEnabled(enabled: boolean): void {
@@ -87,19 +88,17 @@ export class Button extends UINode {
 
   setActiveColor(color: number): void {
     this.activeColor = color;
-    this.redraw();
+    this.applyState();
   }
 
   private setState(s: ButtonState): void {
     this.state = s;
-    this.redraw();
+    this.applyState();
   }
 
-  private redraw(): void {
-    this.g.clear();
-    this.g.roundRect(0, 0, this.w, this.h, 8);
+  private applyState(): void {
     const color = this.enabled ? this.activeColor : this.idleColor;
-    this.g.fill({ color });
+    this.background.setColor(color);
 
     if (!this.enabled) {
       this.alpha = 0.5;
@@ -107,7 +106,6 @@ export class Button extends UINode {
       return;
     }
     this.eventMode = "static";
-
     switch (this.state) {
       case "hover":
         this.alpha = 0.9;
@@ -118,5 +116,40 @@ export class Button extends UINode {
       default:
         this.alpha = 1.0;
     }
+  }
+}
+
+// ---- 背景独立节点 -------------------------------------------------
+
+export interface ButtonBackgroundOptions {
+  id: string;
+  displayName: string;
+  width: number;
+  height: number;
+  color: number;
+  radius?: number;
+}
+
+export class ButtonBackground extends UINode {
+  private readonly g = new Graphics();
+  private opts: ButtonBackgroundOptions;
+
+  constructor(opts: ButtonBackgroundOptions) {
+    super({ id: opts.id, displayName: opts.displayName });
+    this.opts = opts;
+    this.addChild(this.g);
+    this.redraw();
+  }
+
+  setColor(color: number): void {
+    this.opts = { ...this.opts, color };
+    this.redraw();
+  }
+
+  private redraw(): void {
+    const { width, height, color, radius = 8 } = this.opts;
+    this.g.clear();
+    this.g.roundRect(0, 0, width, height, radius);
+    this.g.fill({ color });
   }
 }

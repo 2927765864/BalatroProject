@@ -4,11 +4,13 @@ import { UINode } from "@ui/hierarchy";
 /**
  * 通用圆角面板
  *
- * 不持有逻辑，只负责绘制矩形 + 圆角 + 可选描边。
- * 通过 setSize 支持运行时改尺寸（layout 阶段使用）。
- *
- * 继承自 UINode：构造时必须传入稳定的 hierarchy id 与显示名，
- * 这样它会自动出现在调参面板的 Hierarchy 树里。
+ * 重做后的实现：
+ *   - Panel 自身是一个空 UINode，只承担"挂载点 + transform"。
+ *   - 圆角矩形背景被拆成 PanelBackground（也是一个 UINode）作为 Panel 的子节点。
+ *   - 这样背景在 Hierarchy 里就是一个独立、可见、可调位置的节点，
+ *     同时遵守"父先渲染、子后渲染"的统一规则：
+ *        Panel(空) → PanelBackground → 用户后续 addChild 的内容
+ *     用户拖进来的子 UINode 渲染在 PanelBackground 之上。
  */
 export interface PanelOptions {
   /** UI Hierarchy 中的稳定 id，例如 "hud.leftPanel"。 */
@@ -24,28 +26,58 @@ export interface PanelOptions {
 }
 
 export class Panel extends UINode {
-  private readonly g = new Graphics();
+  private readonly background: PanelBackground;
   private opts: PanelOptions;
 
   constructor(opts: PanelOptions) {
     super({ id: opts.id, displayName: opts.displayName });
     this.opts = opts;
-    // Panel 的 Graphics 是实现细节背景，不应该参与用户调层级。
-    // 这里不用 sortableChildren，否则多层嵌套时同 zIndex 的父级内部 UI
-    // 可能在渲染排序后盖住用户拖进去的子 UINode。
-    this.g.zIndex = -1;
+    this.background = new PanelBackground({
+      id: `${opts.id}.background`,
+      displayName: "背景",
+      width: opts.width,
+      height: opts.height,
+      fill: opts.fill,
+      radius: opts.radius,
+      borderColor: opts.borderColor,
+      borderWidth: opts.borderWidth,
+    });
+    this.addChild(this.background);
+  }
+
+  setSize(width: number, height: number): void {
+    this.opts = { ...this.opts, width, height };
+    this.background.setSize(width, height);
+  }
+
+  setFill(fill: number): void {
+    this.opts = { ...this.opts, fill };
+    this.background.setFill(fill);
+  }
+}
+
+// ---- 背景独立节点 -------------------------------------------------
+
+export interface PanelBackgroundOptions {
+  id: string;
+  displayName: string;
+  width: number;
+  height: number;
+  fill: number;
+  radius?: number;
+  borderColor?: number;
+  borderWidth?: number;
+}
+
+export class PanelBackground extends UINode {
+  private readonly g = new Graphics();
+  private opts: PanelBackgroundOptions;
+
+  constructor(opts: PanelBackgroundOptions) {
+    super({ id: opts.id, displayName: opts.displayName });
+    this.opts = opts;
     this.addChild(this.g);
     this.redraw();
-
-    // 让背景始终位于 children 数组最底层（下标 0）。
-    // 否则当 Hierarchy 面板里用户把别的 UINode reparent 进来时，新子会被
-    // addChild 追加到末尾、画在背景之上是没问题，但 hydrate/reorder 会按
-    // siblingIndex 重新排，可能把背景挤到上面去——表现为"背板盖住了内容"。
-    this.on("childAdded", (child) => {
-      if (child !== this.g && this.children[0] !== this.g) {
-        this.setChildIndex(this.g, 0);
-      }
-    });
   }
 
   setSize(width: number, height: number): void {

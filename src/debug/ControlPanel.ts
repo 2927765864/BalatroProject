@@ -784,6 +784,29 @@ export function setupControlPanel(
       notify("*", CONFIG);
     });
 
+    document.getElementById("btn-export-shipping")?.addEventListener("click", () => {
+      // 主动 persist 一次，确保 hierarchy 当前最新状态被同步到 CONFIG.uiNodes
+      uiHierarchy.persist();
+      const data = {
+        type: "runtime-control-preset",
+        version: CONFIG_VERSION,
+        name: "shipping",
+        config: cloneConfig(CONFIG),
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "shipping.json";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      flashMessage("已导出当前配置为 shipping.json！请放至 presets 目录下。");
+    });
+
     document.getElementById("btn-save-preset")?.addEventListener("click", () => {
       const name = nameInput?.value.trim();
       if (!name) {

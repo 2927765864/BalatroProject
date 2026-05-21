@@ -29,6 +29,53 @@ import {
 import type { UINode } from "@ui/hierarchy";
 import type { Container } from "pixi.js";
 
+/**
+ * 组件参数剪贴板：进程内单例，存放最近一次"复制"的组件序列化数据。
+ *
+ * 隔离规则：粘贴时**只有相同 type 的组件**才接受这份数据。
+ * 这样：
+ *   - 拷贝一个 Transform 不会被错误粘到 Shadow 上；
+ *   - 拷贝一个 BreathingText 也不会污染其它组件；
+ *   - 同类型粘贴时直接 deserialize（与读取本地预设走的是同一代码路径）。
+ */
+const componentClipboard: { type: string | null; data: Record<string, unknown> | null } = {
+  type: null,
+  data: null,
+};
+
+function copyComponentToClipboard(comp: UIComponent): void {
+  const serialized = comp.serialize();
+  // 深拷贝避免后续编辑串味——JSON 往返是最稳的方案，组件数据都是可序列化的。
+  componentClipboard.type = serialized.type;
+  componentClipboard.data = JSON.parse(JSON.stringify(serialized.data));
+}
+
+function canPasteToComponent(comp: UIComponent): boolean {
+  return componentClipboard.type === comp.type && componentClipboard.data !== null;
+}
+
+function pasteComponentFromClipboard(node: UINode, comp: UIComponent): boolean {
+  if (!canPasteToComponent(comp)) return false;
+  try {
+    comp.deserialize(componentClipboard.data as Record<string, unknown>);
+    comp.apply();
+    uiHierarchy.notifyComponentsChanged(node);
+    return true;
+  } catch (err) {
+    console.error("[HierarchyView] 粘贴组件参数失败：", err);
+    return false;
+  }
+}
+
+// 把"用户操作触发的 hierarchy 重渲"的语义注入。
+// notifyComponentsChanged 默认会被 HierarchyView 忽略（保护正在输入的字段），
+// 但在"粘贴参数"这种**整组字段被替换**的场景里，必须强制重画 inspector，
+// 否则面板上看到的还是旧值（DOM 与 component.data 失同步）。
+const FORCE_RERENDER_TOPIC = "ui-hier-force-rerender";
+function dispatchForceRerender(): void {
+  window.dispatchEvent(new CustomEvent(FORCE_RERENDER_TOPIC));
+}
+
 interface HierarchyViewOptions {
   /** 放置树 DOM 的容器。 */
   mount: HTMLElement;
@@ -44,18 +91,35 @@ export class HierarchyView {
   /** 节流：在多个 hierarchy 事件接连发生时只重绘一次。 */
   private renderScheduled = false;
   private readonly unsubscribe: () => void;
+  private forceRerenderHandler: (() => void) | null = null;
 
   constructor(opts: HierarchyViewOptions) {
     this.mount = opts.mount;
     this.worldRoot = opts.worldRoot;
     this.mount.classList.add("ui-hier-tree");
 
-    this.unsubscribe = uiHierarchy.subscribe(() => this.scheduleRender());
+    this.unsubscribe = uiHierarchy.subscribe((type) => {
+      // transformChanged / componentsChanged 来自 inspector 字段的"边输入边提交"
+      // （TransformComponent / ShadowComponent / TweenComponent 等）。这两类事件
+      // 是字段自己已经写回 PIXI、自己已经在 DOM 上反映了新值，**不需要重绘整棵
+      // hierarchy 树**。如果在这里重绘，输入框会被 innerHTML="" 销毁重建，
+      // 用户就会丢焦点、丢滚动位置、丢光标位置（这就是用户报告的 bug）。
+      if (type === "transformChanged" || type === "componentsChanged") return;
+      this.scheduleRender();
+    });
+    // "粘贴组件参数"这种整组字段被替换的场景：必须强制重画，让 inspector 的
+    // 输入控件读出最新值。普通的"边输入边改值"场景仍走上面那条静默路径。
+    this.forceRerenderHandler = (): void => this.scheduleRender();
+    window.addEventListener(FORCE_RERENDER_TOPIC, this.forceRerenderHandler);
     this.scheduleRender();
   }
 
   destroy(): void {
     this.unsubscribe();
+    if (this.forceRerenderHandler) {
+      window.removeEventListener(FORCE_RERENDER_TOPIC, this.forceRerenderHandler);
+      this.forceRerenderHandler = null;
+    }
     this.mount.innerHTML = "";
   }
 
@@ -71,6 +135,10 @@ export class HierarchyView {
   }
 
   private render(): void {
+    // 兜底：保留可滚动祖先的 scrollTop，避免增删/重排事件触发重绘后视图跳到顶部。
+    const scroller = this.findScrollAncestor(this.mount);
+    const savedScrollTop = scroller ? scroller.scrollTop : 0;
+
     this.mount.innerHTML = "";
 
     const roots = uiHierarchy.rootNodes();
@@ -79,12 +147,29 @@ export class HierarchyView {
       empty.className = "ui-hier-empty";
       empty.textContent = "（暂无 UI 节点）";
       this.mount.appendChild(empty);
+      if (scroller) scroller.scrollTop = savedScrollTop;
       return;
     }
 
     for (const root of roots) {
       this.mount.appendChild(this.renderNode(root, 0));
     }
+
+    if (scroller) scroller.scrollTop = savedScrollTop;
+  }
+
+  /** 向上找第一个真正可垂直滚动的祖先（含自己）。找不到则返回 null。 */
+  private findScrollAncestor(el: HTMLElement): HTMLElement | null {
+    let cur: HTMLElement | null = el;
+    while (cur && cur !== document.body) {
+      const style = getComputedStyle(cur);
+      const oy = style.overflowY;
+      if ((oy === "auto" || oy === "scroll") && cur.scrollHeight > cur.clientHeight) {
+        return cur;
+      }
+      cur = cur.parentElement;
+    }
+    return null;
   }
 
   private renderNode(node: UINode, depth: number): HTMLElement {
@@ -194,19 +279,19 @@ export class HierarchyView {
     title.textContent = comp.displayName;
     head.appendChild(title);
 
-    if (comp.removable) {
-      const del = document.createElement("button");
-      del.type = "button";
-      del.className = "ui-comp-del";
-      del.textContent = "删除";
-      del.title = `从 ${node.displayName} 移除 ${comp.displayName}`;
-      del.addEventListener("click", (e) => {
-        e.stopPropagation();
-        node.removeComponent(comp.type);
-        // hierarchy 会广播 componentsChanged，触发 scheduleRender。
-      });
-      head.appendChild(del);
-    }
+    // "更多"按钮：弹出菜单，里面有"复制本组件参数 / 粘贴参数 / 删除本组件"
+    // 三个操作。Transform / TextStyle 这类 removable=false 的组件仍然有按钮，
+    // 但"删除"项会被禁用（这样它们也支持复制 / 粘贴参数）。
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "ui-comp-more";
+    more.textContent = "更多";
+    more.title = `${comp.displayName} 的操作`;
+    more.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.showComponentMenu(more, node, comp);
+    });
+    head.appendChild(more);
     card.appendChild(head);
 
     if (expanded) {
@@ -229,6 +314,116 @@ export class HierarchyView {
     return `${node.nodeId}/${comp.type}`;
   }
 
+  // ---- "更多"弹出菜单 -------------------------------------------
+
+  /**
+   * 在 anchor 按钮旁弹出一个浮层菜单，包含三个操作：
+   *   - 复制本组件参数
+   *   - 粘贴参数到本组件（只有剪贴板上的组件 type 与本组件一致时可用）
+   *   - 删除本组件（comp.removable=false 时禁用）
+   *
+   * 同时刻只允许一个菜单打开：再次点击或点其它地方会关掉旧的。
+   */
+  private showComponentMenu(anchor: HTMLElement, node: UINode, comp: UIComponent): void {
+    // 已经有同源菜单 → 当作 toggle 关掉。
+    const existing = document.querySelector<HTMLElement>(".ui-comp-menu");
+    if (existing) {
+      const sameAnchor = existing.dataset["anchorKey"] === this.componentKey(node, comp);
+      existing.remove();
+      if (sameAnchor) return;
+    }
+
+    const menu = document.createElement("div");
+    menu.className = "ui-comp-menu";
+    menu.dataset["anchorKey"] = this.componentKey(node, comp);
+
+    const makeItem = (
+      label: string,
+      enabled: boolean,
+      onClick: () => void,
+      opts: { destructive?: boolean } = {},
+    ): HTMLButtonElement => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ui-comp-menu-item";
+      if (opts.destructive) btn.classList.add("is-destructive");
+      btn.textContent = label;
+      btn.disabled = !enabled;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        menu.remove();
+        if (enabled) onClick();
+      });
+      return btn;
+    };
+
+    menu.appendChild(
+      makeItem("复制本组件的参数", true, () => {
+        copyComponentToClipboard(comp);
+      }),
+    );
+
+    const canPaste = canPasteToComponent(comp);
+    menu.appendChild(
+      makeItem(
+        canPaste ? "粘贴参数到本组件" : "粘贴参数到本组件（无匹配剪贴板）",
+        canPaste,
+        () => {
+          if (pasteComponentFromClipboard(node, comp)) {
+            // 整组字段被替换：强制重绘 hierarchy 树，让 inspector 上的输入控件
+            // 读到最新数据（普通的"边输入边改"路径不会重绘）。
+            dispatchForceRerender();
+          }
+        },
+      ),
+    );
+
+    menu.appendChild(
+      makeItem(
+        comp.removable ? "删除本组件" : "删除本组件（固定组件不可删）",
+        comp.removable,
+        () => {
+          node.removeComponent(comp.type);
+          // hierarchy 会广播 componentsChanged，触发 scheduleRender。
+        },
+        { destructive: true },
+      ),
+    );
+
+    // 摆位：紧贴 anchor 按钮的下方，相对 viewport 定位。
+    const rect = anchor.getBoundingClientRect();
+    document.body.appendChild(menu);
+    // 先临时显示，量自身宽高再贴边修正。
+    const menuRect = menu.getBoundingClientRect();
+    let left = rect.right - menuRect.width;
+    let top = rect.bottom + 4;
+    if (left < 4) left = 4;
+    if (left + menuRect.width > window.innerWidth - 4) {
+      left = Math.max(4, window.innerWidth - 4 - menuRect.width);
+    }
+    if (top + menuRect.height > window.innerHeight - 4) {
+      // 翻到上方
+      top = Math.max(4, rect.top - menuRect.height - 4);
+    }
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+
+    // 点击空白处自动关闭。用 capture 阶段抢在按钮 click 之前。
+    const dismiss = (e: Event): void => {
+      // 忽略输入框失去焦点等元素级别的 blur 事件，仅在 window 级别 blur（如切换标签页）时才关闭
+      if (e.type === "blur" && e.target !== window) return;
+      if (e.target instanceof Node && menu.contains(e.target)) return;
+      menu.remove();
+      window.removeEventListener("pointerdown", dismiss, true);
+      window.removeEventListener("blur", dismiss, true);
+    };
+    // 微延迟，避免本次 click 立即触发 dismiss。
+    window.setTimeout(() => {
+      window.addEventListener("pointerdown", dismiss, true);
+      window.addEventListener("blur", dismiss, true);
+    }, 0);
+  }
+
   private renderAddComponent(node: UINode): HTMLElement {
     const wrap = document.createElement("div");
     wrap.className = "ui-comp-add";
@@ -243,7 +438,9 @@ export class HierarchyView {
     const available = componentRegistry
       .listAddable()
       // 同一节点同类型组件只允许一份，已经挂上的类型从下拉里去掉
-      .filter((m) => !node.getComponent(m.type));
+      .filter((m) => !node.getComponent(m.type))
+      // canAttach 自定义过滤：例如 BreathingText 只能挂在 UIText 上。
+      .filter((m) => !m.canAttach || m.canAttach(node));
 
     for (const meta of available) {
       const opt = document.createElement("option");
@@ -325,17 +522,14 @@ export class HierarchyView {
     zone: "before" | "after" | "inside",
   ): void {
     if (zone === "inside") {
-      // 拖进 target，作为其末尾子节点
+      // 拖进 target：作为它的末尾 UINode 子（=Hierarchy 里最下面 = 最后渲染 = 最顶层）
       uiHierarchy.reparent(src, target, this.worldRoot);
       return;
     }
-    // 兄弟：先 reparent 到 target 的父，再在父的 children 里调整顺序
-    const targetParent = target.parent;
-    if (!targetParent) return;
-    const targetParentUI =
-      this.findUINodeAncestor(targetParent) /* 同级 UI 父，可能是 null=worldRoot */;
+    // 兄弟：先 reparent 到 target 的 UINode 父，再按 UINode 兄弟序列重排
+    const targetParentUI = target.findUINodeParent();
     uiHierarchy.reparent(src, targetParentUI, this.worldRoot);
-    // 计算 Hierarchy 同层顺序：面板里越靠上，PIXI 越先渲染，也就是越底层。
+
     const siblings = (targetParentUI
       ? uiHierarchy.childrenOf(targetParentUI)
       : uiHierarchy.rootNodes()).filter((n) => n !== src);
@@ -345,15 +539,4 @@ export class HierarchyView {
     uiHierarchy.reorder(src, newIdx);
   }
 
-  /** 从一个 PIXI 父节点向上找 UINode（找不到返回 null = 视为 worldRoot）。 */
-  private findUINodeAncestor(c: Container | null | undefined): UINode | null {
-    let cur: unknown = c;
-    while (cur) {
-      if (typeof (cur as { nodeId?: unknown }).nodeId === "string") {
-        return cur as UINode;
-      }
-      cur = (cur as { parent?: unknown }).parent;
-    }
-    return null;
-  }
 }

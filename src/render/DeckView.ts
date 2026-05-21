@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite } from "pixi.js";
+import { Container, Graphics, Sprite, type ContainerChild } from "pixi.js";
 import { assets } from "@core/AssetManager";
 import { CONFIG } from "@game/config";
 import { UINode } from "@ui/hierarchy";
@@ -20,7 +20,16 @@ import { getPixelOutlineTexture } from "./PixelOutlineTexture";
  * 它把整层 children 清空再重画一遍——成本可以忽略，因为一帧只有一个 DeckView。
  */
 export class DeckView extends UINode {
-  private readonly cardLayer = new Container();
+  private readonly cardLayer = new (class extends Container {
+    override addChild<U extends ContainerChild[]>(...children: U): U[0] {
+      for (const child of children) {
+        if (child && "roundPixels" in child) {
+          (child as any).roundPixels = true;
+        }
+      }
+      return super.addChild(...children);
+    }
+  })();
   private readonly countText: UIText;
   private readonly totalCount: number;
 

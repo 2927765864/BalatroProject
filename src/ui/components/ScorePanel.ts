@@ -1,6 +1,5 @@
-import { Graphics } from "pixi.js";
 import { Theme } from "../theme";
-import { Panel } from "./Panel";
+import { Panel, PanelBackground } from "./Panel";
 import { UINode } from "@ui/hierarchy";
 import { UIText } from "./UIText";
 
@@ -117,14 +116,26 @@ export class ScorePanel extends UINode {
     chipMultPanel.position.set(20, 220);
     this.addChild(chipMultPanel);
 
-    const blueBg = new Graphics();
-    blueBg.roundRect(30, 230, 95, 60, 8);
-    blueBg.fill({ color: Theme.colors.blueChip });
+    const blueBg = new PanelBackground({
+      id: "hud.scorePanel.chipBg",
+      displayName: "筹码底",
+      width: 95,
+      height: 60,
+      fill: Theme.colors.blueChip,
+      radius: 8,
+    });
+    blueBg.position.set(30, 230);
     this.addChild(blueBg);
 
-    const redBg = new Graphics();
-    redBg.roundRect(155, 230, 95, 60, 8);
-    redBg.fill({ color: Theme.colors.redMult });
+    const redBg = new PanelBackground({
+      id: "hud.scorePanel.multBg",
+      displayName: "倍率底",
+      width: 95,
+      height: 60,
+      fill: Theme.colors.redMult,
+      radius: 8,
+    });
+    redBg.position.set(155, 230);
     this.addChild(redBg);
 
     this.chipsText = new UIText({

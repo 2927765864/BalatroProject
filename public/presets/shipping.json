@@ -1,0 +1,783 @@
+{
+  "type": "runtime-control-preset",
+  "version": 2,
+  "name": "shipping",
+  "config": {
+    "world": {
+      "width": 1280,
+      "height": 720,
+      "backgroundColor": 4885350
+    },
+    "rules": {
+      "handSize": 8,
+      "maxSelected": 5,
+      "plays": 4,
+      "discards": 3,
+      "targetScore": 450
+    },
+    "animation": {
+      "moveDurationMS": 280,
+      "flyOutDurationMS": 320,
+      "hoverLiftPx": 10
+    },
+    "debug": {
+      "panelOpacity": 1,
+      "showDebugOverlay": false
+    },
+    "cardArt": {
+      "useSprites": true,
+      "cornerRadius": 7,
+      "faceColor": 16777205,
+      "outlineColor": 13092807,
+      "back": {
+        "row": 2,
+        "col": 0
+      }
+    },
+    "scoreCurve": {
+      "enabled": false,
+      "startScale": 1,
+      "endScale": 1.5,
+      "p1": {
+        "x": 0.42,
+        "y": 0
+      },
+      "p2": {
+        "x": 0.58,
+        "y": 1
+      }
+    },
+    "uiNodes": {
+      "hud.leftPanel.background": {
+        "parentId": "hud.leftPanel",
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 0,
+              "y": 0,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.leftPanel": {
+        "parentId": "hud",
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 0,
+              "y": 0,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.targetPanel.background": {
+        "parentId": "hud.scorePanel.targetPanel",
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 0,
+              "y": 0,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.targetPanel": {
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 20,
+              "y": 20,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.targetLabel": {
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 1,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 120,
+              "y": 30,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "至少得分"
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.targetScoreText": {
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 2,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 120,
+              "y": 55,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "450"
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.roundScorePanel.background": {
+        "parentId": "hud.scorePanel.roundScorePanel",
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 0,
+              "y": 0,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.roundScorePanel": {
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 3,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 20,
+              "y": 140,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.scoreLabel": {
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 4,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 30,
+              "y": 150,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "回合分数"
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.scoreText": {
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 5,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 240,
+              "y": 150,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "0"
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.chipMultPanel.background": {
+        "parentId": "hud.scorePanel.chipMultPanel",
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 0,
+              "y": 0,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.chipMultPanel": {
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 6,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 20,
+              "y": 220,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.chipBg": {
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 7,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 30,
+              "y": 230,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.multBg": {
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 8,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 155,
+              "y": 230,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.chipsText": {
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 9,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 77.5,
+              "y": 260,
+              "rotation": 0,
+              "scaleX": 1.4,
+              "scaleY": 1.4
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "0"
+            }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.35,
+              "angle": 50,
+              "distance": 2.5,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 500,
+              "cycle": 2700,
+              "loopGap": 0,
+              "amplitudeMin": 1.5,
+              "amplitudeMax": -1,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0.42,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 1,
+                  "y": 1
+                }
+              }
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.xLabel": {
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 10,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 140,
+              "y": 260,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "X"
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.multText": {
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 11,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 202.5,
+              "y": 260,
+              "rotation": 0,
+              "scaleX": 1.4,
+              "scaleY": 1.4
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "0"
+            }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.35,
+              "angle": 50,
+              "distance": 2.5,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 500,
+              "cycle": 2700,
+              "loopGap": 0,
+              "amplitudeMin": 1.5,
+              "amplitudeMax": -1,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0.42,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 1,
+                  "y": 1
+                }
+              }
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.handNameText": {
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 12,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 30,
+              "y": 310,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "牌型: 无"
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.evalScoreText": {
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 13,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 30,
+              "y": 340,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "本次预期: 0"
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.infoPanel.background": {
+        "parentId": "hud.scorePanel.infoPanel",
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 0,
+              "y": 0,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.infoPanel": {
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 14,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 66,
+              "y": 380,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.playLabel": {
+        "parentId": "hud.scorePanel.infoPanel",
+        "siblingIndex": 1,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 24,
+              "y": 10,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "出牌"
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.playsText": {
+        "parentId": "hud.scorePanel.infoPanel",
+        "siblingIndex": 2,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 32,
+              "y": 25,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "4"
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.discardLabel": {
+        "parentId": "hud.scorePanel.infoPanel",
+        "siblingIndex": 3,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 100,
+              "y": 11,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "弃牌"
+            }
+          }
+        ]
+      },
+      "hud.scorePanel.discardsText": {
+        "parentId": "hud.scorePanel.infoPanel",
+        "siblingIndex": 4,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 107,
+              "y": 24,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "3"
+            }
+          }
+        ]
+      },
+      "hud.scorePanel": {
+        "parentId": "hud.leftPanel",
+        "siblingIndex": 1,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 0,
+              "y": 0,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.playBtn.background": {
+        "parentId": "hud.playBtn",
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 0,
+              "y": 0,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.playBtn.label": {
+        "parentId": "hud.playBtn",
+        "siblingIndex": 1,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 70,
+              "y": 30,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "出牌"
+            }
+          }
+        ]
+      },
+      "hud.playBtn": {
+        "parentId": "hud",
+        "siblingIndex": 1,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 620,
+              "y": 610,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.discardBtn.background": {
+        "parentId": "hud.discardBtn",
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 0,
+              "y": 0,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.discardBtn.label": {
+        "parentId": "hud.discardBtn",
+        "siblingIndex": 1,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 70,
+              "y": 30,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "弃牌"
+            }
+          }
+        ]
+      },
+      "hud.discardBtn": {
+        "parentId": "hud",
+        "siblingIndex": 2,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 800,
+              "y": 610,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.deckView.countText": {
+        "parentId": "hud.deckView",
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 50,
+              "y": 148,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "44/52"
+            }
+          }
+        ]
+      },
+      "hud.deckView": {
+        "parentId": "hud",
+        "siblingIndex": 3,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 1160,
+              "y": 540,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud": {
+        "parentId": null,
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 0,
+              "y": 0,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      }
+    }
+  }
+}

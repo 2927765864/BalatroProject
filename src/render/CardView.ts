@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Text, Texture } from "pixi.js";
+import { Container, Graphics, Sprite, Text, Texture, type ContainerChild } from "pixi.js";
 import type { CardData } from "@domain/types";
 import { assets } from "@core/AssetManager";
 import { CONFIG } from "@game/config";
@@ -29,6 +29,15 @@ export interface CardViewCallbacks {
 
 export class CardView extends Container {
   selected = false;
+
+  override addChild<U extends ContainerChild[]>(...children: U): U[0] {
+    for (const child of children) {
+      if (child && "roundPixels" in child) {
+        (child as any).roundPixels = true;
+      }
+    }
+    return super.addChild(...children);
+  }
 
   constructor(
     readonly data: CardData,

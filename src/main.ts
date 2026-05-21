@@ -1,7 +1,7 @@
 import { App } from "@core/App";
 import { assets } from "@core/AssetManager";
 import { GameController } from "@game/GameController";
-import { CONFIG, loadSavedConfig } from "@game/config";
+import { CONFIG, loadSavedConfig, loadShippingConfig } from "@game/config";
 import { uiHierarchy } from "@ui/hierarchy";
 import { setupControlPanel } from "@/debug/ControlPanel";
 
@@ -14,8 +14,11 @@ import { setupControlPanel } from "@/debug/ControlPanel";
  * 4. 启动调参面板（隐藏；连点左上角"调试" 3 次呼出）
  */
 async function bootstrap(): Promise<void> {
-  // 先把本地保存的参数合并进 CONFIG，再用它启动引擎，
-  // 这样背景色 / 世界尺寸等启动期才读一次的参数也能被 preset 覆盖。
+  // 先尝试从 presets/shipping.json 载入项目默认的 shipping 预设参数
+  await loadShippingConfig();
+
+  // 再把本地保存的参数合并进 CONFIG，再用它启动引擎，
+  // 这样背景色 / 世界尺寸等启动期才读一次的参数也能被 preset / 本地缓存覆盖。
   loadSavedConfig();
 
   const host = document.getElementById("app") ?? document.body;
@@ -27,6 +30,11 @@ async function bootstrap(): Promise<void> {
   });
 
   await app.init();
+
+  // 让 hierarchy 里的组件（ShadowComponent 这种需要 generateTexture 的）
+  // 能够拿到 renderer。注入一次就够，renderer 在整个进程内不变。
+  uiHierarchy.setRenderer(app.pixi.renderer);
+  uiHierarchy.setTicker(app.pixi.ticker);
 
   // 预加载卡牌精灵图（8BitDeck / Enhancers）。
   // 失败时 AssetManager 内部已捕获并打日志，CardView/DeckView 会自动退回程序化绘制。

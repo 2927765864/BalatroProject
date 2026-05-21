@@ -11,6 +11,7 @@
  *
  * Transform 等默认组件 removable=false，其余可加可删。
  */
+// 注意：本文件只用 UINode 作为类型，不引入运行时实例，避免循环引用。
 import type { UINode } from "./UINode";
 
 /** 组件序列化后的形态（写入 CONFIG.uiNodes[id].components）。 */
@@ -82,6 +83,14 @@ export interface UIComponentTypeMeta {
   factory: UIComponentFactory;
   /** Transform 这种默认组件不允许从"添加组件"菜单里再加一遍。 */
   hiddenInAddMenu?: boolean;
+  /**
+   * 可选：限制本组件可被挂到哪些 UINode 上。
+   * 例如 BreathingText 只能挂在 UIText（文字/数字）节点上，不能挂到 Panel。
+   * 返回 false 时：
+   *   - HierarchyView 的"添加组件"下拉里会过滤掉本组件；
+   *   - 即使外部代码调 addComponent，也不会触发硬错，但渲染端组件可以选择 no-op。
+   */
+  canAttach?: (host: UINode) => boolean;
 }
 
 class ComponentRegistryImpl {
