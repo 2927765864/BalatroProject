@@ -117,8 +117,12 @@ export interface RuntimeConfig {
 
     // 2. 鼠标触碰小弹性缩放
     hoverScaleEnabled: boolean;
-    hoverScaleFactor: number;
-    hoverScaleSpeed: number;
+    hoverOvershootScale: number;
+    hoverSettleScale: number;
+    hoverScaleDurationMS: number;
+    hoverScaleCurve: BezierCurveConfig;
+    hoverScaleOutDurationMS: number;
+    hoverScaleOutSpeed: number;
 
     // 3. 鼠标在单牌移动时的偏移
     mouseOffsetEnabled: boolean;
@@ -205,8 +209,18 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     wobbleAmplitude: 0.04,
 
     hoverScaleEnabled: true,
-    hoverScaleFactor: 1.05,
-    hoverScaleSpeed: 0.15,
+    hoverOvershootScale: 1.10,
+    hoverSettleScale: 1.05,
+    hoverScaleDurationMS: 250,
+    hoverScaleCurve: Object.freeze({
+      enabled: true,
+      startScale: 0,
+      endScale: 1,
+      p1: { x: 0.12, y: 0.45 },
+      p2: { x: 0.16, y: 1.0 },
+    }) as BezierCurveConfig,
+    hoverScaleOutDurationMS: 150,
+    hoverScaleOutSpeed: 0.15,
 
     mouseOffsetEnabled: true,
     mouseOffsetFactorX: 0.08,
@@ -267,6 +281,11 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     },
     cardVisuals: {
       ...src.cardVisuals,
+      hoverScaleCurve: src.cardVisuals.hoverScaleCurve ? {
+        ...src.cardVisuals.hoverScaleCurve,
+        p1: { ...src.cardVisuals.hoverScaleCurve.p1 },
+        p2: { ...src.cardVisuals.hoverScaleCurve.p2 },
+      } : undefined as any,
     },
     scoreCurve: {
       ...src.scoreCurve,
@@ -351,6 +370,14 @@ export function applyConfig(source: unknown): void {
     merged.cardVisuals = {
       ...merged.cardVisuals,
       ...incoming.cardVisuals,
+      hoverScaleCurve: incoming.cardVisuals.hoverScaleCurve
+        ? {
+            ...merged.cardVisuals.hoverScaleCurve,
+            ...incoming.cardVisuals.hoverScaleCurve,
+            p1: { ...(merged.cardVisuals.hoverScaleCurve?.p1 ?? {}), ...(incoming.cardVisuals.hoverScaleCurve.p1 ?? {}) },
+            p2: { ...(merged.cardVisuals.hoverScaleCurve?.p2 ?? {}), ...(incoming.cardVisuals.hoverScaleCurve.p2 ?? {}) },
+          }
+        : merged.cardVisuals.hoverScaleCurve,
     };
   }
   if (incoming.scoreCurve) {
@@ -426,6 +453,14 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.cardVisuals = {
       ...activeDefaultConfig.cardVisuals,
       ...incoming.cardVisuals,
+      hoverScaleCurve: incoming.cardVisuals.hoverScaleCurve
+        ? {
+            ...activeDefaultConfig.cardVisuals.hoverScaleCurve,
+            ...incoming.cardVisuals.hoverScaleCurve,
+            p1: { ...(activeDefaultConfig.cardVisuals.hoverScaleCurve?.p1 ?? {}), ...(incoming.cardVisuals.hoverScaleCurve.p1 ?? {}) },
+            p2: { ...(activeDefaultConfig.cardVisuals.hoverScaleCurve?.p2 ?? {}), ...(incoming.cardVisuals.hoverScaleCurve.p2 ?? {}) },
+          }
+        : activeDefaultConfig.cardVisuals.hoverScaleCurve,
     };
   }
   if (incoming.scoreCurve) {

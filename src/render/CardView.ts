@@ -2,6 +2,7 @@ import { Container, Graphics, Sprite, Text, Texture, FederatedPointerEvent, type
 import type { CardData } from "@domain/types";
 import { assets } from "@core/AssetManager";
 import { CONFIG } from "@game/config";
+import { sampleCurve } from "@/debug/BezierCurveEditor";
 import { CardSkin } from "./CardSkin";
 import { getPixelOutlineTexture } from "./PixelOutlineTexture";
 
@@ -57,6 +58,7 @@ export class CardView extends Container {
   private breathingTime = Math.random() * 100;
   private wobbleTime = Math.random() * 100;
   private currentScale = 1.0;
+  private hoverScaleProgress = 0;
 
   public mouseOffsetX = 0;
   public mouseOffsetY = 0;
@@ -664,17 +666,53 @@ export class CardView extends Container {
   private updateHoverScale(dtMS: number): void {
     const visualConf = CONFIG.cardVisuals;
     if (!visualConf || !visualConf.hoverScaleEnabled) {
+      this.currentScale = 1.0;
+      this.hoverScaleProgress = 0;
       this.contentContainer?.scale.set(1.0);
       return;
     }
 
     // 如果鼠标在这个牌上游走 (Hovered) 或者是点击选中态且有鼠标悬停 (Selected + isMouseOver)
     const isHovered = this.cardState === CardState.Hovered || (this.isMouseOver && this.cardState === CardState.Selected);
-    const targetScale = isHovered ? visualConf.hoverScaleFactor : 1.0;
 
-    // 弹性插值，基于 delta time 保证帧率无关
-    const speed = visualConf.hoverScaleSpeed;
-    this.currentScale += (targetScale - this.currentScale) * speed * (dtMS / 16.67);
+    if (isHovered) {
+      // 触碰悬停：向 1 递增 progress
+      if (this.hoverScaleProgress < 1) {
+        const duration = visualConf.hoverScaleDurationMS || 250;
+        this.hoverScaleProgress = Math.min(1, this.hoverScaleProgress + dtMS / duration);
+      }
+
+      const curve = visualConf.hoverScaleCurve;
+      // 采样曲线
+      const y = sampleCurve(curve, this.hoverScaleProgress);
+
+      const H = visualConf.hoverOvershootScale - 1.0;
+      const D = visualConf.hoverSettleScale - 1.0;
+
+      if (H > D && D > 0) {
+        // 利用抛物线映射 A * y + B * y^2 实现完美的过弹回缩：
+        // 保证 y=0 时 scale=1.0, y=1.0 时 scale=hoverSettleScale, peak 处为 hoverOvershootScale
+        const A = 2 * H + 2 * Math.sqrt(H * (H - D));
+        const B = D - A;
+        this.currentScale = 1.0 + A * y + B * y * y;
+      } else {
+        // 退化分支：普通插值
+        const s = typeof visualConf.hoverSettleScale === "number" ? visualConf.hoverSettleScale : 1.05;
+        this.currentScale = 1.0 + (s - 1.0) * y;
+      }
+    } else {
+      // 离开：递减 progress 并平滑缩回 1.0
+      if (this.hoverScaleProgress > 0) {
+        const duration = visualConf.hoverScaleOutDurationMS || 150;
+        this.hoverScaleProgress = Math.max(0, this.hoverScaleProgress - dtMS / duration);
+      }
+
+      // 平滑插值缩回 1.0
+      const targetScale = 1.0;
+      const speed = visualConf.hoverScaleOutSpeed || 0.15;
+      this.currentScale += (targetScale - this.currentScale) * speed * (dtMS / 16.67);
+    }
+
     this.contentContainer?.scale.set(this.currentScale);
   }
 

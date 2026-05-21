@@ -31,6 +31,7 @@ import {
 import { assets } from "@core/AssetManager";
 import { CardAtlas } from "@render/CardSkin";
 import { HierarchyView } from "./HierarchyView";
+import { buildCurvePanel, type BezierCurvePanel } from "./BezierCurveEditor";
 import { uiHierarchy } from "@ui/hierarchy";
 import type { Container } from "pixi.js";
 
@@ -148,6 +149,8 @@ export function setupControlPanel(
     }
     recordHistory(key);
   }
+
+  let hoverScaleCurvePanel: BezierCurvePanel | null = null;
 
   // 收集所有"按 CONFIG 当前值刷新自身"的回调，preset 加载后批量重跑。
   const syncers: Array<() => void> = [];
@@ -985,8 +988,28 @@ export function setupControlPanel(
     bindNumber("inp-wobbleAmplitude", "val-wobbleAmplitude", "cardVisuals.wobbleAmplitude", { digits: 3 });
 
     bindToggle("inp-hoverScaleEnabled", "val-hoverScaleEnabled", "cardVisuals.hoverScaleEnabled");
-    bindNumber("inp-hoverScaleFactor", "val-hoverScaleFactor", "cardVisuals.hoverScaleFactor", { digits: 2 });
-    bindNumber("inp-hoverScaleSpeed", "val-hoverScaleSpeed", "cardVisuals.hoverScaleSpeed", { digits: 2 });
+    bindNumber("inp-hoverOvershootScale", "val-hoverOvershootScale", "cardVisuals.hoverOvershootScale", { digits: 2 });
+    bindNumber("inp-hoverSettleScale", "val-hoverSettleScale", "cardVisuals.hoverSettleScale", { digits: 2 });
+    bindNumber("inp-hoverScaleDurationMS", "val-hoverScaleDurationMS", "cardVisuals.hoverScaleDurationMS", { integer: true });
+    bindNumber("inp-hoverScaleOutDurationMS", "val-hoverScaleOutDurationMS", "cardVisuals.hoverScaleOutDurationMS", { integer: true });
+    bindNumber("inp-hoverScaleOutSpeed", "val-hoverScaleOutSpeed", "cardVisuals.hoverScaleOutSpeed", { digits: 2 });
+
+    // === 曲线面板 ===
+    const hoverScaleCurveMount = document.getElementById("mount-hoverScaleCurve");
+    if (hoverScaleCurveMount && !hoverScaleCurvePanel) {
+      hoverScaleCurvePanel = buildCurvePanel(hoverScaleCurveMount, CONFIG.cardVisuals.hoverScaleCurve, {
+        label: "悬停弹性缩放曲线",
+        onChange: () => {
+          notify("cardVisuals.hoverScaleCurve", CONFIG.cardVisuals.hoverScaleCurve);
+        }
+      });
+
+      syncers.push(() => {
+        if (hoverScaleCurvePanel) {
+          hoverScaleCurvePanel.setCurve(CONFIG.cardVisuals.hoverScaleCurve);
+        }
+      });
+    }
 
     bindToggle("inp-mouseOffsetEnabled", "val-mouseOffsetEnabled", "cardVisuals.mouseOffsetEnabled");
     bindNumber("inp-mouseOffsetFactorX", "val-mouseOffsetFactorX", "cardVisuals.mouseOffsetFactorX", { digits: 3 });
@@ -1035,6 +1058,7 @@ export function setupControlPanel(
     },
     destroy(): void {
       hierarchyView?.destroy();
+      hoverScaleCurvePanel?.destroy();
       removeHistoryShortcuts();
       removeHierarchyHistory();
       for (const name of eventsToStop) {

@@ -226,28 +226,12 @@ export class GameController {
     this.evaluateAndUpdate();
   }
 
-  private onHoverIn(view: CardView): void {
-    if (view.selected) return;
-    if (view.isDragging) return;
-    if (view.isReturning) return;
-    // 临时抬高一点；离开时由 layoutHand 复位。
-    CardFx.moveTo(
-      this.tween,
-      view,
-      {
-        x: view.x,
-        y: view.y - GameConfig.animation.hoverLiftPx,
-        rotation: view.rotation,
-      },
-      120
-    );
+  private onHoverIn(_view: CardView): void {
+    // 删除了鼠标触碰到卡牌的向上伸出效果
   }
 
-  private onHoverOut(view: CardView): void {
-    if (view.selected) return;
-    if (view.isDragging) return;
-    if (view.isReturning) return;
-    this.layoutHand();
+  private onHoverOut(_view: CardView): void {
+    // 删去了向上伸出，因此离开时也不需要 layoutHand 复位
   }
 
   // --- 计分 + UI ---------------------------------------------------

@@ -447,19 +447,45 @@
 
             <div class="panel-row">
               <div class="panel-row-header">
-                <span>悬停缩放系数</span>
-                <span id="val-hoverScaleFactor">1.05</span>
+                <span>过弹最高缩放</span>
+                <span id="val-hoverOvershootScale">1.10</span>
               </div>
-              <input id="inp-hoverScaleFactor" type="number" step="0.01" min="0.5" max="2.0" />
+              <input id="inp-hoverOvershootScale" type="number" step="0.01" min="0.5" max="2.0" />
             </div>
 
             <div class="panel-row">
               <div class="panel-row-header">
-                <span>弹性缩放速度</span>
-                <span id="val-hoverScaleSpeed">0.15</span>
+                <span>静止悬停缩放</span>
+                <span id="val-hoverSettleScale">1.05</span>
               </div>
-              <input id="inp-hoverScaleSpeed" type="number" step="0.01" min="0.01" max="1.0" />
+              <input id="inp-hoverSettleScale" type="number" step="0.01" min="0.5" max="2.0" />
             </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>悬停缩放时间 (ms)</span>
+                <span id="val-hoverScaleDurationMS">250</span>
+              </div>
+              <input id="inp-hoverScaleDurationMS" type="number" step="1" min="10" max="2000" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>回缩动画时间 (ms)</span>
+                <span id="val-hoverScaleOutDurationMS">150</span>
+              </div>
+              <input id="inp-hoverScaleOutDurationMS" type="number" step="1" min="10" max="2000" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>回缩动画速度</span>
+                <span id="val-hoverScaleOutSpeed">0.15</span>
+              </div>
+              <input id="inp-hoverScaleOutSpeed" type="number" step="0.01" min="0.01" max="1.0" />
+            </div>
+
+            <div id="mount-hoverScaleCurve" style="padding: 6px 12px;"></div>
 
             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
               <span>鼠标移动卡牌偏移</span>
