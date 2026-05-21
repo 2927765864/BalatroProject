@@ -145,6 +145,12 @@ export class GameController {
       onClick: (view) => this.toggleSelection(view),
       onHoverIn: (view) => this.onHoverIn(view),
       onHoverOut: (view) => this.onHoverOut(view),
+      onDragStart: (view) => {
+        this.tween.killOf(view);
+      },
+      onDragEnd: () => {
+        this.layoutHand();
+      }
     });
     this.viewByCardId.set(data.id, v);
     return v;
@@ -161,6 +167,17 @@ export class GameController {
       // 用 zIndex 保证右边的牌盖住左边的（卡牌层启用 sortableChildren）。
       view.zIndex = i;
       const slot = slots[i]!;
+      
+      // 保存布局时的目标位姿，以便在拖拽松手后可以回弹
+      view.layoutX = slot.x;
+      view.layoutY = slot.y;
+      view.layoutRotation = slot.rotation;
+
+      // 如果当前正在拖动卡牌，跳过 TweenManager 的自动移动，由鼠标位置主导
+      if (view.isDragging) {
+        return;
+      }
+
       CardFx.moveTo(this.tween, view, slot, GameConfig.animation.moveDurationMS);
     });
   }
@@ -188,6 +205,7 @@ export class GameController {
 
   private onHoverIn(view: CardView): void {
     if (view.selected) return;
+    if (view.isDragging) return;
     // 临时抬高一点；离开时由 layoutHand 复位。
     CardFx.moveTo(
       this.tween,
@@ -203,6 +221,7 @@ export class GameController {
 
   private onHoverOut(view: CardView): void {
     if (view.selected) return;
+    if (view.isDragging) return;
     this.layoutHand();
   }
 

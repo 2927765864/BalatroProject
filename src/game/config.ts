@@ -92,6 +92,14 @@ export interface RuntimeConfig {
     distanceRatio: number;
     scaleRatio: number;
   };
+  dragShadow: {
+    color: number;
+    alpha: number;
+    lightX: number;
+    lightY: number;
+    distanceRatio: number;
+    scaleRatio: number;
+  };
   /** 可选：示例语义曲线，留作扩展（如未来按 combo 数缩放某个倍率） */
   scoreCurve: BezierCurveConfig;
   /**
@@ -147,6 +155,14 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     distanceRatio: 0.05,
     scaleRatio: 0.95,
   }),
+  dragShadow: Object.freeze({
+    color: 0x000000,
+    alpha: 0.25,
+    lightX: 640,
+    lightY: 360,
+    distanceRatio: 0.12,
+    scaleRatio: 0.88,
+  }),
   scoreCurve: Object.freeze({
     enabled: false,
     startScale: 1,
@@ -189,6 +205,9 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     },
     cardShadow: {
       ...src.cardShadow,
+    },
+    dragShadow: {
+      ...src.dragShadow,
     },
     scoreCurve: {
       ...src.scoreCurve,
@@ -257,6 +276,12 @@ export function applyConfig(source: unknown): void {
       ...incoming.cardShadow,
     };
   }
+  if (incoming.dragShadow) {
+    merged.dragShadow = {
+      ...merged.dragShadow,
+      ...incoming.dragShadow,
+    };
+  }
   if (incoming.scoreCurve) {
     merged.scoreCurve = {
       ...merged.scoreCurve,
@@ -276,6 +301,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.debug = merged.debug;
   CONFIG.cardArt = merged.cardArt;
   CONFIG.cardShadow = merged.cardShadow;
+  CONFIG.dragShadow = merged.dragShadow;
   CONFIG.scoreCurve = merged.scoreCurve;
   CONFIG.uiNodes = merged.uiNodes;
 }
@@ -309,6 +335,12 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.cardShadow = {
       ...activeDefaultConfig.cardShadow,
       ...incoming.cardShadow,
+    };
+  }
+  if (incoming.dragShadow) {
+    activeDefaultConfig.dragShadow = {
+      ...activeDefaultConfig.dragShadow,
+      ...incoming.dragShadow,
     };
   }
   if (incoming.scoreCurve) {

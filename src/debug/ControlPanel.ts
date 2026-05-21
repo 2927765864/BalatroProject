@@ -361,10 +361,14 @@ export function setupControlPanel(
         value = typeof fallback === "number" ? fallback : 0;
       }
       if (clamp) {
-        const min = Number(input.min);
-        const max = Number(input.max);
-        if (Number.isFinite(min)) value = Math.max(min, value);
-        if (Number.isFinite(max)) value = Math.min(max, value);
+        if (input.hasAttribute("min")) {
+          const min = Number(input.min);
+          if (Number.isFinite(min)) value = Math.max(min, value);
+        }
+        if (input.hasAttribute("max")) {
+          const max = Number(input.max);
+          if (Number.isFinite(max)) value = Math.min(max, value);
+        }
       }
       if (opts.integer) value = Math.round(value);
       setByPath(CONFIG, path, value);
@@ -965,6 +969,13 @@ export function setupControlPanel(
     bindNumber("inp-shadowLightY", "val-shadowLightY", "cardShadow.lightY", { digits: 1 });
     bindNumber("inp-shadowDistanceRatio", "val-shadowDistanceRatio", "cardShadow.distanceRatio", { digits: 5 });
     bindNumber("inp-shadowScaleRatio", "val-shadowScaleRatio", "cardShadow.scaleRatio", { digits: 2 });
+
+    bindColor("inp-dragShadowColor", "val-dragShadowColor", "dragShadow.color");
+    bindNumber("inp-dragShadowAlpha", "val-dragShadowAlpha", "dragShadow.alpha", { digits: 2 });
+    bindNumber("inp-dragShadowLightX", "val-dragShadowLightX", "dragShadow.lightX", { digits: 1 });
+    bindNumber("inp-dragShadowLightY", "val-dragShadowLightY", "dragShadow.lightY", { digits: 1 });
+    bindNumber("inp-dragShadowDistanceRatio", "val-dragShadowDistanceRatio", "dragShadow.distanceRatio", { digits: 5 });
+    bindNumber("inp-dragShadowScaleRatio", "val-dragShadowScaleRatio", "dragShadow.scaleRatio", { digits: 2 });
 
     // 已经绑定过的控件只重跑 sync，避免重复挂监听
     syncers.forEach((fn) => fn());

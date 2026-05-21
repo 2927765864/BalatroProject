@@ -37,14 +37,18 @@
     "cardShadow": {
       "color": 0,
       "alpha": 0.35,
-      "lightX": 720,
-      "lightY": 600,
-      "distanceRatio": 0.035,
-      "scaleRatio": 0.95,
-      "scale": 0.97,
-      "skew": 0,
-      "angle": 17,
-      "distance": 6
+      "lightX": 640.0,
+      "lightY": 360.0,
+      "distanceRatio": 0.05,
+      "scaleRatio": 0.95
+    },
+    "dragShadow": {
+      "color": 0,
+      "alpha": 0.25,
+      "lightX": 640.0,
+      "lightY": 360.0,
+      "distanceRatio": 0.12,
+      "scaleRatio": 0.88
     },
     "scoreCurve": {
       "enabled": false,

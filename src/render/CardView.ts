@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Text, Texture, type ContainerChild } from "pixi.js";
+import { Container, Graphics, Sprite, Text, Texture, FederatedPointerEvent, type ContainerChild } from "pixi.js";
 import type { CardData } from "@domain/types";
 import { assets } from "@core/AssetManager";
 import { CONFIG } from "@game/config";
@@ -25,10 +25,24 @@ export interface CardViewCallbacks {
   onClick: (view: CardView) => void;
   onHoverIn: (view: CardView) => void;
   onHoverOut: (view: CardView) => void;
+  onDragStart?: (view: CardView) => void;
+  onDragEnd?: (view: CardView) => void;
 }
 
 export class CardView extends Container {
   selected = false;
+  layoutX = 0;
+  layoutY = 0;
+  layoutRotation = 0;
+  isDragging = false;
+
+  private dragData: FederatedPointerEvent | null = null;
+  private dragStartPointerX = 0;
+  private dragStartPointerY = 0;
+  private dragStartCardX = 0;
+  private dragStartCardY = 0;
+  private hasMovedSignificantly = false;
+  private oldStageEventMode: any = null;
   private shadowGraphics: Graphics | null = null;
 
   override addChild<U extends ContainerChild[]>(...children: U): U[0] {
@@ -85,16 +99,19 @@ export class CardView extends Container {
     const height = CardSkin.height;
     const cornerRadius = CONFIG.cardArt.cornerRadius;
 
+    // 拖动状态与常态使用两套完全独立的阴影配置，可在拖动时产生“卡牌升起”的精美视效
+    const shadowConf = this.isDragging ? CONFIG.dragShadow : CONFIG.cardShadow;
+
     this.shadowGraphics.clear();
     this.shadowGraphics.roundRect(0, 0, width, height, cornerRadius);
-    this.shadowGraphics.fill({ color: CONFIG.cardShadow.color });
+    this.shadowGraphics.fill({ color: shadowConf.color });
 
     // 计算阴影位置
     const cx = this.x;
     const cy = this.y;
-    const lx = CONFIG.cardShadow.lightX;
-    const ly = CONFIG.cardShadow.lightY;
-    const ratio = CONFIG.cardShadow.distanceRatio;
+    const lx = shadowConf.lightX;
+    const ly = shadowConf.lightY;
+    const ratio = shadowConf.distanceRatio;
 
     // 世界坐标系中的相对偏移
     const worldDx = (lx - cx) * ratio;
@@ -108,8 +125,8 @@ export class CardView extends Container {
     const localDy = worldDx * sinT + worldDy * cosT;
 
     this.shadowGraphics.position.set(width / 2 + localDx, height / 2 + localDy);
-    this.shadowGraphics.scale.set(CONFIG.cardShadow.scaleRatio);
-    this.shadowGraphics.alpha = CONFIG.cardShadow.alpha;
+    this.shadowGraphics.scale.set(shadowConf.scaleRatio);
+    this.shadowGraphics.alpha = shadowConf.alpha;
   }
 
   /** 精灵图分支：背景+正面贴图+1像素外描边，整体保持与程序化绘制相同的外尺寸。 */
@@ -318,11 +335,97 @@ export class CardView extends Container {
     }
   }
 
+  private getRootStage(): any {
+    let root: any = this.parent;
+    if (!root) return null;
+    while (root.parent) {
+      root = root.parent;
+    }
+    return root;
+  }
+
+  private onPointerDown(event: FederatedPointerEvent): void {
+    if (event.button !== 0) return;
+
+    this.dragData = event;
+    this.isDragging = false;
+    this.hasMovedSignificantly = false;
+
+    this.dragStartPointerX = event.global.x;
+    this.dragStartPointerY = event.global.y;
+    this.dragStartCardX = this.x;
+    this.dragStartCardY = this.y;
+
+    // 监听 root stage 的指针移动与释放，并且在按下时临时将 stage.eventMode 设为 "static"，
+    // 从而保证即便划过非交互背景区域时，全局 move 和 up 事件也能 100% 触发，不会出现卡死或松开不回弹。
+    const stage = this.getRootStage();
+    if (stage) {
+      this.oldStageEventMode = stage.eventMode;
+      stage.eventMode = "static";
+      stage.on("pointermove", this.onPointerMove, this);
+      stage.on("pointerup", this.onPointerUp, this);
+      stage.on("pointerupoutside", this.onPointerUp, this);
+    }
+  }
+
+  private onPointerMove(event: FederatedPointerEvent): void {
+    if (!this.dragData) return;
+
+    const dx = event.global.x - this.dragStartPointerX;
+    const dy = event.global.y - this.dragStartPointerY;
+
+    // 拖动距离超过5像素认为开始拖拽，而非普通点击
+    if (!this.hasMovedSignificantly && Math.sqrt(dx * dx + dy * dy) > 5) {
+      this.hasMovedSignificantly = true;
+      this.isDragging = true;
+      this.callbacks.onDragStart?.(this);
+    }
+
+    if (this.isDragging) {
+      this.x = this.dragStartCardX + dx;
+      this.y = this.dragStartCardY + dy;
+    }
+  }
+
+  private onPointerUp(): void {
+    if (!this.dragData) return;
+
+    this.dragData = null;
+    
+    // 从 root stage 注销监听器，恢复空闲状态且还原 stage.eventMode
+    const stage = this.getRootStage();
+    if (stage) {
+      stage.off("pointermove", this.onPointerMove, this);
+      stage.off("pointerup", this.onPointerUp, this);
+      stage.off("pointerupoutside", this.onPointerUp, this);
+      if (this.oldStageEventMode !== null) {
+        stage.eventMode = this.oldStageEventMode;
+        this.oldStageEventMode = null;
+      }
+    }
+
+    if (this.isDragging) {
+      this.isDragging = false;
+      this.callbacks.onDragEnd?.(this);
+    } else {
+      // 如果没有发生显著位移，作为点击处理
+      this.callbacks.onClick(this);
+    }
+  }
+
   private bindEvents(): void {
     this.eventMode = "static";
     this.cursor = "pointer";
-    this.on("pointerdown", () => this.callbacks.onClick(this));
-    this.on("pointerover", () => this.callbacks.onHoverIn(this));
-    this.on("pointerout", () => this.callbacks.onHoverOut(this));
+
+    this.on("pointerdown", this.onPointerDown, this);
+
+    this.on("pointerover", () => {
+      if (this.isDragging) return;
+      this.callbacks.onHoverIn(this);
+    });
+    this.on("pointerout", () => {
+      if (this.isDragging) return;
+      this.callbacks.onHoverOut(this);
+    });
   }
 }
