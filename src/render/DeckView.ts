@@ -24,7 +24,7 @@ export class DeckView extends UINode {
     override addChild<U extends ContainerChild[]>(...children: U): U[0] {
       for (const child of children) {
         if (child && "roundPixels" in child) {
-          (child as any).roundPixels = true;
+          (child as any).roundPixels = false;
         }
       }
       return super.addChild(...children);
@@ -104,16 +104,19 @@ export class DeckView extends UINode {
     const innerH = ch - pad * 2;
     const innerRadius = Math.max(0, cornerRadius);
 
+    const topCardContainer = new Container();
+    this.cardLayer.addChild(topCardContainer);
+
     const bgTop = new Graphics();
     bgTop.roundRect(pad, pad, innerW, innerH, innerRadius);
     bgTop.fill({ color: CONFIG.cardArt.faceColor });
-    this.cardLayer.addChild(bgTop);
+    topCardContainer.addChild(bgTop);
 
     const sprite = new Sprite(tex);
     sprite.position.set(pad, pad);
     sprite.width = innerW;
     sprite.height = innerH;
-    this.cardLayer.addChild(sprite);
+    topCardContainer.addChild(sprite);
 
     // 顶面像素画 1 像素描边（与 CardView 保持一致）
     const scaleX = innerW / tex.width;
@@ -123,7 +126,15 @@ export class DeckView extends UINode {
     outline.position.set(pad, pad);
     outline.width = innerW;
     outline.height = innerH;
-    this.cardLayer.addChild(outline);
+    topCardContainer.addChild(outline);
+
+    // 应用抗锯齿遮罩，消除边缘产生的锯齿
+    const cardMask = new Graphics();
+    cardMask.roundRect(pad, pad, innerW, innerH, innerRadius);
+    cardMask.fill({ color: 0xffffff });
+    cardMask.roundPixels = false;
+    topCardContainer.addChild(cardMask);
+    topCardContainer.mask = cardMask;
   }
 
   private drawProceduralStack(): void {

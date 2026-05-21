@@ -84,7 +84,7 @@ export class CardView extends Container {
   override addChild<U extends ContainerChild[]>(...children: U): U[0] {
     for (const child of children) {
       if (child && "roundPixels" in child) {
-        (child as any).roundPixels = true;
+        (child as any).roundPixels = false;
       }
     }
     // 视觉元素重定向：除 shadowGraphics 和 contentContainer 本身，其余全部塞进 contentContainer
@@ -152,6 +152,19 @@ export class CardView extends Container {
     } else {
       this.drawProcedural();
     }
+
+    // 应用抗锯齿遮罩，消除旋转或缩放时边缘产生的锯齿，同时内部保持 nearest 像素锐利效果
+    const pad = tex ? 2 : 0;
+    const maskW = tex ? CardSkin.width - pad * 2 : CardSkin.width;
+    const maskH = tex ? CardSkin.height - pad * 2 : CardSkin.height;
+    const maskR = tex ? Math.max(0, CONFIG.cardArt.cornerRadius) : CONFIG.cardArt.cornerRadius;
+
+    const cardMask = new Graphics();
+    cardMask.roundRect(pad, pad, maskW, maskH, maskR);
+    cardMask.fill({ color: 0xffffff });
+    cardMask.roundPixels = false;
+    this.addChild(cardMask);
+    this.contentContainer.mask = cardMask;
 
     // 把 pivot 放到几何中心，让旋转/缩放围绕中心展开。
     this.pivot.set(CardSkin.width / 2, CardSkin.height / 2);
