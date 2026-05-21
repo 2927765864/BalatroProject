@@ -113,7 +113,7 @@ export interface RuntimeConfig {
       dragShadow: boolean;
       breathing: boolean;
       hoverScale: boolean;
-      mouseOffset: boolean;
+      mouse3DTilt: boolean;
       dragHandCard: boolean;
     };
     // 1. 常态呼吸晃动
@@ -132,11 +132,13 @@ export interface RuntimeConfig {
     hoverScaleOutDurationMS: number;
     hoverScaleOutSpeed: number;
 
-    // 3. 鼠标在单牌移动时的偏移
-    mouseOffsetEnabled: boolean;
-    mouseOffsetFactorX: number;
-    mouseOffsetFactorY: number;
-    mouseOffsetLimit: number;
+    // 3. 卡牌鼠标悬停伪3D倾斜效果
+    mouse3DTiltEnabled: boolean;
+    mouse3DTiltStrength: number;
+    mouse3DTiltInvertTL: boolean;
+    mouse3DTiltInvertTR: boolean;
+    mouse3DTiltInvertBL: boolean;
+    mouse3DTiltInvertBR: boolean;
 
     // 4. 卡牌操作 logic 参数（注：此处保持注释/格式）
     clickThresholdMS: number;
@@ -215,7 +217,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       dragShadow: true,
       breathing: true,
       hoverScale: true,
-      mouseOffset: true,
+      mouse3DTilt: true,
       dragHandCard: true,
     }),
     breathingEnabled: true,
@@ -238,10 +240,12 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     hoverScaleOutDurationMS: 150,
     hoverScaleOutSpeed: 0.15,
 
-    mouseOffsetEnabled: true,
-    mouseOffsetFactorX: 0.08,
-    mouseOffsetFactorY: 0.08,
-    mouseOffsetLimit: 8,
+    mouse3DTiltEnabled: true,
+    mouse3DTiltStrength: 2.0,
+    mouse3DTiltInvertTL: true,
+    mouse3DTiltInvertTR: true,
+    mouse3DTiltInvertBL: true,
+    mouse3DTiltInvertBR: true,
 
     clickThresholdMS: 250,
     clickDistanceThreshold: 10,

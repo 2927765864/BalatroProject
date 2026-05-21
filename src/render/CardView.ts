@@ -60,13 +60,21 @@ export class CardView extends Container {
   private currentScale = 1.0;
   private hoverScaleProgress = 0;
 
-  public mouseOffsetX = 0;
-  public mouseOffsetY = 0;
+  public mouseSkewX = 0;
+  public mouseSkewY = 0;
+  public mouseScaleX = 1.0;
+  public mouseScaleY = 1.0;
+  public mouseDx = 0;
+  public mouseDy = 0;
 
   private breathingY = 0;
   private wobbleRot = 0;
-  private visualOffsetX = 0;
-  private visualOffsetY = 0;
+  private visualTiltX = 0;
+  private visualTiltY = 0;
+  private visualScaleX = 1.0;
+  private visualScaleY = 1.0;
+  private visualPivotX = CardSkin.width / 2;
+  private visualPivotY = CardSkin.height / 2;
 
   // 视觉子容器，用于承载除阴影外所有的视觉卡面，以便在不影响外部布局/拖拽计算的前提下施加各种动画/视效
   private contentContainer: Container | null = null;
@@ -575,21 +583,59 @@ export class CardView extends Container {
     const rawDy = localPos.y - centerY;
     
     const visualConf = CONFIG.cardVisuals;
-    if (visualConf && visualConf.mouseOffsetEnabled) {
-      let targetOffsetX = rawDx * visualConf.mouseOffsetFactorX;
-      let targetOffsetY = rawDy * visualConf.mouseOffsetFactorY;
+    if (visualConf && visualConf.mouse3DTiltEnabled) {
+      // 倾斜强度 (Strength)
+      const skewFactor = (visualConf.mouse3DTiltStrength ?? 2.0) * 0.0015;
       
-      const limit = visualConf.mouseOffsetLimit;
-      const dist = Math.sqrt(targetOffsetX * targetOffsetX + targetOffsetY * targetOffsetY);
-      if (dist > limit && dist > 0) {
-        targetOffsetX = (targetOffsetX / dist) * limit;
-        targetOffsetY = (targetOffsetY / dist) * limit;
+      const dist = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
+      if (dist > 0.01) {
+        // 倾斜量 (theta) 限制最大不超过合理范围
+        const theta = Math.min(0.35, dist * skewFactor);
+        const cosPhi = rawDx / dist;
+        const sinPhi = rawDy / dist;
+        
+        // 完美的无 2D 自旋 3D 偏转投影变换（保证卡牌绝不发生 Z 轴角度旋转）
+        // 1. 根据鼠标位置进行轴向投影缩放
+        const targetScaleX = 1 - theta * cosPhi * cosPhi;
+        const targetScaleY = 1 - theta * sinPhi * sinPhi;
+        
+        // 2. 完美的对角对称剪切 (skew.x == skew.y)，彻底消除 2D 角度旋转分量
+        // 判定鼠标落在哪个角（象限），并应用该角专用的方向反转参数
+        let isInverted = false;
+        if (rawDx <= 0 && rawDy <= 0) {
+          isInverted = visualConf.mouse3DTiltInvertTL ?? true;
+        } else if (rawDx > 0 && rawDy <= 0) {
+          isInverted = visualConf.mouse3DTiltInvertTR ?? true;
+        } else if (rawDx <= 0 && rawDy > 0) {
+          isInverted = visualConf.mouse3DTiltInvertBL ?? true;
+        } else {
+          isInverted = visualConf.mouse3DTiltInvertBR ?? true;
+        }
+        
+        const dir = isInverted ? -1 : 1;
+        const targetSkew = theta * sinPhi * cosPhi * dir;
+        
+        this.mouseSkewX = targetSkew;
+        this.mouseSkewY = targetSkew;
+        this.mouseScaleX = targetScaleX;
+        this.mouseScaleY = targetScaleY;
+        this.mouseDx = rawDx;
+        this.mouseDy = rawDy;
+      } else {
+        this.mouseSkewX = 0;
+        this.mouseSkewY = 0;
+        this.mouseScaleX = 1.0;
+        this.mouseScaleY = 1.0;
+        this.mouseDx = 0;
+        this.mouseDy = 0;
       }
-      this.mouseOffsetX = targetOffsetX;
-      this.mouseOffsetY = targetOffsetY;
     } else {
-      this.mouseOffsetX = 0;
-      this.mouseOffsetY = 0;
+      this.mouseSkewX = 0;
+      this.mouseSkewY = 0;
+      this.mouseScaleX = 1.0;
+      this.mouseScaleY = 1.0;
+      this.mouseDx = 0;
+      this.mouseDy = 0;
     }
   }
 
@@ -616,8 +662,8 @@ export class CardView extends Container {
     // 2. 鼠标悬停小弹性缩放
     this.updateHoverScale(dtMS);
 
-    // 3. 鼠标在单张手牌上移动时的牌的偏移（包含常态和点击选中态）
-    this.updateMouseOffset(dtMS);
+    // 3. 鼠标在单张手牌上移动时的牌的伪3D倾斜（包含常态和点击选中态）
+    this.updateMouse3DTilt(dtMS);
 
     // 4. 将计算后的效果应用到视觉容器
     this.applyVisuals();
@@ -725,40 +771,60 @@ export class CardView extends Container {
       const speed = visualConf.hoverScaleOutSpeed || 0.15;
       this.currentScale += (targetScale - this.currentScale) * speed * (dtMS / 16.67);
     }
-
-    this.contentContainer?.scale.set(this.currentScale);
   }
 
-  private updateMouseOffset(dtMS: number): void {
+  private updateMouse3DTilt(dtMS: number): void {
     const visualConf = CONFIG.cardVisuals;
-    if (!visualConf || !visualConf.mouseOffsetEnabled || this.cardState === CardState.Dragging) {
-      this.visualOffsetX = 0;
-      this.visualOffsetY = 0;
+    if (!visualConf || !visualConf.mouse3DTiltEnabled || this.cardState === CardState.Dragging) {
+      this.visualTiltX = 0;
+      this.visualTiltY = 0;
+      this.visualScaleX = 1.0;
+      this.visualScaleY = 1.0;
+      this.visualPivotX = CardSkin.width / 2;
+      this.visualPivotY = CardSkin.height / 2;
       return;
     }
 
-    // 仅在常态 (Normal)、被触碰态 (Hovered)、点击选中态 (Selected) 响应鼠标游走偏移
+    // 仅在常态 (Normal)、被触碰态 (Hovered)、点击选中态 (Selected) 响应鼠标游走倾斜
     const isEffectState =
       this.cardState === CardState.Normal ||
       this.cardState === CardState.Hovered ||
       this.cardState === CardState.Selected;
 
-    const targetX = (this.isMouseOver && isEffectState) ? this.mouseOffsetX : 0;
-    const targetY = (this.isMouseOver && isEffectState) ? this.mouseOffsetY : 0;
+    const targetSkewX = (this.isMouseOver && isEffectState) ? this.mouseSkewX : 0;
+    const targetSkewY = (this.isMouseOver && isEffectState) ? this.mouseSkewY : 0;
+    const targetScaleX = (this.isMouseOver && isEffectState) ? this.mouseScaleX : 1.0;
+    const targetScaleY = (this.isMouseOver && isEffectState) ? this.mouseScaleY : 1.0;
 
-    // 平滑插值，避免偏移跳变
+    // 透视短缩：中心轴通过 pivot 动态移动模拟 3D 近大远小（卡牌在桌上的四个边缘皆无额外位移）
+    const pivotShiftFactor = (visualConf.mouse3DTiltStrength ?? 2.0) * 0.12;
+    const targetPivotX = CardSkin.width / 2 - ((this.isMouseOver && isEffectState) ? this.mouseDx : 0) * pivotShiftFactor;
+    const targetPivotY = CardSkin.height / 2 - ((this.isMouseOver && isEffectState) ? this.mouseDy : 0) * pivotShiftFactor;
+
+    // 平滑插值，避免倾斜跳变
     const speed = 0.15;
-    this.visualOffsetX += (targetX - this.visualOffsetX) * speed * (dtMS / 16.67);
-    this.visualOffsetY += (targetY - this.visualOffsetY) * speed * (dtMS / 16.67);
+    this.visualTiltX += (targetSkewX - this.visualTiltX) * speed * (dtMS / 16.67);
+    this.visualTiltY += (targetSkewY - this.visualTiltY) * speed * (dtMS / 16.67);
+    this.visualScaleX += (targetScaleX - this.visualScaleX) * speed * (dtMS / 16.67);
+    this.visualScaleY += (targetScaleY - this.visualScaleY) * speed * (dtMS / 16.67);
+    this.visualPivotX += (targetPivotX - this.visualPivotX) * speed * (dtMS / 16.67);
+    this.visualPivotY += (targetPivotY - this.visualPivotY) * speed * (dtMS / 16.67);
   }
 
   private applyVisuals(): void {
     if (!this.contentContainer) return;
+    // 动态 pivot 配合动态 position，可以让卡牌在不发生全局位移的前提下，产生绝妙的高仿真 3D 近大远小透视
+    this.contentContainer.pivot.set(this.visualPivotX, this.visualPivotY);
     this.contentContainer.position.set(
-      CardSkin.width / 2 + this.visualOffsetX,
-      CardSkin.height / 2 + this.breathingY + this.visualOffsetY
+      this.visualPivotX,
+      this.visualPivotY + this.breathingY
     );
     this.contentContainer.rotation = this.wobbleRot;
+    this.contentContainer.skew.set(this.visualTiltX, this.visualTiltY);
+    this.contentContainer.scale.set(
+      this.currentScale * this.visualScaleX,
+      this.currentScale * this.visualScaleY
+    );
   }
 
   private bindEvents(): void {
@@ -781,8 +847,10 @@ export class CardView extends Container {
       if (this.cardState === CardState.Hovered) {
         this.cardState = CardState.Normal;
       }
-      this.mouseOffsetX = 0;
-      this.mouseOffsetY = 0;
+      this.mouseSkewX = 0;
+      this.mouseSkewY = 0;
+      this.mouseDx = 0;
+      this.mouseDy = 0;
       if (this.isDragging) return;
       this.callbacks.onHoverOut(this);
     });

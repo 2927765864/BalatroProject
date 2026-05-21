@@ -1035,11 +1035,13 @@ export function setupControlPanel(
       });
     }
 
-    bindSectionExpand("inp-expandMouseOffset", "val-expandMouseOffset", "cardVisuals.expandedSections.mouseOffset", "sect-mouseOffset-params");
-    bindToggle("inp-mouseOffsetEnabled", "val-mouseOffsetEnabled", "cardVisuals.mouseOffsetEnabled");
-    bindNumber("inp-mouseOffsetFactorX", "val-mouseOffsetFactorX", "cardVisuals.mouseOffsetFactorX", { digits: 3 });
-    bindNumber("inp-mouseOffsetFactorY", "val-mouseOffsetFactorY", "cardVisuals.mouseOffsetFactorY", { digits: 3 });
-    bindNumber("inp-mouseOffsetLimit", "val-mouseOffsetLimit", "cardVisuals.mouseOffsetLimit", { digits: 1 });
+    bindSectionExpand("inp-expandMouse3DTilt", "val-expandMouse3DTilt", "cardVisuals.expandedSections.mouse3DTilt", "sect-mouse3DTilt-params");
+    bindToggle("inp-mouse3DTiltEnabled", "val-mouse3DTiltEnabled", "cardVisuals.mouse3DTiltEnabled");
+    bindNumber("inp-mouse3DTiltStrength", "val-mouse3DTiltStrength", "cardVisuals.mouse3DTiltStrength", { digits: 1 });
+    bindToggle("inp-mouse3DTiltInvertTL", "val-mouse3DTiltInvertTL", "cardVisuals.mouse3DTiltInvertTL");
+    bindToggle("inp-mouse3DTiltInvertTR", "val-mouse3DTiltInvertTR", "cardVisuals.mouse3DTiltInvertTR");
+    bindToggle("inp-mouse3DTiltInvertBL", "val-mouse3DTiltInvertBL", "cardVisuals.mouse3DTiltInvertBL");
+    bindToggle("inp-mouse3DTiltInvertBR", "val-mouse3DTiltInvertBR", "cardVisuals.mouse3DTiltInvertBR");
 
     bindNumber("inp-clickThresholdMS", "val-clickThresholdMS", "cardVisuals.clickThresholdMS", { integer: true });
     bindNumber("inp-clickDistanceThreshold", "val-clickDistanceThreshold", "cardVisuals.clickDistanceThreshold", { integer: true });
