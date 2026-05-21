@@ -128,6 +128,7 @@ export interface RuntimeConfig {
 
     // 4. 卡牌操作逻辑参数
     clickThresholdMS: number;
+    clickDistanceThreshold: number;
   };
   /** 可选：示例语义曲线，留作扩展（如未来按 combo 数缩放某个倍率） */
   scoreCurve: BezierCurveConfig;
@@ -213,6 +214,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     mouseOffsetLimit: 8,
 
     clickThresholdMS: 250,
+    clickDistanceThreshold: 10,
   }),
   scoreCurve: Object.freeze({
     enabled: false,

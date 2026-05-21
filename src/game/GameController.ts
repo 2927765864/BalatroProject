@@ -156,6 +156,8 @@ export class GameController {
         onHoverOut: (view) => this.onHoverOut(view),
         onDragStart: (view) => {
           this.tween.killOf(view);
+          view.zIndex = 9999;
+          view.isReturning = false;
         },
         onDragEnd: (view) => {
           // 如果长拖拽导致卡牌变为未选中状态，我们需要将其从已选中列表同步移除
@@ -166,6 +168,7 @@ export class GameController {
             this.bus.emit("card:selectionChanged", { selected });
             this.evaluateAndUpdate();
           }
+          view.isReturning = true;
           this.layoutHand();
         }
       },
@@ -184,7 +187,8 @@ export class GameController {
     });
     hand.forEach((view, i) => {
       // 用 zIndex 保证右边的牌盖住左边的（卡牌层启用 sortableChildren）。
-      view.zIndex = i;
+      // 处于拖拽态的卡牌，其显示应该置于所有卡牌上
+      view.zIndex = view.isDragging ? 9999 : i;
       const slot = slots[i]!;
       
       // 保存布局时的目标位姿，以便在拖拽松手后可以回弹
@@ -225,6 +229,7 @@ export class GameController {
   private onHoverIn(view: CardView): void {
     if (view.selected) return;
     if (view.isDragging) return;
+    if (view.isReturning) return;
     // 临时抬高一点；离开时由 layoutHand 复位。
     CardFx.moveTo(
       this.tween,
@@ -241,6 +246,7 @@ export class GameController {
   private onHoverOut(view: CardView): void {
     if (view.selected) return;
     if (view.isDragging) return;
+    if (view.isReturning) return;
     this.layoutHand();
   }
 

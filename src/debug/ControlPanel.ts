@@ -994,6 +994,7 @@ export function setupControlPanel(
     bindNumber("inp-mouseOffsetLimit", "val-mouseOffsetLimit", "cardVisuals.mouseOffsetLimit", { digits: 1 });
 
     bindNumber("inp-clickThresholdMS", "val-clickThresholdMS", "cardVisuals.clickThresholdMS", { integer: true });
+    bindNumber("inp-clickDistanceThreshold", "val-clickDistanceThreshold", "cardVisuals.clickDistanceThreshold", { integer: true });
 
     bindNumber("inp-dragMaxSpeed", "val-dragMaxSpeed", "dragHandCard.maxSpeed", { integer: true });
     bindNumber("inp-dragLerpFactor", "val-dragLerpFactor", "dragHandCard.lerpFactor", { digits: 2 });

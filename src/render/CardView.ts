@@ -45,11 +45,13 @@ export class CardView extends Container {
   layoutY = 0;
   layoutRotation = 0;
   isDragging = false;
+  isReturning = false;
 
   // 状态机核心字段
   cardState: CardState = CardState.Normal;
   isMouseOver = false;
   private dragStartTime = 0;
+  private dragMaxDistance = 0;
 
   // 视觉效果积累与辅助变量
   private breathingTime = Math.random() * 100;
@@ -441,6 +443,7 @@ export class CardView extends Container {
 
     this.dragData = event;
     this.dragStartTime = Date.now();
+    this.dragMaxDistance = 0;
 
     // 按下鼠标左键即刻进入拖拽态（按照需求：只要鼠标处于按下状态，就会进入拖拽态）
     this.isDragging = true;
@@ -491,6 +494,11 @@ export class CardView extends Container {
       dy = event.global.y - this.dragStartPointerY;
     }
 
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > this.dragMaxDistance) {
+      this.dragMaxDistance = dist;
+    }
+
     if (this.isDragging) {
       this.dragTargetX = this.dragStartCardX + dx;
       this.dragTargetY = this.dragStartCardY + dy;
@@ -519,9 +527,10 @@ export class CardView extends Container {
 
     // 获取配置中的快速点击时间阈值
     const threshold = CONFIG.cardVisuals?.clickThresholdMS ?? 250;
+    const distanceThreshold = CONFIG.cardVisuals?.clickDistanceThreshold ?? 10;
 
-    if (duration <= threshold) {
-      // 一定时间阈值内，快速抬起鼠标左键，卡牌从拖拽态进入点击选中态
+    if (duration <= threshold && this.dragMaxDistance <= distanceThreshold) {
+      // 一定时间阈值与距离阈值内，快速抬起鼠标左键，且没有显著位移，卡牌从拖拽态进入点击选中态
       this.callbacks.onClick(this);
       
       // 同步卡牌状态
@@ -532,7 +541,7 @@ export class CardView extends Container {
       }
       this.callbacks.onDragEnd?.(this);
     } else {
-      // 超过时间阈值抬起鼠标左键，从拖拽态回到常态（不选中）
+      // 超过时间或距离阈值抬起鼠标左键，从拖拽态回到常态（不选中）
       if (this.selected) {
         this.selected = false;
       }
@@ -577,6 +586,14 @@ export class CardView extends Container {
 
     // 0. 更新拖拽追赶逻辑
     this.updateDragging(dtMS);
+
+    // 如果处于从拖拽结束返回原位的过程中，且已经非常接近目标位置，重置 isReturning 状态
+    if (this.isReturning && !this.isDragging) {
+      const dist = Math.hypot(this.x - this.layoutX, this.y - this.layoutY);
+      if (dist < 2) {
+        this.isReturning = false;
+      }
+    }
 
     // 1. 常态化的手牌的呼吸晃动
     this.updateBreathing(dtMS);
