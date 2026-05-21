@@ -958,6 +958,14 @@ export function setupControlPanel(
     bindColor("inp-outlineColor", "val-outlineColor", "cardArt.outlineColor");
     bindCardBackPicker("card-back-picker", "val-cardBack");
 
+    // === 卡牌视效 ===
+    bindColor("inp-shadowColor", "val-shadowColor", "cardShadow.color");
+    bindNumber("inp-shadowAlpha", "val-shadowAlpha", "cardShadow.alpha", { digits: 2 });
+    bindNumber("inp-shadowLightX", "val-shadowLightX", "cardShadow.lightX", { digits: 1 });
+    bindNumber("inp-shadowLightY", "val-shadowLightY", "cardShadow.lightY", { digits: 1 });
+    bindNumber("inp-shadowDistanceRatio", "val-shadowDistanceRatio", "cardShadow.distanceRatio", { digits: 5 });
+    bindNumber("inp-shadowScaleRatio", "val-shadowScaleRatio", "cardShadow.scaleRatio", { digits: 2 });
+
     // 已经绑定过的控件只重跑 sync，避免重复挂监听
     syncers.forEach((fn) => fn());
   }

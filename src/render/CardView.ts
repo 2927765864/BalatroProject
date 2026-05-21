@@ -29,6 +29,7 @@ export interface CardViewCallbacks {
 
 export class CardView extends Container {
   selected = false;
+  private shadowGraphics: Graphics | null = null;
 
   override addChild<U extends ContainerChild[]>(...children: U): U[0] {
     for (const child of children) {
@@ -57,6 +58,10 @@ export class CardView extends Container {
   }
 
   private draw(): void {
+    this.shadowGraphics = new Graphics();
+    this.shadowGraphics.pivot.set(CardSkin.width / 2, CardSkin.height / 2);
+    this.addChild(this.shadowGraphics);
+
     const tex = CONFIG.cardArt.useSprites && assets.isReady
       ? assets.getFront(this.data.rank, this.data.suit)
       : undefined;
@@ -69,6 +74,42 @@ export class CardView extends Container {
 
     // 把 pivot 放到几何中心，让旋转/缩放围绕中心展开。
     this.pivot.set(CardSkin.width / 2, CardSkin.height / 2);
+
+    this.updateShadow();
+  }
+
+  updateShadow(): void {
+    if (!this.shadowGraphics) return;
+
+    const width = CardSkin.width;
+    const height = CardSkin.height;
+    const cornerRadius = CONFIG.cardArt.cornerRadius;
+
+    this.shadowGraphics.clear();
+    this.shadowGraphics.roundRect(0, 0, width, height, cornerRadius);
+    this.shadowGraphics.fill({ color: CONFIG.cardShadow.color });
+
+    // 计算阴影位置
+    const cx = this.x;
+    const cy = this.y;
+    const lx = CONFIG.cardShadow.lightX;
+    const ly = CONFIG.cardShadow.lightY;
+    const ratio = CONFIG.cardShadow.distanceRatio;
+
+    // 世界坐标系中的相对偏移
+    const worldDx = (lx - cx) * ratio;
+    const worldDy = (ly - cy) * ratio;
+
+    // 将世界偏移转换到局部坐标（逆向旋转卡牌的 rotation）
+    const theta = this.rotation;
+    const cosT = Math.cos(-theta);
+    const sinT = Math.sin(-theta);
+    const localDx = worldDx * cosT - worldDy * sinT;
+    const localDy = worldDx * sinT + worldDy * cosT;
+
+    this.shadowGraphics.position.set(width / 2 + localDx, height / 2 + localDy);
+    this.shadowGraphics.scale.set(CONFIG.cardShadow.scaleRatio);
+    this.shadowGraphics.alpha = CONFIG.cardShadow.alpha;
   }
 
   /** 精灵图分支：背景+正面贴图+1像素外描边，整体保持与程序化绘制相同的外尺寸。 */

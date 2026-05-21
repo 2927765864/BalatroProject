@@ -84,6 +84,14 @@ export interface RuntimeConfig {
       col: number;
     };
   };
+  cardShadow: {
+    color: number;
+    alpha: number;
+    lightX: number;
+    lightY: number;
+    distanceRatio: number;
+    scaleRatio: number;
+  };
   /** 可选：示例语义曲线，留作扩展（如未来按 combo 数缩放某个倍率） */
   scoreCurve: BezierCurveConfig;
   /**
@@ -131,6 +139,14 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       col: 0,
     }),
   }),
+  cardShadow: Object.freeze({
+    color: 0x000000,
+    alpha: 0.35,
+    lightX: 640,
+    lightY: 360,
+    distanceRatio: 0.05,
+    scaleRatio: 0.95,
+  }),
   scoreCurve: Object.freeze({
     enabled: false,
     startScale: 1,
@@ -170,6 +186,9 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     cardArt: {
       ...src.cardArt,
       back: { ...src.cardArt.back },
+    },
+    cardShadow: {
+      ...src.cardShadow,
     },
     scoreCurve: {
       ...src.scoreCurve,
@@ -232,6 +251,12 @@ export function applyConfig(source: unknown): void {
       back: { ...merged.cardArt.back, ...(incoming.cardArt.back ?? {}) },
     };
   }
+  if (incoming.cardShadow) {
+    merged.cardShadow = {
+      ...merged.cardShadow,
+      ...incoming.cardShadow,
+    };
+  }
   if (incoming.scoreCurve) {
     merged.scoreCurve = {
       ...merged.scoreCurve,
@@ -250,6 +275,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.animation = merged.animation;
   CONFIG.debug = merged.debug;
   CONFIG.cardArt = merged.cardArt;
+  CONFIG.cardShadow = merged.cardShadow;
   CONFIG.scoreCurve = merged.scoreCurve;
   CONFIG.uiNodes = merged.uiNodes;
 }
@@ -277,6 +303,12 @@ export function applyShippingDefaults(source: unknown): void {
       ...activeDefaultConfig.cardArt,
       ...incoming.cardArt,
       back: { ...activeDefaultConfig.cardArt.back, ...(incoming.cardArt.back ?? {}) },
+    };
+  }
+  if (incoming.cardShadow) {
+    activeDefaultConfig.cardShadow = {
+      ...activeDefaultConfig.cardShadow,
+      ...incoming.cardShadow,
     };
   }
   if (incoming.scoreCurve) {

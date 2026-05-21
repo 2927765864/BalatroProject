@@ -93,7 +93,15 @@ export class GameController {
     uiHierarchy.hydrateFromConfig(this.app.worldRoot);
 
     // 把 tween 接入 app 的更新循环
-    this.app.onUpdate((dtMS) => this.tween.update(dtMS));
+    this.app.onUpdate((dtMS) => {
+      this.tween.update(dtMS);
+      // 更新卡牌阴影
+      for (const child of this.cardLayer.children) {
+        if (child instanceof CardView) {
+          child.updateShadow();
+        }
+      }
+    });
 
     // 准备牌堆
     this.deck.reset();

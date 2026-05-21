@@ -209,9 +209,85 @@
             <summary>卡牌逻辑</summary>
           </details>
 
-          <!-- 5. 卡牌视效专项（占位） -->
+          <!-- 5. 卡牌视效专项 -->
           <details class="panel-group">
             <summary>卡牌视效</summary>
+            
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
+              <span>卡牌阴影效果</span>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>阴影颜色</span>
+                <span id="val-shadowColor">#000000</span>
+              </div>
+              <input id="inp-shadowColor" type="color" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>阴影透明度</span>
+                <span id="val-shadowAlpha">0.35</span>
+              </div>
+              <input
+                id="inp-shadowAlpha"
+                type="number"
+                min="0"
+                max="1"
+                step="0.05"
+              />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>光源定点 X</span>
+                <span id="val-shadowLightX">640.0</span>
+              </div>
+              <input
+                id="inp-shadowLightX"
+                type="number"
+                step="5"
+              />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>光源定点 Y</span>
+                <span id="val-shadowLightY">360.0</span>
+              </div>
+              <input
+                id="inp-shadowLightY"
+                type="number"
+                step="5"
+              />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>阴影距离比例</span>
+                <span id="val-shadowDistanceRatio">0.05000</span>
+              </div>
+              <input
+                id="inp-shadowDistanceRatio"
+                type="number"
+                step="0.0001"
+              />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>阴影大小比例</span>
+                <span id="val-shadowScaleRatio">0.95</span>
+              </div>
+              <input
+                id="inp-shadowScaleRatio"
+                type="number"
+                min="0"
+                max="3"
+                step="0.01"
+              />
+            </div>
           </details>
 
           <!-- 6. 文字视效专项（占位） -->

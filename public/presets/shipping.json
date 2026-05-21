@@ -34,6 +34,18 @@
         "col": 0
       }
     },
+    "cardShadow": {
+      "color": 0,
+      "alpha": 0.35,
+      "lightX": 720,
+      "lightY": 600,
+      "distanceRatio": 0.035,
+      "scaleRatio": 0.95,
+      "scale": 0.97,
+      "skew": 0,
+      "angle": 17,
+      "distance": 6
+    },
     "scoreCurve": {
       "enabled": false,
       "startScale": 1,
@@ -601,7 +613,7 @@
         ]
       },
       "hud.scorePanel": {
-        "parentId": "hud.leftPanel",
+        "parentId": "hud",
         "siblingIndex": 1,
         "components": [
           {
@@ -656,7 +668,7 @@
       },
       "hud.playBtn": {
         "parentId": "hud",
-        "siblingIndex": 1,
+        "siblingIndex": 2,
         "components": [
           {
             "type": "transform",
@@ -710,7 +722,7 @@
       },
       "hud.discardBtn": {
         "parentId": "hud",
-        "siblingIndex": 2,
+        "siblingIndex": 3,
         "components": [
           {
             "type": "transform",
@@ -748,7 +760,7 @@
       },
       "hud.deckView": {
         "parentId": "hud",
-        "siblingIndex": 3,
+        "siblingIndex": 4,
         "components": [
           {
             "type": "transform",
