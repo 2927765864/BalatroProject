@@ -50,6 +50,10 @@
       "distanceRatio": 0.12,
       "scaleRatio": 0.88
     },
+    "dragHandCard": {
+      "maxSpeed": 3000,
+      "lerpFactor": 0.15
+    },
     "scoreCurve": {
       "enabled": false,
       "startScale": 1,

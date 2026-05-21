@@ -59,6 +59,8 @@ export class App {
     mount.appendChild(this.pixi.canvas);
 
     this.pixi.stage.addChild(this.worldRoot);
+    this.pixi.stage.eventMode = "static";
+    this.pixi.stage.hitArea = this.pixi.screen;
     this.scaler.apply(this.pixi, this.worldRoot);
 
     this.pixi.ticker.add((ticker) => {

@@ -74,6 +74,8 @@ export class CardView extends Container {
   private dragStartCardY = 0;
   private oldStageEventMode: any = null;
   private shadowGraphics: Graphics | null = null;
+  private dragTargetX = 0;
+  private dragTargetY = 0;
 
   override addChild<U extends ContainerChild[]>(...children: U): U[0] {
     for (const child of children) {
@@ -445,17 +447,29 @@ export class CardView extends Container {
     this.cardState = CardState.Dragging;
     this.callbacks.onDragStart?.(this);
 
-    this.dragStartPointerX = event.global.x;
-    this.dragStartPointerY = event.global.y;
+    const parent = this.parent;
+    if (parent) {
+      const parentPos = event.getLocalPosition(parent);
+      this.dragStartPointerX = parentPos.x;
+      this.dragStartPointerY = parentPos.y;
+    } else {
+      this.dragStartPointerX = event.global.x;
+      this.dragStartPointerY = event.global.y;
+    }
     this.dragStartCardX = this.x;
     this.dragStartCardY = this.y;
+    this.dragTargetX = this.x;
+    this.dragTargetY = this.y;
 
     // 监听 root stage 的指针移动与释放，并且在按下时临时将 stage.eventMode 设为 "static"，
-    // 从而保证即便划过非交互背景区域时，全局 move 和 up 事件也能 100% 触发，不会出现卡死或松开不回弹。
+    // 从而保证即便划过非交互背景区域时，全局 move 和 up 事件也能 100% 触发，不会出现卡死 or 松开不回弹。
     const stage = this.getRootStage();
     if (stage) {
       this.oldStageEventMode = stage.eventMode;
       stage.eventMode = "static";
+      if (!stage.hitArea && stage.renderer) {
+        stage.hitArea = stage.renderer.screen;
+      }
       stage.on("pointermove", this.onPointerMove, this);
       stage.on("pointerup", this.onPointerUp, this);
       stage.on("pointerupoutside", this.onPointerUp, this);
@@ -465,12 +479,21 @@ export class CardView extends Container {
   private onPointerMove(event: FederatedPointerEvent): void {
     if (!this.dragData) return;
 
-    const dx = event.global.x - this.dragStartPointerX;
-    const dy = event.global.y - this.dragStartPointerY;
+    let dx = 0;
+    let dy = 0;
+    const parent = this.parent;
+    if (parent) {
+      const parentPos = event.getLocalPosition(parent);
+      dx = parentPos.x - this.dragStartPointerX;
+      dy = parentPos.y - this.dragStartPointerY;
+    } else {
+      dx = event.global.x - this.dragStartPointerX;
+      dy = event.global.y - this.dragStartPointerY;
+    }
 
     if (this.isDragging) {
-      this.x = this.dragStartCardX + dx;
-      this.y = this.dragStartCardY + dy;
+      this.dragTargetX = this.dragStartCardX + dx;
+      this.dragTargetY = this.dragStartCardY + dy;
     }
   }
 
@@ -552,6 +575,9 @@ export class CardView extends Container {
   public update(dtMS: number): void {
     if (!this.contentContainer) return;
 
+    // 0. 更新拖拽追赶逻辑
+    this.updateDragging(dtMS);
+
     // 1. 常态化的手牌的呼吸晃动
     this.updateBreathing(dtMS);
 
@@ -563,6 +589,34 @@ export class CardView extends Container {
 
     // 4. 将计算后的效果应用到视觉容器
     this.applyVisuals();
+  }
+
+  private updateDragging(dtMS: number): void {
+    if (!this.isDragging) return;
+
+    const diffX = this.dragTargetX - this.x;
+    const diffY = this.dragTargetY - this.y;
+    const distance = Math.sqrt(diffX * diffX + diffY * diffY);
+
+    if (distance > 0.01) {
+      const config = CONFIG.dragHandCard;
+      const lerpFactor = config?.lerpFactor ?? 0.15;
+      
+      // 基于时间步长计算插值，确保在不同帧率下平滑度一致
+      const actualLerp = 1 - Math.pow(1 - lerpFactor, dtMS / 16.666);
+      let step = distance * Math.min(1, Math.max(0, actualLerp));
+
+      // 速度上限 (像素/秒)
+      const maxSpeed = config?.maxSpeed ?? 3000;
+      const maxStep = (maxSpeed / 1000) * dtMS;
+
+      if (step > maxStep) {
+        step = maxStep;
+      }
+
+      this.x += (diffX / distance) * step;
+      this.y += (diffY / distance) * step;
+    }
   }
 
   private updateBreathing(dtMS: number): void {

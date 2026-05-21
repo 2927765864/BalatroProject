@@ -100,6 +100,13 @@ export interface RuntimeConfig {
     distanceRatio: number;
     scaleRatio: number;
   };
+  /** 拖拽手牌相关参数 */
+  dragHandCard: {
+    /** 追踪速度上限 (像素/秒) */
+    maxSpeed: number;
+    /** 追踪插值系数 (0-1) */
+    lerpFactor: number;
+  };
   cardVisuals: {
     // 1. 常态呼吸晃动
     breathingEnabled: boolean;
@@ -185,6 +192,10 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     distanceRatio: 0.12,
     scaleRatio: 0.88,
   }),
+  dragHandCard: Object.freeze({
+    maxSpeed: 3000,
+    lerpFactor: 0.15,
+  }),
   cardVisuals: Object.freeze({
     breathingEnabled: true,
     breathingSpeed: 0.002,
@@ -248,6 +259,9 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     },
     dragShadow: {
       ...src.dragShadow,
+    },
+    dragHandCard: {
+      ...src.dragHandCard,
     },
     cardVisuals: {
       ...src.cardVisuals,
@@ -325,6 +339,12 @@ export function applyConfig(source: unknown): void {
       ...incoming.dragShadow,
     };
   }
+  if (incoming.dragHandCard) {
+    merged.dragHandCard = {
+      ...merged.dragHandCard,
+      ...incoming.dragHandCard,
+    };
+  }
   if (incoming.cardVisuals) {
     merged.cardVisuals = {
       ...merged.cardVisuals,
@@ -351,6 +371,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.cardArt = merged.cardArt;
   CONFIG.cardShadow = merged.cardShadow;
   CONFIG.dragShadow = merged.dragShadow;
+  CONFIG.dragHandCard = merged.dragHandCard;
   CONFIG.cardVisuals = merged.cardVisuals;
   CONFIG.scoreCurve = merged.scoreCurve;
   CONFIG.uiNodes = merged.uiNodes;
@@ -391,6 +412,12 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.dragShadow = {
       ...activeDefaultConfig.dragShadow,
       ...incoming.dragShadow,
+    };
+  }
+  if (incoming.dragHandCard) {
+    activeDefaultConfig.dragHandCard = {
+      ...activeDefaultConfig.dragHandCard,
+      ...incoming.dragHandCard,
     };
   }
   if (incoming.cardVisuals) {

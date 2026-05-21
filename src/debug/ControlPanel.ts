@@ -995,6 +995,9 @@ export function setupControlPanel(
 
     bindNumber("inp-clickThresholdMS", "val-clickThresholdMS", "cardVisuals.clickThresholdMS", { integer: true });
 
+    bindNumber("inp-dragMaxSpeed", "val-dragMaxSpeed", "dragHandCard.maxSpeed", { integer: true });
+    bindNumber("inp-dragLerpFactor", "val-dragLerpFactor", "dragHandCard.lerpFactor", { digits: 2 });
+
     // 已经绑定过的控件只重跑 sync，避免重复挂监听
     syncers.forEach((fn) => fn());
   }

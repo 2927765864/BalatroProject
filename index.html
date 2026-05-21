@@ -490,6 +490,26 @@
               </div>
               <input id="inp-clickThresholdMS" type="number" step="10" min="50" max="2000" />
             </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
+              <span>拖拽手牌相关参数</span>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>追踪速度上限 (像素/秒)</span>
+                <span id="val-dragMaxSpeed">3000</span>
+              </div>
+              <input id="inp-dragMaxSpeed" type="number" step="100" min="100" max="10000" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>追踪插值系数 (lerp)</span>
+                <span id="val-dragLerpFactor">0.15</span>
+              </div>
+              <input id="inp-dragLerpFactor" type="number" step="0.01" min="0.01" max="1.0" />
+            </div>
           </details>
 
           <!-- 6. 文字视效专项（占位） -->
