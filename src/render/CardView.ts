@@ -56,7 +56,8 @@ export class CardView extends Container {
 
   constructor(
     readonly data: CardData,
-    private readonly callbacks: CardViewCallbacks
+    private readonly callbacks: CardViewCallbacks,
+    private readonly shadowContainer?: Container
   ) {
     super();
     this.draw();
@@ -65,16 +66,36 @@ export class CardView extends Container {
 
   /** 运行时美术参数变化后，保留位置/交互状态，只重建内部绘制节点。 */
   refreshArt(): void {
+    if (this.shadowGraphics && this.shadowGraphics.parent) {
+      this.shadowGraphics.parent.removeChild(this.shadowGraphics);
+      this.shadowGraphics.destroy();
+      this.shadowGraphics = null;
+    }
     this.removeChildren().forEach((child) => {
       child.destroy({ children: true });
     });
     this.draw();
   }
 
+  override destroy(options?: any): void {
+    if (this.shadowGraphics) {
+      if (this.shadowGraphics.parent) {
+        this.shadowGraphics.parent.removeChild(this.shadowGraphics);
+      }
+      this.shadowGraphics.destroy();
+      this.shadowGraphics = null;
+    }
+    super.destroy(options);
+  }
+
   private draw(): void {
     this.shadowGraphics = new Graphics();
     this.shadowGraphics.pivot.set(CardSkin.width / 2, CardSkin.height / 2);
-    this.addChild(this.shadowGraphics);
+    if (!this.isDragging && this.shadowContainer) {
+      this.shadowContainer.addChild(this.shadowGraphics);
+    } else {
+      this.addChild(this.shadowGraphics);
+    }
 
     const tex = CONFIG.cardArt.useSprites && assets.isReady
       ? assets.getFront(this.data.rank, this.data.suit)
@@ -117,16 +138,45 @@ export class CardView extends Container {
     const worldDx = (lx - cx) * ratio;
     const worldDy = (ly - cy) * ratio;
 
-    // 将世界偏移转换到局部坐标（逆向旋转卡牌的 rotation）
-    const theta = this.rotation;
-    const cosT = Math.cos(-theta);
-    const sinT = Math.sin(-theta);
-    const localDx = worldDx * cosT - worldDy * sinT;
-    const localDy = worldDx * sinT + worldDy * cosT;
+    // 同步可见性
+    this.shadowGraphics.visible = this.visible;
 
-    this.shadowGraphics.position.set(width / 2 + localDx, height / 2 + localDy);
-    this.shadowGraphics.scale.set(shadowConf.scaleRatio);
-    this.shadowGraphics.alpha = shadowConf.alpha;
+    if (this.isDragging || !this.shadowContainer) {
+      // 确保它挂在当前 CardView 下
+      if (this.shadowGraphics.parent !== this) {
+        if (this.shadowGraphics.parent) {
+          this.shadowGraphics.parent.removeChild(this.shadowGraphics);
+        }
+        this.addChildAt(this.shadowGraphics, 0);
+      }
+
+      // 将世界偏移转换到局部坐标（逆向旋转卡牌的 rotation）
+      const theta = this.rotation;
+      const cosT = Math.cos(-theta);
+      const sinT = Math.sin(-theta);
+      const localDx = worldDx * cosT - worldDy * sinT;
+      const localDy = worldDx * sinT + worldDy * cosT;
+
+      this.shadowGraphics.position.set(width / 2 + localDx, height / 2 + localDy);
+      this.shadowGraphics.rotation = 0;
+      this.shadowGraphics.scale.set(shadowConf.scaleRatio);
+      this.shadowGraphics.alpha = shadowConf.alpha;
+    } else {
+      // 确保它挂在独立的 shadowContainer 下
+      if (this.shadowGraphics.parent !== this.shadowContainer) {
+        if (this.shadowGraphics.parent) {
+          this.shadowGraphics.parent.removeChild(this.shadowGraphics);
+        }
+        this.shadowContainer.addChild(this.shadowGraphics);
+      }
+
+      // 处于独立的层级中，因此我们需要使用其在父容器下的绝对位姿
+      this.shadowGraphics.position.set(cx + worldDx, cy + worldDy);
+      this.shadowGraphics.rotation = this.rotation;
+      this.shadowGraphics.scale.set(this.scale.x * shadowConf.scaleRatio, this.scale.y * shadowConf.scaleRatio);
+      this.shadowGraphics.alpha = shadowConf.alpha;
+      this.shadowGraphics.pivot.set(width / 2, height / 2);
+    }
   }
 
   /** 精灵图分支：背景+正面贴图+1像素外描边，整体保持与程序化绘制相同的外尺寸。 */

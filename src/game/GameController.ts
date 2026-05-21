@@ -52,6 +52,7 @@ export class GameController {
   private readonly deck = new Deck();
 
   private readonly cardLayer = new Container();
+  private readonly shadowLayer = new Container();
   private hud!: HUD;
 
   /** id -> CardView 缓存，复用同一份 view（牌只是回到牌堆，不销毁）。 */
@@ -72,6 +73,11 @@ export class GameController {
     this.cardLayer.zIndex = Layers.Card;
     this.cardLayer.sortableChildren = true;
     this.app.worldRoot.addChild(this.cardLayer);
+
+    // 阴影层作为 cardLayer 的子容器，但是 zIndex = -1 使得它总是被渲染在卡牌下方，不会投影到其他卡牌上
+    this.shadowLayer.label = "ShadowLayer";
+    this.shadowLayer.zIndex = -1;
+    this.cardLayer.addChild(this.shadowLayer);
   }
 
   start(): void {
@@ -141,17 +147,21 @@ export class GameController {
   private getOrCreateView(data: CardData): CardView {
     let v = this.viewByCardId.get(data.id);
     if (v) return v;
-    v = new CardView(data, {
-      onClick: (view) => this.toggleSelection(view),
-      onHoverIn: (view) => this.onHoverIn(view),
-      onHoverOut: (view) => this.onHoverOut(view),
-      onDragStart: (view) => {
-        this.tween.killOf(view);
+    v = new CardView(
+      data,
+      {
+        onClick: (view) => this.toggleSelection(view),
+        onHoverIn: (view) => this.onHoverIn(view),
+        onHoverOut: (view) => this.onHoverOut(view),
+        onDragStart: (view) => {
+          this.tween.killOf(view);
+        },
+        onDragEnd: () => {
+          this.layoutHand();
+        }
       },
-      onDragEnd: () => {
-        this.layoutHand();
-      }
-    });
+      this.shadowLayer
+    );
     this.viewByCardId.set(data.id, v);
     return v;
   }
