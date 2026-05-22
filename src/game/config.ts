@@ -130,6 +130,7 @@ export interface RuntimeConfig {
       hoverScale: boolean;
       mouse3DTilt: boolean;
       dragHandCard: boolean;
+      hoverHit: boolean;
     };
     // 1. 常态呼吸晃动
     breathingEnabled: boolean;
@@ -212,6 +213,22 @@ export interface RuntimeConfig {
     // 4. 卡牌操作 logic 参数（注：此处保持注释/格式）
     clickThresholdMS: number;
     clickDistanceThreshold: number;
+
+    /**
+     * 5. 鼠标触碰碰撞范围（迟滞 hit area）
+     *
+     * 为了避免卡牌在边缘晃动时鼠标反复进入/离开导致缩放抖动，
+     * 把"进入"和"离开"用两套不同大小的矩形判定：
+     *   - 鼠标尚未悬停时：使用较小的 enter 矩形，鼠标需移入更内侧才会触发进入；
+     *   - 鼠标已悬停时：使用较大的 leave 矩形，鼠标要移出更外侧才会触发离开。
+     *
+     * Scale 为相对卡牌名义尺寸 (CardSkin.width × CardSkin.height) 的倍率。
+     *   1.0 = 与卡面完全等大；<1 收缩、>1 外扩。
+     * 建议 hoverHitEnterScale < 1.0 < hoverHitLeaveScale。
+     */
+    hoverHitEnabled: boolean;
+    hoverHitEnterScale: number;
+    hoverHitLeaveScale: number;
   };
   /** 可选：示例语义曲线，留作扩展（如未来按 combo 数缩放某个倍率） */
   scoreCurve: BezierCurveConfig;
@@ -295,6 +312,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       hoverScale: true,
       mouse3DTilt: true,
       dragHandCard: true,
+      hoverHit: true,
     }),
     breathingEnabled: true,
     breathingSpeed: 0.002,
@@ -337,6 +355,10 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
 
     clickThresholdMS: 250,
     clickDistanceThreshold: 10,
+
+    hoverHitEnabled: true,
+    hoverHitEnterScale: 0.9,
+    hoverHitLeaveScale: 1.0,
   }),
   scoreCurve: Object.freeze({
     enabled: false,

@@ -1024,6 +1024,12 @@ export function setupControlPanel(
     bindNumber("inp-idleTiltStrength", "val-idleTiltStrength", "cardVisuals.idleTiltStrength", { digits: 2 });
     bindNumber("inp-idleTiltRadius", "val-idleTiltRadius", "cardVisuals.idleTiltRadius", { digits: 2 });
 
+    // 鼠标触碰碰撞范围（迟滞 hit area）
+    bindSectionExpand("inp-expandHoverHit", "val-expandHoverHit", "cardVisuals.expandedSections.hoverHit", "sect-hoverHit-params");
+    bindToggle("inp-hoverHitEnabled", "val-hoverHitEnabled", "cardVisuals.hoverHitEnabled");
+    bindNumber("inp-hoverHitEnterScale", "val-hoverHitEnterScale", "cardVisuals.hoverHitEnterScale", { digits: 2 });
+    bindNumber("inp-hoverHitLeaveScale", "val-hoverHitLeaveScale", "cardVisuals.hoverHitLeaveScale", { digits: 2 });
+
     bindSectionExpand("inp-expandHoverScale", "val-expandHoverScale", "cardVisuals.expandedSections.hoverScale", "sect-hoverScale-params");
     bindToggle("inp-hoverScaleEnabled", "val-hoverScaleEnabled", "cardVisuals.hoverScaleEnabled");
     bindNumber("inp-hoverOvershootScale", "val-hoverOvershootScale", "cardVisuals.hoverOvershootScale", { digits: 2 });

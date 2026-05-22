@@ -1057,6 +1057,31 @@ export class CardView extends Container {
     this.eventMode = "static";
     this.cursor = "pointer";
 
+    // 鼠标触碰碰撞范围（迟滞 hit area）：
+    //   - 未悬停时：使用较小的 enter 矩形（scale = hoverHitEnterScale），鼠标要往里走才触发进入；
+    //   - 已悬停时：使用较大的 leave 矩形（scale = hoverHitLeaveScale），鼠标要往外走才触发离开。
+    // 注意：Pixi 命中测试在卡牌本地坐标（未应用 pivot/scale）下进行，矩形原点取 (0,0)~(W,H)。
+    // 因此 hover 缩放本身不会影响 hitArea；我们只关心配置中相对卡面名义尺寸的倍率。
+    const W = CardSkin.width;
+    const H = CardSkin.height;
+    const self = this;
+    this.hitArea = {
+      contains(x: number, y: number): boolean {
+        const cv = CONFIG.cardVisuals;
+        if (!cv.hoverHitEnabled) {
+          // 关闭迟滞：退化为与卡面等大的固定矩形（仍然显式提供，避免 Pixi 走 children-bounds 路径
+          // 受 mesh 角点偏移污染）。
+          return x >= 0 && x <= W && y >= 0 && y <= H;
+        }
+        const scale = self.isMouseOver ? cv.hoverHitLeaveScale : cv.hoverHitEnterScale;
+        const halfW = (W * scale) / 2;
+        const halfH = (H * scale) / 2;
+        const cx = W / 2;
+        const cy = H / 2;
+        return x >= cx - halfW && x <= cx + halfW && y >= cy - halfH && y <= cy + halfH;
+      },
+    };
+
     this.on("pointerdown", this.onPointerDown, this);
 
     this.on("pointerover", () => {

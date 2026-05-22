@@ -561,6 +561,43 @@
             </div>
 
             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>鼠标触碰碰撞范围</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandHoverHit" style="color: var(--accent);">开</span>
+                <input id="inp-expandHoverHit" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+
+            <div id="sect-hoverHit-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用迟滞碰撞</span>
+                  <span id="val-hoverHitEnabled">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-hoverHitEnabled" type="checkbox" />
+                </label>
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>进入触发范围倍率</span>
+                  <span id="val-hoverHitEnterScale">0.90</span>
+                </div>
+                <input id="inp-hoverHitEnterScale" type="number" step="0.01" min="0.1" max="2.0" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>离开触发范围倍率</span>
+                  <span id="val-hoverHitLeaveScale">1.00</span>
+                </div>
+                <input id="inp-hoverHitLeaveScale" type="number" step="0.01" min="0.1" max="2.0" />
+              </div>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>鼠标触碰弹性缩放</span>
               <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
                 <span>展开详情</span>
