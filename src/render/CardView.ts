@@ -59,6 +59,13 @@ export class CardView extends Container {
   isDragging = false;
   isReturning = false;
 
+  // 当前卡牌在手牌数组中的索引（0 = 最左）。由 GameController.layoutHand() 每次重排时写入。
+  // 用于"鼠标悬停伪3D倾斜"按位置插值卡牌强度（最左 vs 最右）。未参与布局时默认 0。
+  handIndex = 0;
+  // 当前手牌总数。同样由 layoutHand() 写入。用来计算 t = handIndex / (handCount - 1)。
+  // n <= 1 时按 0.5 处理，避免除零。
+  handCount = 1;
+
   // 状态机核心字段
   cardState: CardState = CardState.Normal;
   isMouseOver = false;
@@ -919,7 +926,18 @@ export class CardView extends Container {
 
     // 计算 4 角"目标"偏移
     if (hoverActive) {
-      const strength = visualConf!.mouse3DTiltStrength ?? 2.0;
+      let strength = visualConf!.mouse3DTiltStrength ?? 2.0;
+      // 左右倾斜幅度梯度：按手牌位置 t = i/(n-1) 在 LeftMul ~ RightMul 间线性插值，
+      // 乘到基础 strength 上。n<=1 时 t=0.5。仅作用于真实鼠标悬停的伪 3D 倾斜。
+      if (visualConf!.mouse3DTiltGradientEnabled) {
+        const n = this.handCount;
+        const t = n > 1 ? this.handIndex / (n - 1) : 0.5;
+        const leftMul = visualConf!.mouse3DTiltStrengthLeftMul ?? 0.3;
+        const rightMul = visualConf!.mouse3DTiltStrengthRightMul ?? 1.0;
+        const tClamped = Math.min(1, Math.max(0, t));
+        const mul = leftMul + (rightMul - leftMul) * tClamped;
+        strength *= mul;
+      }
       this.computeTiltTargetFromMouse(this.mouseLocalX!, this.mouseLocalY!, strength);
     } else if (idleActive) {
       // 用时间驱动一个"虚拟鼠标"在卡牌中心附近做缓慢的椭圆轨迹运动，

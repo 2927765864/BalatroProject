@@ -1054,6 +1054,9 @@ export function setupControlPanel(
     bindSectionExpand("inp-expandMouse3DTilt", "val-expandMouse3DTilt", "cardVisuals.expandedSections.mouse3DTilt", "sect-mouse3DTilt-params");
     bindToggle("inp-mouse3DTiltEnabled", "val-mouse3DTiltEnabled", "cardVisuals.mouse3DTiltEnabled");
     bindNumber("inp-mouse3DTiltStrength", "val-mouse3DTiltStrength", "cardVisuals.mouse3DTiltStrength", { digits: 1 });
+    bindToggle("inp-mouse3DTiltGradientEnabled", "val-mouse3DTiltGradientEnabled", "cardVisuals.mouse3DTiltGradientEnabled");
+    bindNumber("inp-mouse3DTiltStrengthLeftMul", "val-mouse3DTiltStrengthLeftMul", "cardVisuals.mouse3DTiltStrengthLeftMul", { digits: 2 });
+    bindNumber("inp-mouse3DTiltStrengthRightMul", "val-mouse3DTiltStrengthRightMul", "cardVisuals.mouse3DTiltStrengthRightMul", { digits: 2 });
     bindToggle("inp-mouse3DTiltInvertTL", "val-mouse3DTiltInvertTL", "cardVisuals.mouse3DTiltInvertTL");
     bindToggle("inp-mouse3DTiltInvertTR", "val-mouse3DTiltInvertTR", "cardVisuals.mouse3DTiltInvertTR");
     bindToggle("inp-mouse3DTiltInvertBL", "val-mouse3DTiltInvertBL", "cardVisuals.mouse3DTiltInvertBL");

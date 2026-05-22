@@ -179,6 +179,24 @@ export interface RuntimeConfig {
     mouse3DTiltInvertBL: boolean;
     mouse3DTiltInvertBR: boolean;
     /**
+     * 是否启用"从左到右倾斜幅度梯度"。
+     * - true：根据卡牌在手牌中的位置（最左=0，最右=1）对 mouse3DTiltStrength 做线性插值；
+     *   最终强度 = mouse3DTiltStrength × lerp(mouse3DTiltStrengthLeftMul, mouse3DTiltStrengthRightMul, t)。
+     * - false：所有卡牌共用同一个 mouse3DTiltStrength。
+     * 仅作用于真实鼠标悬停的伪 3D 倾斜，不影响 idleTilt 呼吸晃动。
+     */
+    mouse3DTiltGradientEnabled: boolean;
+    /**
+     * 最左端卡牌（手牌索引 0）的强度倍率。范围建议 0~2。0 表示最左完全不倾斜。
+     * 仅当 mouse3DTiltGradientEnabled=true 时生效。
+     */
+    mouse3DTiltStrengthLeftMul: number;
+    /**
+     * 最右端卡牌（手牌索引 n-1）的强度倍率。范围建议 0~2。
+     * 仅当 mouse3DTiltGradientEnabled=true 时生效。
+     */
+    mouse3DTiltStrengthRightMul: number;
+    /**
      * 是否启用倾斜角度过渡平滑。
      * - true（默认）：从当前角度按 mouse3DTiltSmoothing 速率逐帧逼近目标角度（与 idle tilt 共用）。
      * - false：鼠标位置变化时卡牌角度瞬时切换，无过渡。
@@ -311,6 +329,9 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     mouse3DTiltInvertTR: true,
     mouse3DTiltInvertBL: true,
     mouse3DTiltInvertBR: true,
+    mouse3DTiltGradientEnabled: false,
+    mouse3DTiltStrengthLeftMul: 0.3,
+    mouse3DTiltStrengthRightMul: 1.0,
     mouse3DTiltSmoothEnabled: true,
     mouse3DTiltSmoothing: 0.15,
 

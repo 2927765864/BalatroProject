@@ -194,10 +194,14 @@ export class GameController {
       arcHeight: GameConfig.handLayout.arcHeight,
       fanAnglePerCardDeg: GameConfig.handLayout.fanAnglePerCardDeg,
     });
+    const handCount = hand.length;
     hand.forEach((view, i) => {
       // 用 zIndex 保证右边的牌盖住左边的（卡牌层启用 sortableChildren）。
       // 处于拖拽态的卡牌，其显示应该置于所有卡牌上
       view.zIndex = view.isDragging ? 9999 : i;
+      // 写入手牌位置元数据：供 CardView 内"鼠标悬停伪3D倾斜左右梯度"按 i/(n-1) 计算每张卡的强度倍率。
+      view.handIndex = i;
+      view.handCount = handCount;
       const slot = slots[i]!;
       
       // 保存布局时的目标位姿，以便在拖拽松手后可以回弹
