@@ -178,12 +178,21 @@ export class GameController {
     return v;
   }
 
-  private layoutHand(): void {
+  /**
+   * 重新计算并应用手牌摆位。
+   *
+   * 公开访问以便 ControlPanel 调整 handLayout.* 参数后能立即触发重排。
+   */
+  layoutHand(): void {
     const hand = this.store.getState().hand;
     const slots = computeHandLayout(hand, {
       areaLeft: this.hud.handAreaLeft,
       areaRight: this.hud.handAreaRight,
       baseY: this.hud.handBaseY,
+      cardSpacing: GameConfig.handLayout.cardSpacing,
+      arcEnabled: GameConfig.handLayout.arcEnabled,
+      arcHeight: GameConfig.handLayout.arcHeight,
+      fanAnglePerCardDeg: GameConfig.handLayout.fanAnglePerCardDeg,
     });
     hand.forEach((view, i) => {
       // 用 zIndex 保证右边的牌盖住左边的（卡牌层启用 sortableChildren）。

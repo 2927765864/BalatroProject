@@ -84,6 +84,20 @@ export interface RuntimeConfig {
       col: number;
     };
   };
+  /**
+   * 手牌摆放参数（spacing / 弧形 / 扇形旋转）。
+   * 由 computeHandLayout 读取，改值后 GameController 需要重新 layoutHand。
+   */
+  handLayout: {
+    /** 相邻两张手牌中心点的水平间距（像素）。 */
+    cardSpacing: number;
+    /** 是否启用手牌弧形摆放（边缘的牌往下沉一些，模拟手持弧度）。 */
+    arcEnabled: boolean;
+    /** 弧形最大下沉幅度（像素）：最外两张牌相对中心牌的 Y 偏移。正值往下沉，负值往上拱。 */
+    arcHeight: number;
+    /** 每张牌相对中心牌的旋转角度系数（度/张）。0 = 不旋转。 */
+    fanAnglePerCardDeg: number;
+  };
   cardShadow: {
     color: number;
     alpha: number;
@@ -203,6 +217,12 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       col: 0,
     }),
   }),
+  handLayout: Object.freeze({
+    cardSpacing: 65,
+    arcEnabled: true,
+    arcHeight: 18,
+    fanAnglePerCardDeg: 1.5,
+  }),
   cardShadow: Object.freeze({
     color: 0x000000,
     alpha: 0.35,
@@ -308,6 +328,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
       ...src.cardArt,
       back: { ...src.cardArt.back },
     },
+    handLayout: { ...src.handLayout },
     cardShadow: {
       ...src.cardShadow,
     },
@@ -389,6 +410,12 @@ export function applyConfig(source: unknown): void {
       back: { ...merged.cardArt.back, ...(incoming.cardArt.back ?? {}) },
     };
   }
+  if (incoming.handLayout) {
+    merged.handLayout = {
+      ...merged.handLayout,
+      ...incoming.handLayout,
+    };
+  }
   if (incoming.cardShadow) {
     merged.cardShadow = {
       ...merged.cardShadow,
@@ -445,6 +472,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.animation = merged.animation;
   CONFIG.debug = merged.debug;
   CONFIG.cardArt = merged.cardArt;
+  CONFIG.handLayout = merged.handLayout;
   CONFIG.cardShadow = merged.cardShadow;
   CONFIG.dragShadow = merged.dragShadow;
   CONFIG.dragHandCard = merged.dragHandCard;
@@ -476,6 +504,12 @@ export function applyShippingDefaults(source: unknown): void {
       ...activeDefaultConfig.cardArt,
       ...incoming.cardArt,
       back: { ...activeDefaultConfig.cardArt.back, ...(incoming.cardArt.back ?? {}) },
+    };
+  }
+  if (incoming.handLayout) {
+    activeDefaultConfig.handLayout = {
+      ...activeDefaultConfig.handLayout,
+      ...incoming.handLayout,
     };
   }
   if (incoming.cardShadow) {

@@ -89,6 +89,11 @@ async function bootstrap(): Promise<void> {
         game.refreshHandArt();
         game.refreshDeckArt();
       }
+
+      // 手牌摆放参数（间距 / 弧形 / 扇形旋转）：只需重新摆位，不需重绘卡牌。
+      if (key === "*" || key.startsWith("handLayout.")) {
+        game.layoutHand();
+      }
     },
   });
 

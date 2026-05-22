@@ -136,6 +136,11 @@
           <details class="panel-group">
             <summary>牌的绘制</summary>
 
+            <!-- 2a. 单牌样式 -->
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
+              <span>单牌样式</span>
+            </div>
+
             <div class="panel-row">
               <div class="panel-row-header">
                 <span>使用精灵图</span>
@@ -188,6 +193,64 @@
                 被选中的格子加上 .is-active 黄色描边。
               -->
               <div id="card-back-picker" class="card-back-picker"></div>
+            </div>
+
+            <!-- 2b. 手牌摆放 -->
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
+              <span>手牌摆放</span>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>牌之间的间距 (像素)</span>
+                <span id="val-cardSpacing">65.0</span>
+              </div>
+              <input
+                id="inp-cardSpacing"
+                type="number"
+                min="10"
+                max="200"
+                step="1"
+              />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>启用手牌弧形</span>
+                <span id="val-arcEnabled">开</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;">
+                <input id="inp-arcEnabled" type="checkbox" />
+                <span style="color:rgba(255,255,255,0.62);">关闭后手牌完全水平排开</span>
+              </label>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>弧形下沉幅度 (像素)</span>
+                <span id="val-arcHeight">18.0</span>
+              </div>
+              <input
+                id="inp-arcHeight"
+                type="number"
+                min="-100"
+                max="100"
+                step="1"
+              />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>扇形角度 (度/张)</span>
+                <span id="val-fanAnglePerCardDeg">1.5</span>
+              </div>
+              <input
+                id="inp-fanAnglePerCardDeg"
+                type="number"
+                min="-15"
+                max="15"
+                step="0.1"
+              />
             </div>
           </details>
 

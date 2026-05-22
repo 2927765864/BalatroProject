@@ -978,12 +978,18 @@ export function setupControlPanel(
     //   bindCycleButton("btn-quality", "val-quality", "debug.quality", [...]);
     applyPanelOpacity();
 
-    // === 牌的绘制 ===
+    // === 牌的绘制 / 单牌样式 ===
     bindToggle("inp-useSprites", "val-useSprites", "cardArt.useSprites");
     bindNumber("inp-cardCornerRadius", "val-cardCornerRadius", "cardArt.cornerRadius", { digits: 1 });
     bindColor("inp-faceColor", "val-faceColor", "cardArt.faceColor");
     bindColor("inp-outlineColor", "val-outlineColor", "cardArt.outlineColor");
     bindCardBackPicker("card-back-picker", "val-cardBack");
+
+    // === 牌的绘制 / 手牌摆放 ===
+    bindNumber("inp-cardSpacing", "val-cardSpacing", "handLayout.cardSpacing", { digits: 1 });
+    bindToggle("inp-arcEnabled", "val-arcEnabled", "handLayout.arcEnabled");
+    bindNumber("inp-arcHeight", "val-arcHeight", "handLayout.arcHeight", { digits: 1 });
+    bindNumber("inp-fanAnglePerCardDeg", "val-fanAnglePerCardDeg", "handLayout.fanAnglePerCardDeg", { digits: 2 });
 
     // === 卡牌视效 ===
     bindSectionExpand("inp-expandShadow", "val-expandShadow", "cardVisuals.expandedSections.shadow", "sect-shadow-params");
