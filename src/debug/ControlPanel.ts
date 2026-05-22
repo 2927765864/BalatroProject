@@ -1058,6 +1058,8 @@ export function setupControlPanel(
     bindToggle("inp-mouse3DTiltInvertTR", "val-mouse3DTiltInvertTR", "cardVisuals.mouse3DTiltInvertTR");
     bindToggle("inp-mouse3DTiltInvertBL", "val-mouse3DTiltInvertBL", "cardVisuals.mouse3DTiltInvertBL");
     bindToggle("inp-mouse3DTiltInvertBR", "val-mouse3DTiltInvertBR", "cardVisuals.mouse3DTiltInvertBR");
+    bindToggle("inp-mouse3DTiltSmoothEnabled", "val-mouse3DTiltSmoothEnabled", "cardVisuals.mouse3DTiltSmoothEnabled");
+    bindNumber("inp-mouse3DTiltSmoothing", "val-mouse3DTiltSmoothing", "cardVisuals.mouse3DTiltSmoothing", { digits: 2 });
 
     bindNumber("inp-clickThresholdMS", "val-clickThresholdMS", "cardVisuals.clickThresholdMS", { integer: true });
     bindNumber("inp-clickDistanceThreshold", "val-clickDistanceThreshold", "cardVisuals.clickDistanceThreshold", { integer: true });

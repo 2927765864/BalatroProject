@@ -178,6 +178,18 @@ export interface RuntimeConfig {
     mouse3DTiltInvertTR: boolean;
     mouse3DTiltInvertBL: boolean;
     mouse3DTiltInvertBR: boolean;
+    /**
+     * 是否启用倾斜角度过渡平滑。
+     * - true（默认）：从当前角度按 mouse3DTiltSmoothing 速率逐帧逼近目标角度（与 idle tilt 共用）。
+     * - false：鼠标位置变化时卡牌角度瞬时切换，无过渡。
+     */
+    mouse3DTiltSmoothEnabled: boolean;
+    /**
+     * 倾斜角度平滑速率（帧率无关的指数 lerp 因子，0~1）。
+     * 含义：每 16.67ms（约 60fps 的一帧）当前角度向目标角度拉近 mouse3DTiltSmoothing 比例。
+     * 建议范围 0.05~0.5；越大越"硬"，越小越"软"。仅在 mouse3DTiltSmoothEnabled=true 时生效。
+     */
+    mouse3DTiltSmoothing: number;
 
     // 4. 卡牌操作 logic 参数（注：此处保持注释/格式）
     clickThresholdMS: number;
@@ -299,6 +311,8 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     mouse3DTiltInvertTR: true,
     mouse3DTiltInvertBL: true,
     mouse3DTiltInvertBR: true,
+    mouse3DTiltSmoothEnabled: true,
+    mouse3DTiltSmoothing: 0.15,
 
     clickThresholdMS: 250,
     clickDistanceThreshold: 10,

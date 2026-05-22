@@ -943,8 +943,18 @@ export class CardView extends Container {
     }
 
     // 平滑插值：current -> target
-    const speed = 0.15;
-    const k = Math.min(1, speed * (dtMS / 16.67));
+    // 由 cardVisuals.mouse3DTiltSmoothEnabled / mouse3DTiltSmoothing 控制：
+    //   - 关闭平滑：k = 1，瞬时跳到目标角度，无过渡。
+    //   - 启用平滑：k = clamp(speed * dt/16.67, 0..1)，帧率无关的指数 lerp。
+    // 老 preset 无这两字段时按"启用 + 0.15"兜底，保持原行为。
+    const smoothEnabled = visualConf?.mouse3DTiltSmoothEnabled ?? true;
+    let k: number;
+    if (!smoothEnabled) {
+      k = 1;
+    } else {
+      const speed = visualConf?.mouse3DTiltSmoothing ?? 0.15;
+      k = Math.min(1, Math.max(0, speed * (dtMS / 16.67)));
+    }
     this.currentCornerOffset.tlX += (this.targetCornerOffset.tlX - this.currentCornerOffset.tlX) * k;
     this.currentCornerOffset.tlY += (this.targetCornerOffset.tlY - this.currentCornerOffset.tlY) * k;
     this.currentCornerOffset.trX += (this.targetCornerOffset.trX - this.currentCornerOffset.trX) * k;
