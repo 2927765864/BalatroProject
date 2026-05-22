@@ -170,6 +170,29 @@ export interface RuntimeConfig {
     hoverScaleDurationMS: number;
     hoverScaleCurve: BezierCurveConfig;
     hoverScaleOutDurationMS: number;
+    /**
+     * 未正常完结动画的回缩过弹次数：
+     * 当入场弹性动画尚未播完（hoverScaleProgress < 1）鼠标就离开时，
+     * 回缩过程在 1.0 附近做阻尼正弦振荡的极值点数量。
+     * 1 = 一次过冲（先穿过 1.0 再回到 1.0）。
+     * 2 = 一峰一谷。3 = 两峰一谷或一峰两峰，依次类推。
+     * 振幅基准取离开瞬间 |currentScale - 1.0|，被打断越早幅度越小。
+     * 设为 0 或 1 之下时退化为原平滑回缩（即不做过弹）。
+     * 仅在入场动画被打断时生效，正常停留后离开仍走平滑回缩。
+     */
+    hoverScaleOutOvershootCount: number;
+    /**
+     * 首次过缩的目标 scale 绝对值（穿过 1.0 后到达的极值）。
+     * 一般 < 1.0，例如 0.95 表示从被打断时的 scale（通常 > 1）
+     * 首次穿过 1.0 后达到 0.95，再继续振荡回 1.0。
+     * 该值不依赖入场的 overshootScale/settleScale，独立可控。
+     */
+    hoverScaleOutOvershootFirstScale: number;
+    /**
+     * 回缩过弹阻尼衰减：从首次过缩极值起，每经过一个后续极值振幅乘以此因子，
+     * 范围 (0, 1]。仅当 hoverScaleOutOvershootCount >= 2 时影响后续峰谷的振幅。
+     */
+    hoverScaleOutOvershootDamping: number;
     hoverScaleOutSpeed: number;
 
     // 3. 卡牌鼠标悬停伪3D倾斜效果
@@ -339,6 +362,9 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       p2: { x: 0.16, y: 1.0 },
     }) as BezierCurveConfig,
     hoverScaleOutDurationMS: 150,
+    hoverScaleOutOvershootCount: 1,
+    hoverScaleOutOvershootFirstScale: 0.97,
+    hoverScaleOutOvershootDamping: 0.5,
     hoverScaleOutSpeed: 0.15,
 
     mouse3DTiltEnabled: true,

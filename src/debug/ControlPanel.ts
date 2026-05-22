@@ -1038,6 +1038,9 @@ export function setupControlPanel(
     bindNumber("inp-hoverOvershootDamping", "val-hoverOvershootDamping", "cardVisuals.hoverOvershootDamping", { digits: 2 });
     bindNumber("inp-hoverScaleDurationMS", "val-hoverScaleDurationMS", "cardVisuals.hoverScaleDurationMS", { integer: true });
     bindNumber("inp-hoverScaleOutDurationMS", "val-hoverScaleOutDurationMS", "cardVisuals.hoverScaleOutDurationMS", { integer: true });
+    bindNumber("inp-hoverScaleOutOvershootCount", "val-hoverScaleOutOvershootCount", "cardVisuals.hoverScaleOutOvershootCount", { integer: true });
+    bindNumber("inp-hoverScaleOutOvershootFirstScale", "val-hoverScaleOutOvershootFirstScale", "cardVisuals.hoverScaleOutOvershootFirstScale", { digits: 2 });
+    bindNumber("inp-hoverScaleOutOvershootDamping", "val-hoverScaleOutOvershootDamping", "cardVisuals.hoverScaleOutOvershootDamping", { digits: 2 });
     bindNumber("inp-hoverScaleOutSpeed", "val-hoverScaleOutSpeed", "cardVisuals.hoverScaleOutSpeed", { digits: 2 });
 
     // === 曲线面板 ===

@@ -79,6 +79,14 @@ export class CardView extends Container {
   private idleTiltTime = Math.random() * Math.PI * 2;
   private currentScale = 1.0;
   private hoverScaleProgress = 0;
+  // 入场弹性动画是否已正常播放完毕（progress 达到 1）。
+  // 用显式 boolean 标志，避免依赖浮点比较判断"动画完结"。
+  private hoverScaleSettled = false;
+  // 入场动画被打断后，回缩过弹状态
+  // 仅当鼠标在入场动画未播完（hoverScaleSettled=false）就离开时启动。
+  private outOvershootActive = false;
+  private outOvershootProgress = 0;     // 0 → 1
+  private outOvershootStartScale = 1.0; // 离开瞬间的 currentScale
 
   // 鼠标在卡牌本地坐标系下的位置（以左上角为 0,0；如果鼠标不在卡上则为 null）。
   // 由 onHoverMove 写入，updateMouse3DTilt 消费。
@@ -811,6 +819,9 @@ export class CardView extends Container {
     if (!visualConf || !visualConf.hoverScaleEnabled) {
       this.currentScale = 1.0;
       this.hoverScaleProgress = 0;
+      this.hoverScaleSettled = false;
+      this.outOvershootActive = false;
+      this.outOvershootProgress = 0;
       // 立即把 displayWrapper 恢复到 1.0 缩放（applyVisuals 当帧也会同步，但这里保险一下）。
       this.displayWrapper?.scale.set(1.0);
       return;
@@ -820,10 +831,21 @@ export class CardView extends Container {
     const isHovered = this.cardState === CardState.Hovered || (this.isMouseOver && this.cardState === CardState.Selected);
 
     if (isHovered) {
+      // 鼠标重新进入：取消正在进行的过弹回缩，回到入场分支。
+      // 注意 progress 不重置（如果还有残余 progress 就接着涨）。
+      if (this.outOvershootActive) {
+        this.outOvershootActive = false;
+        this.outOvershootProgress = 0;
+      }
+
       // 触碰悬停：向 1 递增 progress
       if (this.hoverScaleProgress < 1) {
         const duration = visualConf.hoverScaleDurationMS || 250;
         this.hoverScaleProgress = Math.min(1, this.hoverScaleProgress + dtMS / duration);
+        if (this.hoverScaleProgress >= 1) {
+          // 入场动画达到饱和点，标记为"正常完结"。
+          this.hoverScaleSettled = true;
+        }
       }
 
       const curve = visualConf.hoverScaleCurve;
@@ -860,16 +882,84 @@ export class CardView extends Container {
         this.currentScale = 1.0 + (s - 1.0) * y;
       }
     } else {
-      // 离开：递减 progress 并平滑缩回 1.0
-      if (this.hoverScaleProgress > 0) {
-        const duration = visualConf.hoverScaleOutDurationMS || 150;
-        this.hoverScaleProgress = Math.max(0, this.hoverScaleProgress - dtMS / duration);
+      // ── 离开分支 ──────────────────────────────────────────────
+      // 如果离开瞬间入场动画尚未播完（hoverScaleSettled=false）且配置了过弹次数 >= 1，
+      // 走"阻尼正弦振荡回缩过弹"；否则走原来的平滑插值回缩。
+
+      const outN = Math.max(0, Math.floor(visualConf.hoverScaleOutOvershootCount ?? 0));
+
+      // 触发判定：仅在尚未进入过弹回缩、入场动画未播至完结（!hoverScaleSettled）、
+      // 且本次确实有入场进度（progress > 0）时启动过弹回缩。
+      // 正常停留至稳态后再移开，hoverScaleSettled=true 会一直保持到本周期 progress 归零，
+      // 整个回缩期间持续走原平滑回缩，不会被误触发过弹。
+      // 注意：hoverScaleSettled 不在此处清零；在平滑回缩 progress 减到 0 时统一清零。
+      if (!this.outOvershootActive && !this.hoverScaleSettled && this.hoverScaleProgress > 0 && outN >= 1) {
+        this.outOvershootActive = true;
+        this.outOvershootProgress = 0;
+        this.outOvershootStartScale = this.currentScale;
+        // 立即停止入场 progress 的统计（避免回缩期间被误判为"未被打断"）
+        this.hoverScaleProgress = 0;
       }
 
-      // 平滑插值缩回 1.0
-      const targetScale = 1.0;
-      const speed = visualConf.hoverScaleOutSpeed || 0.15;
-      this.currentScale += (targetScale - this.currentScale) * speed * (dtMS / 16.67);
+      if (this.outOvershootActive) {
+        // ── 阻尼振荡回缩（围绕 1.0 振动，首峰目标可参数化）──
+        // y: 0 → 1，按 hoverScaleOutDurationMS 推进
+        const duration = visualConf.hoverScaleOutDurationMS || 150;
+        this.outOvershootProgress = Math.min(1, this.outOvershootProgress + dtMS / duration);
+        const y = this.outOvershootProgress;
+
+        const N = Math.max(1, outN);
+        const damping = Math.min(1, Math.max(0.0001, visualConf.hoverScaleOutOvershootDamping ?? 0.5));
+        const startScale = this.outOvershootStartScale;
+        const firstScale = visualConf.hoverScaleOutOvershootFirstScale ?? 0.97;
+
+        // 极值序列 peak[k] (k=0..N)：
+        //   peak[0] = startScale                                    // 起点
+        //   peak[1] = firstScale                                    // 首次过缩目标（用户参数，绝对 scale 值）
+        //   peak[k] = 1 + (firstScale - 1) · (-1)^(k-1) · damping^(k-1)   // 后续按 damping 衰减并左右穿越 1.0
+        //   peak[N] = 1.0                                           // 终点钉死
+        // 相邻极值之间用 (1 - cos(π·t))/2 余弦平滑过渡。
+        const k = Math.min(N - 1, Math.floor(N * y));               // 当前所在区间索引 [k, k+1]
+        const t = N * y - k;                                        // 区间内进度 0~1
+
+        const peakAt = (idx: number): number => {
+          if (idx <= 0) return startScale;
+          if (idx >= N) return 1.0;
+          // idx >= 1：从首峰起每步按 damping 衰减、符号交替穿越 1.0。
+          // idx=1: 系数 +1 → 1 + (firstScale - 1) = firstScale  ✓
+          // idx=2: 系数 -1·damping → 落到 1 的对侧并衰减
+          const sign = (idx - 1) % 2 === 0 ? 1 : -1;
+          const mag = (firstScale - 1.0) * Math.pow(damping, idx - 1);
+          return 1.0 + sign * mag;
+        };
+
+        const a = peakAt(k);
+        const b = peakAt(k + 1);
+        const smoothT = (1 - Math.cos(Math.PI * t)) / 2;
+        this.currentScale = a + (b - a) * smoothT;
+
+        if (this.outOvershootProgress >= 1) {
+          // 收尾：钉死到 1.0，退出过弹回缩态。
+          // 本次悬停周期结束，清掉"完结"标志，准备下一次悬停从头开始。
+          this.currentScale = 1.0;
+          this.outOvershootActive = false;
+          this.outOvershootProgress = 0;
+          this.hoverScaleSettled = false;
+        }
+      } else {
+        // ── 原平滑回缩 ──
+        if (this.hoverScaleProgress > 0) {
+          const duration = visualConf.hoverScaleOutDurationMS || 150;
+          this.hoverScaleProgress = Math.max(0, this.hoverScaleProgress - dtMS / duration);
+          if (this.hoverScaleProgress <= 0) {
+            // 平滑回缩完成（progress 归零）。本次悬停周期结束，清掉"完结"标志。
+            this.hoverScaleSettled = false;
+          }
+        }
+        const targetScale = 1.0;
+        const speed = visualConf.hoverScaleOutSpeed || 0.15;
+        this.currentScale += (targetScale - this.currentScale) * speed * (dtMS / 16.67);
+      }
     }
   }
 
