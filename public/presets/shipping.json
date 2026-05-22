@@ -1,6 +1,6 @@
 {
   "type": "runtime-control-preset",
-  "version": 2,
+  "version": 3,
   "name": "shipping",
   "config": {
     "world": {
@@ -37,22 +37,75 @@
     "cardShadow": {
       "color": 0,
       "alpha": 0.35,
-      "lightX": 640.0,
-      "lightY": 360.0,
-      "distanceRatio": 0.05,
-      "scaleRatio": 0.95
+      "lightX": 720,
+      "lightY": 600,
+      "distanceRatio": 0.035,
+      "scaleRatio": 0.95,
+      "scale": 0.97,
+      "skew": 0,
+      "angle": 17,
+      "distance": 6
     },
     "dragShadow": {
       "color": 0,
       "alpha": 0.25,
-      "lightX": 640.0,
-      "lightY": 360.0,
-      "distanceRatio": 0.12,
-      "scaleRatio": 0.88
+      "lightX": 720,
+      "lightY": 800,
+      "distanceRatio": 0.04,
+      "scaleRatio": 0.95
     },
     "dragHandCard": {
-      "maxSpeed": 3000,
-      "lerpFactor": 0.15
+      "maxSpeed": 4000,
+      "lerpFactor": 0.85
+    },
+    "cardVisuals": {
+      "expandedSections": {
+        "shadow": false,
+        "dragShadow": false,
+        "breathing": true,
+        "hoverScale": false,
+        "mouse3DTilt": true,
+        "dragHandCard": false,
+        "mouseOffset": true
+      },
+      "breathingEnabled": true,
+      "breathingSpeed": 0.003,
+      "breathingAmplitude": 0.5,
+      "wobbleSpeed": 0.001,
+      "wobbleAmplitude": 0.04,
+      "hoverScaleEnabled": true,
+      "hoverOvershootScale": 1.1,
+      "hoverSettleScale": 1.05,
+      "hoverScaleDurationMS": 50,
+      "hoverScaleCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 1,
+        "p1": {
+          "x": 0.42,
+          "y": 0
+        },
+        "p2": {
+          "x": 1,
+          "y": 1
+        }
+      },
+      "hoverScaleOutDurationMS": 50,
+      "hoverScaleOutSpeed": 1,
+      "mouse3DTiltEnabled": true,
+      "mouse3DTiltStrength": 3,
+      "mouse3DTiltInvertTL": true,
+      "mouse3DTiltInvertTR": true,
+      "mouse3DTiltInvertBL": true,
+      "mouse3DTiltInvertBR": true,
+      "clickThresholdMS": 250,
+      "clickDistanceThreshold": 50,
+      "mouseOffsetEnabled": true,
+      "mouseOffsetFactorX": 0.08,
+      "mouseOffsetFactorY": 0.08,
+      "mouseOffsetLimit": 8,
+      "hoverScaleFactor": 1.05,
+      "hoverScaleSpeed": 0.15
     },
     "scoreCurve": {
       "enabled": false,
@@ -326,51 +379,14 @@
               "x": 77.5,
               "y": 260,
               "rotation": 0,
-              "scaleX": 1.4,
-              "scaleY": 1.4
+              "scaleX": 1,
+              "scaleY": 1
             }
           },
           {
             "type": "textStyle",
             "data": {
               "text": "0"
-            }
-          },
-          {
-            "type": "shadow",
-            "data": {
-              "color": "#000000",
-              "alpha": 0.35,
-              "angle": 50,
-              "distance": 2.5,
-              "scaleX": 1,
-              "scaleY": 1,
-              "skewX": 0,
-              "skewY": 0
-            }
-          },
-          {
-            "type": "breathingText",
-            "data": {
-              "enabled": true,
-              "stagger": 500,
-              "cycle": 2700,
-              "loopGap": 0,
-              "amplitudeMin": 1.5,
-              "amplitudeMax": -1,
-              "curve": {
-                "enabled": true,
-                "startScale": 0,
-                "endScale": 1,
-                "p1": {
-                  "x": 0.42,
-                  "y": 0
-                },
-                "p2": {
-                  "x": 1,
-                  "y": 1
-                }
-              }
             }
           }
         ]
@@ -407,51 +423,14 @@
               "x": 202.5,
               "y": 260,
               "rotation": 0,
-              "scaleX": 1.4,
-              "scaleY": 1.4
+              "scaleX": 1,
+              "scaleY": 1
             }
           },
           {
             "type": "textStyle",
             "data": {
               "text": "0"
-            }
-          },
-          {
-            "type": "shadow",
-            "data": {
-              "color": "#000000",
-              "alpha": 0.35,
-              "angle": 50,
-              "distance": 2.5,
-              "scaleX": 1,
-              "scaleY": 1,
-              "skewX": 0,
-              "skewY": 0
-            }
-          },
-          {
-            "type": "breathingText",
-            "data": {
-              "enabled": true,
-              "stagger": 500,
-              "cycle": 2700,
-              "loopGap": 0,
-              "amplitudeMin": 1.5,
-              "amplitudeMax": -1,
-              "curve": {
-                "enabled": true,
-                "startScale": 0,
-                "endScale": 1,
-                "p1": {
-                  "x": 0.42,
-                  "y": 0
-                },
-                "p2": {
-                  "x": 1,
-                  "y": 1
-                }
-              }
             }
           }
         ]
@@ -495,7 +474,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "本次预期: 0"
+              "text": "预计获得: 0"
             }
           }
         ]
@@ -523,7 +502,7 @@
           {
             "type": "transform",
             "data": {
-              "x": 66,
+              "x": 110,
               "y": 380,
               "rotation": 0,
               "scaleX": 1,
@@ -533,14 +512,14 @@
         ]
       },
       "hud.scorePanel.playLabel": {
-        "parentId": "hud.scorePanel.infoPanel",
-        "siblingIndex": 1,
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 15,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 24,
-              "y": 10,
+              "x": 130,
+              "y": 385,
               "rotation": 0,
               "scaleX": 1,
               "scaleY": 1
@@ -555,14 +534,14 @@
         ]
       },
       "hud.scorePanel.playsText": {
-        "parentId": "hud.scorePanel.infoPanel",
-        "siblingIndex": 2,
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 16,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 32,
-              "y": 25,
+              "x": 135,
+              "y": 410,
               "rotation": 0,
               "scaleX": 1,
               "scaleY": 1
@@ -577,14 +556,14 @@
         ]
       },
       "hud.scorePanel.discardLabel": {
-        "parentId": "hud.scorePanel.infoPanel",
-        "siblingIndex": 3,
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 17,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 100,
-              "y": 11,
+              "x": 205,
+              "y": 385,
               "rotation": 0,
               "scaleX": 1,
               "scaleY": 1
@@ -599,14 +578,14 @@
         ]
       },
       "hud.scorePanel.discardsText": {
-        "parentId": "hud.scorePanel.infoPanel",
-        "siblingIndex": 4,
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 18,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 107,
-              "y": 24,
+              "x": 210,
+              "y": 410,
               "rotation": 0,
               "scaleX": 1,
               "scaleY": 1
@@ -621,7 +600,7 @@
         ]
       },
       "hud.scorePanel": {
-        "parentId": "hud",
+        "parentId": "hud.leftPanel",
         "siblingIndex": 1,
         "components": [
           {
@@ -676,7 +655,7 @@
       },
       "hud.playBtn": {
         "parentId": "hud",
-        "siblingIndex": 2,
+        "siblingIndex": 1,
         "components": [
           {
             "type": "transform",
@@ -730,7 +709,7 @@
       },
       "hud.discardBtn": {
         "parentId": "hud",
-        "siblingIndex": 3,
+        "siblingIndex": 2,
         "components": [
           {
             "type": "transform",
@@ -768,7 +747,7 @@
       },
       "hud.deckView": {
         "parentId": "hud",
-        "siblingIndex": 4,
+        "siblingIndex": 3,
         "components": [
           {
             "type": "transform",

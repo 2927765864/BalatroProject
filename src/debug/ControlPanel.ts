@@ -1010,6 +1010,14 @@ export function setupControlPanel(
     bindNumber("inp-wobbleSpeed", "val-wobbleSpeed", "cardVisuals.wobbleSpeed", { digits: 4 });
     bindNumber("inp-wobbleAmplitude", "val-wobbleAmplitude", "cardVisuals.wobbleAmplitude", { digits: 3 });
 
+    // 常态伪3D倾斜呼吸晃动（与 mouse3DTilt 共用投影模型，由时间驱动的虚拟鼠标产生倾斜，
+    // 真实鼠标悬停时该效果自动让位）
+    bindSectionExpand("inp-expandIdleTilt", "val-expandIdleTilt", "cardVisuals.expandedSections.idleTilt", "sect-idleTilt-params");
+    bindToggle("inp-idleTiltEnabled", "val-idleTiltEnabled", "cardVisuals.idleTiltEnabled");
+    bindNumber("inp-idleTiltSpeed", "val-idleTiltSpeed", "cardVisuals.idleTiltSpeed", { digits: 4 });
+    bindNumber("inp-idleTiltStrength", "val-idleTiltStrength", "cardVisuals.idleTiltStrength", { digits: 2 });
+    bindNumber("inp-idleTiltRadius", "val-idleTiltRadius", "cardVisuals.idleTiltRadius", { digits: 2 });
+
     bindSectionExpand("inp-expandHoverScale", "val-expandHoverScale", "cardVisuals.expandedSections.hoverScale", "sect-hoverScale-params");
     bindToggle("inp-hoverScaleEnabled", "val-hoverScaleEnabled", "cardVisuals.hoverScaleEnabled");
     bindNumber("inp-hoverOvershootScale", "val-hoverOvershootScale", "cardVisuals.hoverOvershootScale", { digits: 2 });

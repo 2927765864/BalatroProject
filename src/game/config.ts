@@ -112,6 +112,7 @@ export interface RuntimeConfig {
       shadow: boolean;
       dragShadow: boolean;
       breathing: boolean;
+      idleTilt: boolean;
       hoverScale: boolean;
       mouse3DTilt: boolean;
       dragHandCard: boolean;
@@ -122,6 +123,17 @@ export interface RuntimeConfig {
     breathingAmplitude: number;
     wobbleSpeed: number;
     wobbleAmplitude: number;
+
+    // 1b. 常态伪3D倾斜呼吸晃动（与鼠标悬停伪3D倾斜共用相同投影模型，
+    //     仅由时间驱动一个"虚拟鼠标"在卡牌内做缓慢圆周运动；
+    //     真实鼠标悬停时该效果自动让位给 mouse3DTilt）
+    idleTiltEnabled: boolean;
+    /** 倾斜呼吸周期速度（rad/ms，建议 0.0005~0.002） */
+    idleTiltSpeed: number;
+    /** 倾斜强度（与 mouse3DTiltStrength 同量纲；建议 0.3~1.5） */
+    idleTiltStrength: number;
+    /** 虚拟鼠标在卡牌内的运动半径（0~1，相对卡牌半对角） */
+    idleTiltRadius: number;
 
     // 2. 鼠标触碰小弹性缩放
     hoverScaleEnabled: boolean;
@@ -216,6 +228,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       shadow: true,
       dragShadow: true,
       breathing: true,
+      idleTilt: true,
       hoverScale: true,
       mouse3DTilt: true,
       dragHandCard: true,
@@ -225,6 +238,11 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     breathingAmplitude: 3,
     wobbleSpeed: 0.001,
     wobbleAmplitude: 0.04,
+
+    idleTiltEnabled: true,
+    idleTiltSpeed: 0.0008,
+    idleTiltStrength: 0.6,
+    idleTiltRadius: 0.55,
 
     hoverScaleEnabled: true,
     hoverOvershootScale: 1.10,

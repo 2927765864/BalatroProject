@@ -1,8 +1,19 @@
-import { Container, Graphics, Sprite, Text, Texture, FederatedPointerEvent, type ContainerChild } from "pixi.js";
+import {
+  Container,
+  Graphics,
+  Sprite,
+  Text,
+  Texture,
+  FederatedPointerEvent,
+  PerspectiveMesh,
+  Rectangle,
+  type ContainerChild,
+} from "pixi.js";
 import type { CardData } from "@domain/types";
 import { assets } from "@core/AssetManager";
 import { CONFIG } from "@game/config";
 import { sampleCurve } from "@/debug/BezierCurveEditor";
+import { uiHierarchy } from "@ui/hierarchy";
 import { CardSkin } from "./CardSkin";
 import { getPixelOutlineTexture } from "./PixelOutlineTexture";
 
@@ -57,27 +68,34 @@ export class CardView extends Container {
   // 视觉效果积累与辅助变量
   private breathingTime = Math.random() * 100;
   private wobbleTime = Math.random() * 100;
+  // 常态伪3D倾斜呼吸晃动的时间累加器（随机初相，避免所有手牌同步）
+  private idleTiltTime = Math.random() * Math.PI * 2;
   private currentScale = 1.0;
   private hoverScaleProgress = 0;
 
-  public mouseSkewX = 0;
-  public mouseSkewY = 0;
-  public mouseScaleX = 1.0;
-  public mouseScaleY = 1.0;
-  public mouseDx = 0;
-  public mouseDy = 0;
+  // 鼠标在卡牌本地坐标系下的位置（以左上角为 0,0；如果鼠标不在卡上则为 null）。
+  // 由 onHoverMove 写入，updateMouse3DTilt 消费。
+  public mouseLocalX: number | null = null;
+  public mouseLocalY: number | null = null;
 
   private breathingY = 0;
   private wobbleRot = 0;
-  private visualTiltX = 0;
-  private visualTiltY = 0;
-  private visualScaleX = 1.0;
-  private visualScaleY = 1.0;
-  private visualPivotX = CardSkin.width / 2;
-  private visualPivotY = CardSkin.height / 2;
 
-  // 视觉子容器，用于承载除阴影外所有的视觉卡面，以便在不影响外部布局/拖拽计算的前提下施加各种动画/视效
+  // 4 个角的目标偏移量（相对于矩形几何角的位移，即"角点 = 几何角 + 偏移"）
+  // TL=top-left, TR=top-right, BR=bottom-right, BL=bottom-left
+  private targetCornerOffset = { tlX: 0, tlY: 0, trX: 0, trY: 0, brX: 0, brY: 0, blX: 0, blY: 0 };
+  // 4 个角的当前偏移量（向 target 平滑插值）
+  private currentCornerOffset = { tlX: 0, tlY: 0, trX: 0, trY: 0, brX: 0, brY: 0, blX: 0, blY: 0 };
+
+  // 视觉子容器：承载所有卡面绘制（Graphics、Text、Sprite 等），
+  // 但不直接显示在场景里——而是被 generateTexture 烤成 cardTexture 后由 tiltMesh 显示。
   private contentContainer: Container | null = null;
+  // 离屏烘焙得到的卡面纹理（透视 mesh 的源贴图）
+  private cardTexture: Texture | null = null;
+  // 真正显示的透视 mesh（PerspectiveMesh）
+  private tiltMesh: PerspectiveMesh | null = null;
+  // 外层容器（承载 tiltMesh），用于施加 hover scale / wobble rotation / breathing y
+  private displayWrapper: Container | null = null;
 
   private dragData: FederatedPointerEvent | null = null;
   private dragStartPointerX = 0;
@@ -95,8 +113,15 @@ export class CardView extends Container {
         (child as any).roundPixels = false;
       }
     }
-    // 视觉元素重定向：除 shadowGraphics 和 contentContainer 本身，其余全部塞进 contentContainer
-    if (this.contentContainer && children[0] !== this.contentContainer && children[0] !== this.shadowGraphics) {
+    // 视觉元素重定向：除 shadowGraphics / contentContainer / displayWrapper 本身，
+    // 其余全部塞进 contentContainer（用于离屏烘焙）。
+    const first = children[0];
+    if (
+      this.contentContainer &&
+      first !== this.contentContainer &&
+      first !== this.shadowGraphics &&
+      first !== this.displayWrapper
+    ) {
       return this.contentContainer.addChild(...children);
     }
     return super.addChild(...children);
@@ -119,6 +144,21 @@ export class CardView extends Container {
       this.shadowGraphics.destroy();
       this.shadowGraphics = null;
     }
+    // 清理 displayWrapper（自身在 CardView children 内，由 removeChildren 处理）和它内部的 mesh。
+    if (this.tiltMesh) {
+      this.tiltMesh.destroy();
+      this.tiltMesh = null;
+    }
+    this.displayWrapper = null; // 由 removeChildren 自动 destroy
+    // 离屏 contentContainer 不在 CardView children 里，要单独 destroy。
+    if (this.contentContainer) {
+      this.contentContainer.destroy({ children: true });
+      this.contentContainer = null;
+    }
+    if (this.cardTexture) {
+      this.cardTexture.destroy(true);
+      this.cardTexture = null;
+    }
     this.removeChildren().forEach((child) => {
       child.destroy({ children: true });
     });
@@ -133,24 +173,43 @@ export class CardView extends Container {
       this.shadowGraphics.destroy();
       this.shadowGraphics = null;
     }
+    if (this.tiltMesh) {
+      this.tiltMesh.destroy();
+      this.tiltMesh = null;
+    }
+    if (this.contentContainer) {
+      // contentContainer 不挂在场景树里，单独 destroy。
+      this.contentContainer.destroy({ children: true });
+      this.contentContainer = null;
+    }
+    if (this.cardTexture) {
+      this.cardTexture.destroy(true);
+      this.cardTexture = null;
+    }
     super.destroy(options);
   }
 
   private draw(): void {
-    // 实例化视觉子容器，并设其 pivot 为卡牌中心，确保所有视觉晃动/缩放围绕中心展开
-    this.contentContainer = new Container();
-    this.contentContainer.pivot.set(CardSkin.width / 2, CardSkin.height / 2);
-    this.contentContainer.position.set(CardSkin.width / 2, CardSkin.height / 2);
-    super.addChild(this.contentContainer);
+    const W = CardSkin.width;
+    const H = CardSkin.height;
 
+    // 1. contentContainer：承载所有卡面绘制内容，但 **不直接挂在 CardView 上**——
+    //    它只用作离屏烘焙的源场景。pivot/position 都置零，整个卡面正好覆盖 (0,0)~(W,H)。
+    this.contentContainer = new Container();
+    this.contentContainer.pivot.set(0, 0);
+    this.contentContainer.position.set(0, 0);
+
+    // 2. shadowGraphics：阴影逻辑保持不变
     this.shadowGraphics = new Graphics();
-    this.shadowGraphics.pivot.set(CardSkin.width / 2, CardSkin.height / 2);
+    this.shadowGraphics.pivot.set(W / 2, H / 2);
     if (!this.isDragging && this.shadowContainer) {
       this.shadowContainer.addChild(this.shadowGraphics);
     } else {
-      this.addChild(this.shadowGraphics);
+      super.addChild(this.shadowGraphics);
     }
 
+    // 3. 绘制卡面元素。drawSprite/drawProcedural 内部用 this.addChild，
+    //    会被重定向到 contentContainer。
     const tex = CONFIG.cardArt.useSprites && assets.isReady
       ? assets.getFront(this.data.rank, this.data.suit)
       : undefined;
@@ -161,23 +220,82 @@ export class CardView extends Container {
       this.drawProcedural();
     }
 
-    // 应用抗锯齿遮罩，消除旋转或缩放时边缘产生的锯齿，同时内部保持 nearest 像素锐利效果
+    // 4. 圆角遮罩（保持与原逻辑一致），作用在 contentContainer 上。
     const pad = tex ? 2 : 0;
-    const maskW = tex ? CardSkin.width - pad * 2 : CardSkin.width;
-    const maskH = tex ? CardSkin.height - pad * 2 : CardSkin.height;
+    const maskW = tex ? W - pad * 2 : W;
+    const maskH = tex ? H - pad * 2 : H;
     const maskR = tex ? Math.max(0, CONFIG.cardArt.cornerRadius) : CONFIG.cardArt.cornerRadius;
 
     const cardMask = new Graphics();
     cardMask.roundRect(pad, pad, maskW, maskH, maskR);
     cardMask.fill({ color: 0xffffff });
     cardMask.roundPixels = false;
-    this.addChild(cardMask);
+    // 直接放进 contentContainer（绕开 addChild 重定向，避免无谓判断）
+    this.contentContainer.addChild(cardMask);
     this.contentContainer.mask = cardMask;
 
-    // 把 pivot 放到几何中心，让旋转/缩放围绕中心展开。
-    this.pivot.set(CardSkin.width / 2, CardSkin.height / 2);
+    // 5. 创建 RenderTexture 并烘焙 contentContainer。
+    this.bakeCardTexture();
+
+    // 6. 创建 PerspectiveMesh + displayWrapper（承载所有外部 transform：scale/rotation/breathingY）。
+    this.tiltMesh = new PerspectiveMesh({
+      texture: this.cardTexture ?? Texture.WHITE,
+      // 顶点密度：越高越平滑，但开销越大。卡牌尺寸小，10x14 已足够丝滑且仍是高效区间。
+      verticesX: 10,
+      verticesY: 14,
+      x0: 0, y0: 0,
+      x1: W, y1: 0,
+      x2: W, y2: H,
+      x3: 0, y3: H,
+    });
+    (this.tiltMesh as any).roundPixels = false;
+
+    this.displayWrapper = new Container();
+    this.displayWrapper.pivot.set(W / 2, H / 2);
+    this.displayWrapper.position.set(W / 2, H / 2);
+    this.displayWrapper.addChild(this.tiltMesh);
+    super.addChild(this.displayWrapper);
+
+    // 7. CardView 自身的 pivot/几何中心（保持与原逻辑一致，使外部 rotation/scale 围绕中心）。
+    this.pivot.set(W / 2, H / 2);
 
     this.updateShadow();
+  }
+
+  /**
+   * 把 contentContainer 离屏烤成 cardTexture，供 PerspectiveMesh 当作贴图。
+   * 调用时机：首次 draw() / refreshArt() / 选中态变化等需要刷新卡面静态外观时。
+   *
+   * 注意：mesh 上的纹理只反映 contentContainer 的"静态"内容（卡面 art + 圆角）。
+   * 呼吸晃动、hover 缩放、3D 倾斜等动效不进入纹理，而是作用在 displayWrapper / mesh corners 上。
+   */
+  private bakeCardTexture(): void {
+    if (!this.contentContainer) return;
+    const renderer = uiHierarchy.getRenderer();
+    if (!renderer) {
+      // 没有 renderer（很早期阶段或测试环境）：暂时不烤，等下一次再尝试。
+      return;
+    }
+
+    const W = CardSkin.width;
+    const H = CardSkin.height;
+
+    try {
+      const tex = renderer.generateTexture({
+        target: this.contentContainer,
+        frame: new Rectangle(0, 0, W, H),
+        resolution: renderer.resolution,
+        antialias: true,
+      });
+      const old = this.cardTexture;
+      this.cardTexture = tex;
+      if (this.tiltMesh) {
+        this.tiltMesh.texture = tex;
+      }
+      if (old && old !== tex) old.destroy(true);
+    } catch (err) {
+      console.warn(`[CardView] bakeCardTexture 失败：`, err);
+    }
   }
 
   updateShadow(): void {
@@ -573,77 +691,34 @@ export class CardView extends Container {
     }
   }
 
+  /**
+   * 鼠标在卡上移动：把鼠标位置投影到卡牌本地坐标系（左上角为原点，单位像素）。
+   *
+   * 注意：必须把鼠标位置转换到 **未变形之前的卡面坐标系**——
+   * 我们对 displayWrapper 应用 hoverScale + wobble rotation，对 mesh 应用 corner 透视；
+   * mesh 的角点是以"原始矩形"为基准的，所以这里期望的鼠标坐标也是相对"原始矩形"。
+   *
+   * 由于 displayWrapper 的 transform（scale/rotation/breathing）作用在外层，
+   * 而 `event.getLocalPosition(this)` 给出的是相对 CardView 自身的坐标，
+   * 而 CardView 自身的 pivot 是 (W/2, H/2)、scale=1（外部由 tween 控制），
+   * 这个本地坐标恰好就是原始未变形矩形的 (x, y)——直接使用即可。
+   */
   private onHoverMove(event: FederatedPointerEvent): void {
     const localPos = event.getLocalPosition(this);
-    const centerX = CardSkin.width / 2;
-    const centerY = CardSkin.height / 2;
-    
-    // 鼠标在卡牌上的相对坐标（以中心为 0, 0）
-    const rawDx = localPos.x - centerX;
-    const rawDy = localPos.y - centerY;
-    
-    const visualConf = CONFIG.cardVisuals;
-    if (visualConf && visualConf.mouse3DTiltEnabled) {
-      // 倾斜强度 (Strength)
-      const skewFactor = (visualConf.mouse3DTiltStrength ?? 2.0) * 0.0015;
-      
-      const dist = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
-      if (dist > 0.01) {
-        // 倾斜量 (theta) 限制最大不超过合理范围
-        const theta = Math.min(0.35, dist * skewFactor);
-        const cosPhi = rawDx / dist;
-        const sinPhi = rawDy / dist;
-        
-        // 完美的无 2D 自旋 3D 偏转投影变换（保证卡牌绝不发生 Z 轴角度旋转）
-        // 1. 根据鼠标位置进行轴向投影缩放
-        const targetScaleX = 1 - theta * cosPhi * cosPhi;
-        const targetScaleY = 1 - theta * sinPhi * sinPhi;
-        
-        // 2. 完美的对角对称剪切 (skew.x == skew.y)，彻底消除 2D 角度旋转分量
-        // 判定鼠标落在哪个角（象限），并应用该角专用的方向反转参数
-        let isInverted = false;
-        if (rawDx <= 0 && rawDy <= 0) {
-          isInverted = visualConf.mouse3DTiltInvertTL ?? true;
-        } else if (rawDx > 0 && rawDy <= 0) {
-          isInverted = visualConf.mouse3DTiltInvertTR ?? true;
-        } else if (rawDx <= 0 && rawDy > 0) {
-          isInverted = visualConf.mouse3DTiltInvertBL ?? true;
-        } else {
-          isInverted = visualConf.mouse3DTiltInvertBR ?? true;
-        }
-        
-        const dir = isInverted ? -1 : 1;
-        const targetSkew = theta * sinPhi * cosPhi * dir;
-        
-        this.mouseSkewX = targetSkew;
-        this.mouseSkewY = targetSkew;
-        this.mouseScaleX = targetScaleX;
-        this.mouseScaleY = targetScaleY;
-        this.mouseDx = rawDx;
-        this.mouseDy = rawDy;
-      } else {
-        this.mouseSkewX = 0;
-        this.mouseSkewY = 0;
-        this.mouseScaleX = 1.0;
-        this.mouseScaleY = 1.0;
-        this.mouseDx = 0;
-        this.mouseDy = 0;
-      }
-    } else {
-      this.mouseSkewX = 0;
-      this.mouseSkewY = 0;
-      this.mouseScaleX = 1.0;
-      this.mouseScaleY = 1.0;
-      this.mouseDx = 0;
-      this.mouseDy = 0;
-    }
+    this.mouseLocalX = localPos.x;
+    this.mouseLocalY = localPos.y;
   }
 
   /**
    * 视觉效果更新 Ticker
    */
   public update(dtMS: number): void {
-    if (!this.contentContainer) return;
+    if (!this.contentContainer || !this.tiltMesh) return;
+
+    // 如果首次烤纹理失败（例如 renderer 还没注入），每帧重试一次直到成功。
+    if (!this.cardTexture) {
+      this.bakeCardTexture();
+    }
 
     // 0. 更新拖拽追赶逻辑
     this.updateDragging(dtMS);
@@ -662,7 +737,9 @@ export class CardView extends Container {
     // 2. 鼠标悬停小弹性缩放
     this.updateHoverScale(dtMS);
 
-    // 3. 鼠标在单张手牌上移动时的牌的伪3D倾斜（包含常态和点击选中态）
+    // 3. 卡牌伪3D倾斜：真实鼠标悬停时按鼠标位置倾斜；未悬停时由"常态伪3D倾斜呼吸晃动"
+    //    通过虚拟鼠标产生缓慢的圆周倾斜。两种来源共用同一套投影公式与同一份目标角偏移，
+    //    悬停一旦激活，呼吸态会自然让位（同 target，靠插值平滑切换）。
     this.updateMouse3DTilt(dtMS);
 
     // 4. 将计算后的效果应用到视觉容器
@@ -727,7 +804,8 @@ export class CardView extends Container {
     if (!visualConf || !visualConf.hoverScaleEnabled) {
       this.currentScale = 1.0;
       this.hoverScaleProgress = 0;
-      this.contentContainer?.scale.set(1.0);
+      // 立即把 displayWrapper 恢复到 1.0 缩放（applyVisuals 当帧也会同步，但这里保险一下）。
+      this.displayWrapper?.scale.set(1.0);
       return;
     }
 
@@ -773,58 +851,163 @@ export class CardView extends Container {
     }
   }
 
+  /**
+   * 计算 4 角偏移（伪 3D 翻折）。
+   *
+   * 数学模型：
+   *   把卡牌视为厚度为零的 3D 平板，4 个角处于平面 z=0。
+   *   鼠标位置即"按下点"。**离鼠标越近的角向 +z（屏幕里、背景方向）凹陷，
+   *   越远的角向 -z（屏幕外）凸起**。
+   *
+   *   然后用透视投影 (x', y') = center + (x - center) * focal / (focal + z)
+   *   投影到 2D 平面，得到 4 角的视觉位移。
+   *
+   *   z > 0  -> 分母大 -> 角靠向中心 -> 看起来"远" = 凹陷 ✓
+   *   z < 0  -> 分母小 -> 角远离中心 -> 看起来"近" = 凸出 ✓
+   *
+   * 这是真正的 3D 翻折投影，能 100% 复现你描述的"鼠标处下压 / 对角抬起"视觉。
+   */
   private updateMouse3DTilt(dtMS: number): void {
     const visualConf = CONFIG.cardVisuals;
-    if (!visualConf || !visualConf.mouse3DTiltEnabled || this.cardState === CardState.Dragging) {
-      this.visualTiltX = 0;
-      this.visualTiltY = 0;
-      this.visualScaleX = 1.0;
-      this.visualScaleY = 1.0;
-      this.visualPivotX = CardSkin.width / 2;
-      this.visualPivotY = CardSkin.height / 2;
-      return;
-    }
+    const W = CardSkin.width;
+    const H = CardSkin.height;
 
-    // 仅在常态 (Normal)、被触碰态 (Hovered)、点击选中态 (Selected) 响应鼠标游走倾斜
+    // 仅在常态 / Hovered / Selected 触发；Dragging 时关闭
     const isEffectState =
       this.cardState === CardState.Normal ||
       this.cardState === CardState.Hovered ||
       this.cardState === CardState.Selected;
 
-    const targetSkewX = (this.isMouseOver && isEffectState) ? this.mouseSkewX : 0;
-    const targetSkewY = (this.isMouseOver && isEffectState) ? this.mouseSkewY : 0;
-    const targetScaleX = (this.isMouseOver && isEffectState) ? this.mouseScaleX : 1.0;
-    const targetScaleY = (this.isMouseOver && isEffectState) ? this.mouseScaleY : 1.0;
+    // 1) 真实鼠标触发的 3D 倾斜（最高优先级）
+    const hoverActive =
+      !!visualConf &&
+      !!visualConf.mouse3DTiltEnabled &&
+      this.cardState !== CardState.Dragging &&
+      isEffectState &&
+      this.isMouseOver &&
+      this.mouseLocalX !== null &&
+      this.mouseLocalY !== null;
 
-    // 透视短缩：中心轴通过 pivot 动态移动模拟 3D 近大远小（卡牌在桌上的四个边缘皆无额外位移）
-    const pivotShiftFactor = (visualConf.mouse3DTiltStrength ?? 2.0) * 0.12;
-    const targetPivotX = CardSkin.width / 2 - ((this.isMouseOver && isEffectState) ? this.mouseDx : 0) * pivotShiftFactor;
-    const targetPivotY = CardSkin.height / 2 - ((this.isMouseOver && isEffectState) ? this.mouseDy : 0) * pivotShiftFactor;
+    // 2) 常态伪 3D 倾斜呼吸（仅当 hover 未激活时起效，状态机仍需是 Normal/Hovered/Selected 且非拖拽）
+    //    注：状态机里 Hovered 必伴随 isMouseOver=true，所以 idle 实际只发生在 Normal/Selected 且鼠标不在卡上。
+    const idleActive =
+      !hoverActive &&
+      !!visualConf &&
+      !!visualConf.idleTiltEnabled &&
+      this.cardState !== CardState.Dragging &&
+      isEffectState;
 
-    // 平滑插值，避免倾斜跳变
+    // 推进常态倾斜呼吸的相位（即便当前未激活也持续走时，避免重新激活时相位跳变）
+    if (visualConf) {
+      this.idleTiltTime += dtMS * (visualConf.idleTiltSpeed ?? 0.0008);
+    }
+
+    // 计算 4 角"目标"偏移
+    if (hoverActive) {
+      const strength = visualConf!.mouse3DTiltStrength ?? 2.0;
+      this.computeTiltTargetFromMouse(this.mouseLocalX!, this.mouseLocalY!, strength);
+    } else if (idleActive) {
+      // 用时间驱动一个"虚拟鼠标"在卡牌中心附近做缓慢的椭圆轨迹运动，
+      // 复用与 mouse3DTilt 完全相同的投影公式，得到呼吸般的伪 3D 倾斜。
+      const radius = Math.max(0, Math.min(1, visualConf!.idleTiltRadius ?? 0.55));
+      const t = this.idleTiltTime;
+      // 椭圆运动：x 用 sin，y 用 cos 并乘以略低的比率，避免完美正圆显得机械
+      const cx = W / 2;
+      const cy = H / 2;
+      const rx = (W / 2) * radius;
+      const ry = (H / 2) * radius;
+      const vmx = cx + Math.sin(t) * rx;
+      const vmy = cy + Math.cos(t * 0.85) * ry;
+      const strength = visualConf!.idleTiltStrength ?? 0.6;
+      this.computeTiltTargetFromMouse(vmx, vmy, strength);
+    } else {
+      this.targetCornerOffset.tlX = 0; this.targetCornerOffset.tlY = 0;
+      this.targetCornerOffset.trX = 0; this.targetCornerOffset.trY = 0;
+      this.targetCornerOffset.brX = 0; this.targetCornerOffset.brY = 0;
+      this.targetCornerOffset.blX = 0; this.targetCornerOffset.blY = 0;
+    }
+
+    // 平滑插值：current -> target
     const speed = 0.15;
-    this.visualTiltX += (targetSkewX - this.visualTiltX) * speed * (dtMS / 16.67);
-    this.visualTiltY += (targetSkewY - this.visualTiltY) * speed * (dtMS / 16.67);
-    this.visualScaleX += (targetScaleX - this.visualScaleX) * speed * (dtMS / 16.67);
-    this.visualScaleY += (targetScaleY - this.visualScaleY) * speed * (dtMS / 16.67);
-    this.visualPivotX += (targetPivotX - this.visualPivotX) * speed * (dtMS / 16.67);
-    this.visualPivotY += (targetPivotY - this.visualPivotY) * speed * (dtMS / 16.67);
+    const k = Math.min(1, speed * (dtMS / 16.67));
+    this.currentCornerOffset.tlX += (this.targetCornerOffset.tlX - this.currentCornerOffset.tlX) * k;
+    this.currentCornerOffset.tlY += (this.targetCornerOffset.tlY - this.currentCornerOffset.tlY) * k;
+    this.currentCornerOffset.trX += (this.targetCornerOffset.trX - this.currentCornerOffset.trX) * k;
+    this.currentCornerOffset.trY += (this.targetCornerOffset.trY - this.currentCornerOffset.trY) * k;
+    this.currentCornerOffset.brX += (this.targetCornerOffset.brX - this.currentCornerOffset.brX) * k;
+    this.currentCornerOffset.brY += (this.targetCornerOffset.brY - this.currentCornerOffset.brY) * k;
+    this.currentCornerOffset.blX += (this.targetCornerOffset.blX - this.currentCornerOffset.blX) * k;
+    this.currentCornerOffset.blY += (this.targetCornerOffset.blY - this.currentCornerOffset.blY) * k;
+  }
+
+  /**
+   * 共用的角点投影计算：给定卡牌本地坐标系中的一个"鼠标位置" (mx, my) 和强度，
+   * 用与 mouse3DTilt 完全相同的透视投影模型，写入 this.targetCornerOffset。
+   *
+   * 由 updateMouse3DTilt（真实鼠标）和常态伪3D倾斜呼吸（虚拟鼠标）共同使用，
+   * 这样能确保两种倾斜的视觉模型 100% 一致。
+   */
+  private computeTiltTargetFromMouse(mx: number, my: number, strength: number): void {
+    const W = CardSkin.width;
+    const H = CardSkin.height;
+
+    // 把"强度"转换成 z 深度的最大幅度（像素）。strength=2.0 -> 约 28 像素。
+    const zMax = strength * 14;
+    // 焦距：越大透视越温和，越小越夸张。
+    const focal = 240;
+
+    const corners: Array<{ x: number; y: number; key: "tl" | "tr" | "br" | "bl" }> = [
+      { x: 0, y: 0, key: "tl" },
+      { x: W, y: 0, key: "tr" },
+      { x: W, y: H, key: "br" },
+      { x: 0, y: H, key: "bl" },
+    ];
+
+    const diag = Math.hypot(W, H);
+    const cx = W / 2;
+    const cy = H / 2;
+
+    for (const c of corners) {
+      const d = Math.hypot(c.x - mx, c.y - my);
+      const t = d / diag;
+      const z = zMax * (1 - 2 * t);
+      const denom = focal + z;
+      const k = focal / denom;
+      const projX = cx + (c.x - cx) * k;
+      const projY = cy + (c.y - cy) * k;
+      const dx = projX - c.x;
+      const dy = projY - c.y;
+
+      if (c.key === "tl") { this.targetCornerOffset.tlX = dx; this.targetCornerOffset.tlY = dy; }
+      else if (c.key === "tr") { this.targetCornerOffset.trX = dx; this.targetCornerOffset.trY = dy; }
+      else if (c.key === "br") { this.targetCornerOffset.brX = dx; this.targetCornerOffset.brY = dy; }
+      else { this.targetCornerOffset.blX = dx; this.targetCornerOffset.blY = dy; }
+    }
   }
 
   private applyVisuals(): void {
-    if (!this.contentContainer) return;
-    // 动态 pivot 配合动态 position，可以让卡牌在不发生全局位移的前提下，产生绝妙的高仿真 3D 近大远小透视
-    this.contentContainer.pivot.set(this.visualPivotX, this.visualPivotY);
-    this.contentContainer.position.set(
-      this.visualPivotX,
-      this.visualPivotY + this.breathingY
-    );
-    this.contentContainer.rotation = this.wobbleRot;
-    this.contentContainer.skew.set(this.visualTiltX, this.visualTiltY);
-    this.contentContainer.scale.set(
-      this.currentScale * this.visualScaleX,
-      this.currentScale * this.visualScaleY
-    );
+    const W = CardSkin.width;
+    const H = CardSkin.height;
+
+    // 1. 透视变形：通过 4 角偏移驱动 PerspectiveMesh
+    if (this.tiltMesh) {
+      const co = this.currentCornerOffset;
+      this.tiltMesh.setCorners(
+        0 + co.tlX,     0 + co.tlY,      // TL
+        W + co.trX,     0 + co.trY,      // TR
+        W + co.brX,     H + co.brY,      // BR
+        0 + co.blX,     H + co.blY,      // BL
+      );
+    }
+
+    // 2. 外层呼吸晃动 / hover 缩放 / 旋转晃动 —— 全部作用在 displayWrapper 上。
+    //    displayWrapper 的 pivot 是 (W/2, H/2)、position = (W/2, H/2 + breathingY)，
+    //    确保旋转/缩放围绕几何中心，breathingY 让卡牌做上下呼吸位移。
+    if (this.displayWrapper) {
+      this.displayWrapper.position.set(W / 2, H / 2 + this.breathingY);
+      this.displayWrapper.rotation = this.wobbleRot;
+      this.displayWrapper.scale.set(this.currentScale, this.currentScale);
+    }
   }
 
   private bindEvents(): void {
@@ -847,10 +1030,8 @@ export class CardView extends Container {
       if (this.cardState === CardState.Hovered) {
         this.cardState = CardState.Normal;
       }
-      this.mouseSkewX = 0;
-      this.mouseSkewY = 0;
-      this.mouseDx = 0;
-      this.mouseDy = 0;
+      this.mouseLocalX = null;
+      this.mouseLocalY = null;
       if (this.isDragging) return;
       this.callbacks.onHoverOut(this);
     });
