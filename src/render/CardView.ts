@@ -823,18 +823,33 @@ export class CardView extends Container {
       // 采样曲线
       const y = sampleCurve(curve, this.hoverScaleProgress);
 
-      const H = visualConf.hoverOvershootScale - 1.0;
-      const D = visualConf.hoverSettleScale - 1.0;
+      const overshoot = visualConf.hoverOvershootScale;
+      const settle = visualConf.hoverSettleScale;
+      // 极值点数量 N：1=经典一次过弹；>=2 时引入阻尼振荡（首峰、谷、次峰、…）。
+      const N = Math.max(1, Math.floor(visualConf.hoverOvershootCount ?? 1));
+      // 阻尼因子 damping∈(0,1]：每过一个极值振幅乘以此因子。仅 N>=2 生效。
+      const damping = Math.min(1, Math.max(0.0001, visualConf.hoverOvershootDamping ?? 0.5));
 
-      if (H > D && D > 0) {
-        // 利用抛物线映射 A * y + B * y^2 实现完美的过弹回缩：
-        // 保证 y=0 时 scale=1.0, y=1.0 时 scale=hoverSettleScale, peak 处为 hoverOvershootScale
-        const A = 2 * H + 2 * Math.sqrt(H * (H - D));
-        const B = D - A;
-        this.currentScale = 1.0 + A * y + B * y * y;
+      if (overshoot > settle && settle > 1.0) {
+        // 阻尼正弦振荡过弹模型：
+        //   base(y) = 1 + (settle - 1) · y                    // 线性基线：1.0 → settle
+        //   phase(y) = N · π · y                              // y=0:0, y=1:Nπ，起止 sin=0
+        //   极值点位于 y_k = (2k-1)/(2N), k=1..N
+        //   envelope(y) = damping^(N·y - 0.5)                 // 在 y_k 处恰为 damping^(k-1)
+        //   amp0 由首峰 = overshoot 反推：amp0 = overshoot - base(y_1)
+        //   s(y) = base(y) + amp0 · envelope(y) · sin(phase)
+        const y1 = 1 / (2 * N);                                // 首峰位置
+        const baseY1 = 1.0 + (settle - 1.0) * y1;
+        const amp0 = overshoot - baseY1;
+        const phase = N * Math.PI * y;
+        // envelope = damping^(N·y - 0.5)。N·y - 0.5 在 y=0 时是 -0.5，会让 envelope > 1，
+        // 但此处 sin(phase=0)=0，osc 仍为 0，不影响起点。
+        const envelope = Math.pow(damping, N * y - 0.5);
+        const base = 1.0 + (settle - 1.0) * y;
+        this.currentScale = base + amp0 * envelope * Math.sin(phase);
       } else {
-        // 退化分支：普通插值
-        const s = typeof visualConf.hoverSettleScale === "number" ? visualConf.hoverSettleScale : 1.05;
+        // 退化分支：overshoot 未真正大于 settle，普通插值
+        const s = typeof settle === "number" ? settle : 1.05;
         this.currentScale = 1.0 + (s - 1.0) * y;
       }
     } else {

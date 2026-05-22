@@ -153,6 +153,19 @@ export interface RuntimeConfig {
     hoverScaleEnabled: boolean;
     hoverOvershootScale: number;
     hoverSettleScale: number;
+    /**
+     * 过弹次数：sin 阻尼振荡的极值点数量。
+     * 1 = 经典一次过弹（1.0 → overshoot → settle）。
+     * 2 = 一峰一谷（1.0 → overshoot → 谷 → settle）。
+     * 3 = 两峰一谷或一峰两谷，依次类推。
+     * 谷/次峰的幅度由 hoverOvershootDamping 控制。
+     */
+    hoverOvershootCount: number;
+    /**
+     * 过弹阻尼衰减：每经过一个极值点，振幅乘以此因子。范围 (0, 1]，越小衰减越快。
+     * 仅当 hoverOvershootCount >= 2 时生效。
+     */
+    hoverOvershootDamping: number;
     hoverScaleDurationMS: number;
     hoverScaleCurve: BezierCurveConfig;
     hoverScaleOutDurationMS: number;
@@ -267,6 +280,8 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     hoverScaleEnabled: true,
     hoverOvershootScale: 1.10,
     hoverSettleScale: 1.05,
+    hoverOvershootCount: 1,
+    hoverOvershootDamping: 0.5,
     hoverScaleDurationMS: 250,
     hoverScaleCurve: Object.freeze({
       enabled: true,

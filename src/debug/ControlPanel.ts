@@ -1028,6 +1028,8 @@ export function setupControlPanel(
     bindToggle("inp-hoverScaleEnabled", "val-hoverScaleEnabled", "cardVisuals.hoverScaleEnabled");
     bindNumber("inp-hoverOvershootScale", "val-hoverOvershootScale", "cardVisuals.hoverOvershootScale", { digits: 2 });
     bindNumber("inp-hoverSettleScale", "val-hoverSettleScale", "cardVisuals.hoverSettleScale", { digits: 2 });
+    bindNumber("inp-hoverOvershootCount", "val-hoverOvershootCount", "cardVisuals.hoverOvershootCount", { integer: true });
+    bindNumber("inp-hoverOvershootDamping", "val-hoverOvershootDamping", "cardVisuals.hoverOvershootDamping", { digits: 2 });
     bindNumber("inp-hoverScaleDurationMS", "val-hoverScaleDurationMS", "cardVisuals.hoverScaleDurationMS", { integer: true });
     bindNumber("inp-hoverScaleOutDurationMS", "val-hoverScaleOutDurationMS", "cardVisuals.hoverScaleOutDurationMS", { integer: true });
     bindNumber("inp-hoverScaleOutSpeed", "val-hoverScaleOutSpeed", "cardVisuals.hoverScaleOutSpeed", { digits: 2 });
