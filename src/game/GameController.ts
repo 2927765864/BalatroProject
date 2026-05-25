@@ -160,14 +160,8 @@ export class GameController {
           view.isReturning = false;
         },
         onDragEnd: (view) => {
-          // 如果长拖拽导致卡牌变为未选中状态，我们需要将其从已选中列表同步移除
-          const state = this.store.getState();
-          if (state.selected.includes(view) && !view.selected) {
-            const selected = state.selected.filter((x) => x !== view);
-            this.store.setState({ selected });
-            this.bus.emit("card:selectionChanged", { selected });
-            this.evaluateAndUpdate();
-          }
+          // 选中状态完全由 toggleSelection 翻转，慢点击/拖拽松手不会改动 view.selected，
+          // 因此这里不再需要"兜底同步 store.selected"的逻辑。只负责回弹与重排即可。
           view.isReturning = true;
           this.layoutHand();
         }
@@ -214,6 +208,13 @@ export class GameController {
         return;
       }
 
+      // 正在播放"选中/取消选中位移过弹动画"的牌：交给 CardFx.selectMove 自己跑两段补间。
+      // 这里只更新 layoutX/Y/Rotation 元数据，不再下发普通 moveTo（避免 TweenManager
+      // 同字段冲突踢掉过弹段）。
+      if (view.isSelectAnimating) {
+        return;
+      }
+
       CardFx.moveTo(this.tween, view, slot, GameConfig.animation.moveDurationMS);
     });
   }
@@ -224,18 +225,51 @@ export class GameController {
     const state = this.store.getState();
     const selected = [...state.selected];
 
+    let direction: "rise" | "fall" | null = null;
     if (view.selected) {
+      // 取消选中：从弹起态向下回落到基准 y。
       view.selected = false;
       const idx = selected.indexOf(view);
       if (idx >= 0) selected.splice(idx, 1);
+      direction = "fall";
     } else {
       if (selected.length >= GameConfig.rules.maxSelected) return;
       view.selected = true;
       selected.push(view);
+      direction = "rise";
     }
     this.store.setState({ selected });
     this.bus.emit("card:selectionChanged", { selected });
+
+    // 先标记，让 layoutHand 跳过对该牌的普通 tween 写入；
+    // 标记必须在 layoutHand() 之前置位。
+    const cv = GameConfig.cardVisuals;
+    const useSelectFx =
+      cv.selectMoveEnabled !== false && direction !== null;
+    if (useSelectFx) {
+      view.isSelectAnimating = true;
+    }
+
     this.layoutHand();
+
+    // 取出该牌经 layoutHand 写好的目标位姿，启动选中/取消选中过弹动画。
+    if (useSelectFx && direction) {
+      const target = {
+        x: view.layoutX,
+        y: view.layoutY,
+        rotation: view.layoutRotation,
+      };
+      CardFx.selectMove(this.tween, view, target, direction, {
+        durationMS: cv.selectMoveDurationMS,
+        curve: cv.selectMoveCurve,
+        overshoot: cv.selectMoveOvershoot,
+        stiffness: cv.selectMoveStiffness,
+        onSettle: () => {
+          view.isSelectAnimating = false;
+        },
+      });
+    }
+
     this.evaluateAndUpdate();
   }
 

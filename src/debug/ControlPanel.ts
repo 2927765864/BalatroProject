@@ -151,6 +151,9 @@ export function setupControlPanel(
   }
 
   let hoverScaleCurvePanel: BezierCurvePanel | null = null;
+  let dragScaleInCurvePanel: BezierCurvePanel | null = null;
+  let dragScaleOutCurvePanel: BezierCurvePanel | null = null;
+  let selectMoveCurvePanel: BezierCurvePanel | null = null;
 
   // 收集所有"按 CONFIG 当前值刷新自身"的回调，preset 加载后批量重跑。
   const syncers: Array<() => void> = [];
@@ -1060,6 +1063,18 @@ export function setupControlPanel(
       });
     }
 
+    // 鼠标呼吸晃动（触碰与回落）：独立于常态呼吸晃动，叠加应用。
+    // 触发时机：(1) 鼠标 pointerover 进入卡牌；(2) 卡牌拖拽缩放退出动画完成（完全回落到 1.0）。
+    bindSectionExpand("inp-expandHoverBreathing", "val-expandHoverBreathing", "cardVisuals.expandedSections.hoverBreathing", "sect-hoverBreathing-params");
+    bindToggle("inp-hoverBreathingEnabled", "val-hoverBreathingEnabled", "cardVisuals.hoverBreathingEnabled");
+    bindNumber("inp-hoverBreathingDurationMS", "val-hoverBreathingDurationMS", "cardVisuals.hoverBreathingDurationMS", { integer: true });
+    bindNumber("inp-hoverBreathingSpeed", "val-hoverBreathingSpeed", "cardVisuals.hoverBreathingSpeed", { digits: 4 });
+    bindNumber("inp-hoverBreathingAmplitude", "val-hoverBreathingAmplitude", "cardVisuals.hoverBreathingAmplitude", { digits: 1 });
+    bindNumber("inp-hoverWobbleSpeed", "val-hoverWobbleSpeed", "cardVisuals.hoverWobbleSpeed", { digits: 4 });
+    bindNumber("inp-hoverWobbleAmplitude", "val-hoverWobbleAmplitude", "cardVisuals.hoverWobbleAmplitude", { digits: 3 });
+    bindNumber("inp-hoverBreathingSpeedDecay", "val-hoverBreathingSpeedDecay", "cardVisuals.hoverBreathingSpeedDecay", { digits: 2 });
+    bindNumber("inp-hoverBreathingAmplitudeDecay", "val-hoverBreathingAmplitudeDecay", "cardVisuals.hoverBreathingAmplitudeDecay", { digits: 2 });
+
     bindSectionExpand("inp-expandMouse3DTilt", "val-expandMouse3DTilt", "cardVisuals.expandedSections.mouse3DTilt", "sect-mouse3DTilt-params");
     bindToggle("inp-mouse3DTiltEnabled", "val-mouse3DTiltEnabled", "cardVisuals.mouse3DTiltEnabled");
     bindNumber("inp-mouse3DTiltStrength", "val-mouse3DTiltStrength", "cardVisuals.mouse3DTiltStrength", { digits: 1 });
@@ -1073,12 +1088,73 @@ export function setupControlPanel(
     bindToggle("inp-mouse3DTiltSmoothEnabled", "val-mouse3DTiltSmoothEnabled", "cardVisuals.mouse3DTiltSmoothEnabled");
     bindNumber("inp-mouse3DTiltSmoothing", "val-mouse3DTiltSmoothing", "cardVisuals.mouse3DTiltSmoothing", { digits: 2 });
 
+    // === 卡牌操作逻辑 ===
+    bindSectionExpand("inp-expandCardOps", "val-expandCardOps", "cardVisuals.expandedSections.cardOps", "sect-cardOps-params");
     bindNumber("inp-clickThresholdMS", "val-clickThresholdMS", "cardVisuals.clickThresholdMS", { integer: true });
     bindNumber("inp-clickDistanceThreshold", "val-clickDistanceThreshold", "cardVisuals.clickDistanceThreshold", { integer: true });
+
+    // === 选中与取消卡牌的位移效果 ===
+    bindSectionExpand("inp-expandSelectMove", "val-expandSelectMove", "cardVisuals.expandedSections.selectMove", "sect-selectMove-params");
+    bindToggle("inp-selectMoveEnabled", "val-selectMoveEnabled", "cardVisuals.selectMoveEnabled");
+    bindNumber("inp-selectRiseY", "val-selectRiseY", "cardVisuals.selectRiseY", { digits: 1 });
+    bindNumber("inp-selectMoveDurationMS", "val-selectMoveDurationMS", "cardVisuals.selectMoveDurationMS", { integer: true });
+    bindNumber("inp-selectMoveOvershoot", "val-selectMoveOvershoot", "cardVisuals.selectMoveOvershoot", { digits: 1 });
+    bindNumber("inp-selectMoveStiffness", "val-selectMoveStiffness", "cardVisuals.selectMoveStiffness", { digits: 2 });
+
+    const selectMoveCurveMount = document.getElementById("mount-selectMoveCurve");
+    if (selectMoveCurveMount && !selectMoveCurvePanel) {
+      selectMoveCurvePanel = buildCurvePanel(selectMoveCurveMount, CONFIG.cardVisuals.selectMoveCurve, {
+        label: "选中位移速率曲线",
+        onChange: () => {
+          notify("cardVisuals.selectMoveCurve", CONFIG.cardVisuals.selectMoveCurve);
+        }
+      });
+
+      syncers.push(() => {
+        if (selectMoveCurvePanel) {
+          selectMoveCurvePanel.setCurve(CONFIG.cardVisuals.selectMoveCurve);
+        }
+      });
+    }
 
     bindSectionExpand("inp-expandDragHandCard", "val-expandDragHandCard", "cardVisuals.expandedSections.dragHandCard", "sect-dragHandCard-params");
     bindNumber("inp-dragMaxSpeed", "val-dragMaxSpeed", "dragHandCard.maxSpeed", { integer: true });
     bindNumber("inp-dragLerpFactor", "val-dragLerpFactor", "dragHandCard.lerpFactor", { digits: 2 });
+    bindNumber("inp-dragScaleTarget", "val-dragScaleTarget", "dragHandCard.dragScaleTarget", { digits: 2 });
+    bindNumber("inp-dragScaleInDurationMS", "val-dragScaleInDurationMS", "dragHandCard.dragScaleInDurationMS", { integer: true });
+    bindNumber("inp-dragScaleOutDurationMS", "val-dragScaleOutDurationMS", "dragHandCard.dragScaleOutDurationMS", { integer: true });
+
+    const dragScaleInCurveMount = document.getElementById("mount-dragScaleInCurve");
+    if (dragScaleInCurveMount && !dragScaleInCurvePanel) {
+      dragScaleInCurvePanel = buildCurvePanel(dragScaleInCurveMount, CONFIG.dragHandCard.dragScaleInCurve, {
+        label: "进入拖拽缩放曲线",
+        onChange: () => {
+          notify("dragHandCard.dragScaleInCurve", CONFIG.dragHandCard.dragScaleInCurve);
+        }
+      });
+
+      syncers.push(() => {
+        if (dragScaleInCurvePanel) {
+          dragScaleInCurvePanel.setCurve(CONFIG.dragHandCard.dragScaleInCurve);
+        }
+      });
+    }
+
+    const dragScaleOutCurveMount = document.getElementById("mount-dragScaleOutCurve");
+    if (dragScaleOutCurveMount && !dragScaleOutCurvePanel) {
+      dragScaleOutCurvePanel = buildCurvePanel(dragScaleOutCurveMount, CONFIG.dragHandCard.dragScaleOutCurve, {
+        label: "退出拖拽缩放曲线",
+        onChange: () => {
+          notify("dragHandCard.dragScaleOutCurve", CONFIG.dragHandCard.dragScaleOutCurve);
+        }
+      });
+
+      syncers.push(() => {
+        if (dragScaleOutCurvePanel) {
+          dragScaleOutCurvePanel.setCurve(CONFIG.dragHandCard.dragScaleOutCurve);
+        }
+      });
+    }
 
     // 已经绑定过的控件只重跑 sync，避免重复挂监听
     syncers.forEach((fn) => fn());
@@ -1117,6 +1193,9 @@ export function setupControlPanel(
     destroy(): void {
       hierarchyView?.destroy();
       hoverScaleCurvePanel?.destroy();
+      dragScaleInCurvePanel?.destroy();
+      dragScaleOutCurvePanel?.destroy();
+      selectMoveCurvePanel?.destroy();
       removeHistoryShortcuts();
       removeHierarchyHistory();
       for (const name of eventsToStop) {

@@ -58,6 +58,12 @@ export class CardView extends Container {
   layoutRotation = 0;
   isDragging = false;
   isReturning = false;
+  /**
+   * 当前是否正在播放"选中/取消选中位移过弹动画"。
+   * 由 GameController.toggleSelection 设为 true，动画结束时清零。
+   * layoutHand 看到 true 时跳过对该牌的 Tween，避免普通重排把过弹动画踢掉。
+   */
+  isSelectAnimating = false;
 
   // 当前卡牌在手牌数组中的索引（0 = 最左）。由 GameController.layoutHand() 每次重排时写入。
   // 用于"鼠标悬停伪3D倾斜"按位置插值卡牌强度（最左 vs 最右）。未参与布局时默认 0。
@@ -79,6 +85,14 @@ export class CardView extends Container {
   private idleTiltTime = Math.random() * Math.PI * 2;
   private currentScale = 1.0;
   private hoverScaleProgress = 0;
+  // 拖拽缩放：以独立乘法通道作用到最终 displayWrapper.scale 上，
+  // 不污染 hover 流程对 currentScale 的写入。
+  // 0 = 进入态推进中；1 = 退出态推进中；null = 静止。
+  private dragScaleAnim: "in" | "out" | null = null;
+  private dragScaleProgress = 0;          // 0 → 1，按当前阶段时长推进
+  private dragScaleFromMul = 1.0;         // 当前阶段起点（用于打断时无缝衔接）
+  private dragScaleToMul = 1.0;           // 当前阶段终点
+  private dragScaleMul = 1.0;             // 当前帧实际应用的乘数
   // 入场弹性动画是否已正常播放完毕（progress 达到 1）。
   // 用显式 boolean 标志，避免依赖浮点比较判断"动画完结"。
   private hoverScaleSettled = false;
@@ -87,6 +101,31 @@ export class CardView extends Container {
   private outOvershootActive = false;
   private outOvershootProgress = 0;     // 0 → 1
   private outOvershootStartScale = 1.0; // 离开瞬间的 currentScale
+
+  // 慢点击/拖拽结束后，鼠标仍停留在卡上时，cardState 会被还原为 Hovered，
+  // 但此时拖拽缩放（dragScaleMul）仍在从 1.15 平滑回落到 1.0；如果 hoverScale 通道立即
+  // 重新进入"放大分支"，会与 dragScaleMul 的回落叠加出现"卡牌回落途中顿一下"的观感。
+  //
+  // 用此标志在 pointerup 时压下 hoverScale 的"放大欲望"——updateHoverScale 看到该标志即按
+  // "未悬停"处理（走平滑回缩分支，与 dragScaleMul 同步回到 1.0），直到下列任一时机解除：
+  //   (a) dragScale "out" 动画结束（卡牌完全回落到 1.0）——此时让 hoverScale 自然恢复放大；
+  //   (b) 鼠标真正离开卡牌后又重新进入（新的 pointerover）；
+  //   (c) 鼠标从卡上离开（pointerout）——保险清理。
+  private suppressHoverScaleUntilReenter = false;
+
+  // 鼠标触碰呼吸晃动（独立通道）：
+  // 一次性脱手脉冲，鼠标进入卡牌时触发：progress 0→1 按 hoverBreathingDurationMS 线性推进，
+  // 同时内部独立的相位累加器 hoverBreathTime / hoverWobbleTime 推进 sin/cos，
+  // 幅度由指数衰减包络 exp(-decay * progress) 控制（开头满幅、随时间衰减到接近 0）。
+  // 输出值 hoverBreathingY / hoverWobbleRot 会与常态 breathingY / wobbleRot 相加叠加，
+  // 与常态呼吸晃动相互独立、互不干扰。
+  // active=false 时该通道完全归零（卡牌仅保留常态呼吸晃动）。
+  private hoverBreathingActive = false;
+  private hoverBreathingProgress = 0; // 0 → 1
+  private hoverBreathTime = 0;        // 独立的 Y 位移呼吸相位
+  private hoverWobbleTime = 0;        // 独立的 Z 旋转晃动相位
+  private hoverBreathingY = 0;        // 当前帧 hover 通道 Y 位移输出
+  private hoverWobbleRot = 0;         // 当前帧 hover 通道 Z 旋转输出
 
   // 鼠标在卡牌本地坐标系下的位置（以左上角为 0,0；如果鼠标不在卡上则为 null）。
   // 由 onHoverMove 写入，updateMouse3DTilt 消费。
@@ -606,6 +645,17 @@ export class CardView extends Container {
     this.cardState = CardState.Dragging;
     this.callbacks.onDragStart?.(this);
 
+    // 启动"进入拖拽"缩放动画：从当前 dragScaleMul 平滑过渡到 dragScaleTarget。
+    // 从当前 mul 起步，保证从 hover/未完成的 out 动画中打断也无缝。
+    {
+      const dragConf = CONFIG.dragHandCard;
+      const target = dragConf?.dragScaleTarget ?? 1.15;
+      this.dragScaleAnim = "in";
+      this.dragScaleProgress = 0;
+      this.dragScaleFromMul = this.dragScaleMul;
+      this.dragScaleToMul = target;
+    }
+
     const parent = this.parent;
     if (parent) {
       const parentPos = event.getLocalPosition(parent);
@@ -681,15 +731,25 @@ export class CardView extends Container {
 
     this.isDragging = false;
 
+    // 启动"退出拖拽"缩放动画：从当前 dragScaleMul 回到 1.0。
+    {
+      this.dragScaleAnim = "out";
+      this.dragScaleProgress = 0;
+      this.dragScaleFromMul = this.dragScaleMul;
+      this.dragScaleToMul = 1.0;
+    }
+
     // 获取配置中的快速点击时间阈值
     const threshold = CONFIG.cardVisuals?.clickThresholdMS ?? 250;
     const distanceThreshold = CONFIG.cardVisuals?.clickDistanceThreshold ?? 10;
 
     if (duration <= threshold && this.dragMaxDistance <= distanceThreshold) {
-      // 一定时间阈值与距离阈值内，快速抬起鼠标左键，且没有显著位移，卡牌从拖拽态进入点击选中态
+      // 一定时间阈值与距离阈值内，快速抬起鼠标左键，且没有显著位移：
+      // 视为一次"点击"——既可能把未选中的牌切到选中态，也可能把已选中的牌切回未选中。
+      // 选中状态由 onClick 回调（GameController.toggleSelection）来翻转。
       this.callbacks.onClick(this);
-      
-      // 同步卡牌状态
+
+      // 同步卡牌可视状态
       if (this.selected) {
         this.cardState = CardState.Selected;
       } else {
@@ -697,11 +757,22 @@ export class CardView extends Container {
       }
       this.callbacks.onDragEnd?.(this);
     } else {
-      // 超过时间或距离阈值抬起鼠标左键，从拖拽态回到常态（不选中）
-      if (this.selected) {
-        this.selected = false;
+      // 超过时间或距离阈值松手：这是一次"慢点击/拖拽"，不构成有效点击操作。
+      // 选中状态保持不变——选中和取消选中都只由"快速点击判定"决定，
+      // 慢点击/拖拽不会顺手把已选中的卡取消掉。
+      this.cardState = this.selected
+        ? CardState.Selected
+        : this.isMouseOver
+          ? CardState.Hovered
+          : CardState.Normal;
+
+      // 鼠标仍停留在卡上 → cardState 已被还原为 Hovered/Selected，
+      // 但拖拽缩放 dragScaleMul 还要花一段时间从 1.15 平滑回落到 1.0。
+      // 此处压下 hoverScale 的再放大动画，避免与 dragScaleMul 回落叠加产生顿挫。
+      // 标志在下次 pointerover（鼠标真正重新进入卡牌）或 pointerout（鼠标离开卡牌）时解除。
+      if (this.isMouseOver) {
+        this.suppressHoverScaleUntilReenter = true;
       }
-      this.cardState = this.isMouseOver ? CardState.Hovered : CardState.Normal;
       this.callbacks.onDragEnd?.(this);
     }
   }
@@ -737,6 +808,7 @@ export class CardView extends Container {
 
     // 0. 更新拖拽追赶逻辑
     this.updateDragging(dtMS);
+    this.updateDragScale(dtMS);
 
     // 如果处于从拖拽结束返回原位的过程中，且已经非常接近目标位置，重置 isReturning 状态
     if (this.isReturning && !this.isDragging) {
@@ -748,6 +820,9 @@ export class CardView extends Container {
 
     // 1. 常态化的手牌的呼吸晃动
     this.updateBreathing(dtMS);
+
+    // 1b. 鼠标触碰呼吸晃动（独立通道，叠加在常态之上）
+    this.updateHoverBreathing(dtMS);
 
     // 2. 鼠标悬停小弹性缩放
     this.updateHoverScale(dtMS);
@@ -789,6 +864,83 @@ export class CardView extends Container {
     }
   }
 
+  /**
+   * 推进"进入/退出拖拽"的缩放动画。
+   * 进入：dragScaleMul 从 1（或当前值）→ dragScaleTarget，受 dragScaleInCurve 控制。
+   * 退出：dragScaleMul 从当前值 → 1，受 dragScaleOutCurve 控制。
+   * 该乘数会在 applyVisuals 中与 currentScale 相乘，从而与 hover 等其他缩放复合。
+   */
+  private updateDragScale(dtMS: number): void {
+    if (this.dragScaleAnim === null) return;
+
+    const dragConf = CONFIG.dragHandCard;
+    const durationMS =
+      this.dragScaleAnim === "in"
+        ? (dragConf?.dragScaleInDurationMS ?? 180)
+        : (dragConf?.dragScaleOutDurationMS ?? 180);
+
+    if (durationMS <= 0) {
+      // 时长为 0：瞬间到位
+      const wasOut = this.dragScaleAnim === "out";
+      this.dragScaleMul = this.dragScaleToMul;
+      this.dragScaleAnim = null;
+      if (wasOut) {
+        // 卡牌完全回落：解除"长按松手后的 hoverScale 抑制"，并触发一次鼠标呼吸晃动。
+        this.suppressHoverScaleUntilReenter = false;
+        this.triggerHoverBreathing();
+      }
+      return;
+    }
+
+    this.dragScaleProgress = Math.min(1, this.dragScaleProgress + dtMS / durationMS);
+
+    const curve =
+      this.dragScaleAnim === "in"
+        ? dragConf?.dragScaleInCurve
+        : dragConf?.dragScaleOutCurve;
+
+    // 注意：sampleCurve 在 curve.enabled=false 时返回 1（即立即吸附到终点），
+    // 这是与 hoverScale 一致的"禁用曲线 = 跳过缓动"语义。
+    const t = curve ? sampleCurve(curve, this.dragScaleProgress) : this.dragScaleProgress;
+    this.dragScaleMul = this.dragScaleFromMul + (this.dragScaleToMul - this.dragScaleFromMul) * t;
+
+    if (this.dragScaleProgress >= 1) {
+      const wasOut = this.dragScaleAnim === "out";
+      this.dragScaleMul = this.dragScaleToMul;
+      this.dragScaleAnim = null;
+      // "退出拖拽缩放"动画刚刚完成：卡牌从放大态完全回落到 1.0 的瞬间，
+      // (1) 解除"长按松手后的 hoverScale 抑制"——让 hoverScale 从这一刻起自然地按 cardState
+      //     重新放大（若鼠标仍在卡上）。
+      // (2) 触发一次"鼠标触碰呼吸晃动"——这是"鼠标呼吸晃动（触碰与回落）"专区的第二个触发点。
+      //     与 pointerover 共用同一参数集，因此动画风格与"鼠标进入卡牌时"完全一致。
+      if (wasOut) {
+        this.suppressHoverScaleUntilReenter = false;
+        this.triggerHoverBreathing();
+      }
+    }
+  }
+
+  /**
+   * 触发一次"鼠标触碰呼吸晃动"脉冲（一次性脱手动画）。
+   *
+   * 同一个触发点被两处复用：
+   *   1. pointerover：鼠标进入卡牌时；
+   *   2. 拖拽缩放退出动画完成时（dragScaleMul 从 dragScaleTarget 回到 1.0 的瞬间）——
+   *      参数面板中"鼠标呼吸晃动（触碰与回落）"专区的第二个触发点。
+   *
+   * 每次触发都重置进度与两个独立相位，从满幅度起跳，可打断上一次未播完的脉冲。
+   * 配置未启用或时长无效时静默跳过。
+   */
+  private triggerHoverBreathing(): void {
+    const conf = CONFIG.cardVisuals;
+    if (!conf?.hoverBreathingEnabled) return;
+    if ((conf.hoverBreathingDurationMS ?? 0) <= 0) return;
+    this.hoverBreathingActive = true;
+    this.hoverBreathingProgress = 0;
+    this.hoverBreathTime = 0;
+    this.hoverWobbleTime = 0;
+  }
+
   private updateBreathing(dtMS: number): void {
     const visualConf = CONFIG.cardVisuals;
     if (!visualConf || !visualConf.breathingEnabled) {
@@ -797,21 +949,71 @@ export class CardView extends Container {
       return;
     }
 
-    // 拖动状态下不施加呼吸晃动，避免卡牌发抖
-    if (this.cardState === CardState.Dragging) {
-      this.breathingY = 0;
-      this.wobbleRot = 0;
-      return;
-    }
-
-    // 积累时间
+    // 常态呼吸晃动：纯由时间驱动，不受 hover / 拖拽 通道影响。
+    // 拖拽位置作用在卡牌根节点，常态呼吸作用在内层 displayWrapper，
+    // 两者独立叠加，因此拖拽时仍保留常态呼吸不会引起抖动。
     this.breathingTime += dtMS * visualConf.breathingSpeed;
     this.wobbleTime += dtMS * visualConf.wobbleSpeed;
 
-    // y 轴位置呼吸摆动
     this.breathingY = Math.sin(this.breathingTime) * visualConf.breathingAmplitude;
-    // z 轴旋转晃动
     this.wobbleRot = Math.cos(this.wobbleTime) * visualConf.wobbleAmplitude;
+  }
+
+  /**
+   * 推进鼠标触碰呼吸晃动（独立通道）。
+   *
+   * 这是一段完全独立于常态呼吸晃动的"脱手式"动画：触发瞬间幅度最大，
+   * 随时间按指数包络 exp(-decay * progress) 衰减到接近 0，
+   * progress 到达 1 时整段动画结束，hover 通道完全归零。
+   *
+   * 输出 hoverBreathingY / hoverWobbleRot 会在 applyVisuals 中与常态值相加叠加，
+   * 因此与常态呼吸晃动相互独立、互不干扰。
+   */
+  private updateHoverBreathing(dtMS: number): void {
+    const conf = CONFIG.cardVisuals;
+
+    // 总开关关闭、拖拽中或未激活：直接清零 hover 通道，但不影响常态呼吸。
+    if (
+      !conf ||
+      !conf.hoverBreathingEnabled ||
+      this.cardState === CardState.Dragging ||
+      !this.hoverBreathingActive
+    ) {
+      this.hoverBreathingY = 0;
+      this.hoverWobbleRot = 0;
+      // 关闭/中断时顺便复位 active，避免下次开启后残留脉冲。
+      if (!conf?.hoverBreathingEnabled) {
+        this.hoverBreathingActive = false;
+      }
+      return;
+    }
+
+    const dur = Math.max(1, conf.hoverBreathingDurationMS ?? 1);
+    this.hoverBreathingProgress += dtMS / dur;
+    if (this.hoverBreathingProgress >= 1) {
+      // 动画结束：彻底清零
+      this.hoverBreathingActive = false;
+      this.hoverBreathingProgress = 0;
+      this.hoverBreathingY = 0;
+      this.hoverWobbleRot = 0;
+      return;
+    }
+
+    // 两条独立的指数衰减包络：
+    //   speedEnv = exp(-speedDecay * progress)  → 缩放相位累加速度（频率随时间变慢）
+    //   ampEnv   = exp(-ampDecay   * progress)  → 缩放幅度（每帧 sin/cos 输出按比例变小）
+    // 同时衰减速度和幅度，避免出现"恒频高速振荡 + 幅度被生硬压扁"的截断观感。
+    const speedDecay = Math.max(0, conf.hoverBreathingSpeedDecay ?? 0);
+    const ampDecay = Math.max(0, conf.hoverBreathingAmplitudeDecay ?? 0);
+    const speedEnv = Math.exp(-speedDecay * this.hoverBreathingProgress);
+    const ampEnv = Math.exp(-ampDecay * this.hoverBreathingProgress);
+
+    // 独立相位累加：速率随时间衰减，因此振荡频率会随 progress 增长逐渐放慢
+    this.hoverBreathTime += dtMS * (conf.hoverBreathingSpeed ?? 0) * speedEnv;
+    this.hoverWobbleTime += dtMS * (conf.hoverWobbleSpeed ?? 0) * speedEnv;
+
+    this.hoverBreathingY = Math.sin(this.hoverBreathTime) * (conf.hoverBreathingAmplitude ?? 0) * ampEnv;
+    this.hoverWobbleRot = Math.cos(this.hoverWobbleTime) * (conf.hoverWobbleAmplitude ?? 0) * ampEnv;
   }
 
   private updateHoverScale(dtMS: number): void {
@@ -827,8 +1029,12 @@ export class CardView extends Container {
       return;
     }
 
-    // 如果鼠标在这个牌上游走 (Hovered) 或者是点击选中态且有鼠标悬停 (Selected + isMouseOver)
-    const isHovered = this.cardState === CardState.Hovered || (this.isMouseOver && this.cardState === CardState.Selected);
+    // 如果鼠标在这个牌上游走 (Hovered) 或者是点击选中态且有鼠标悬停 (Selected + isMouseOver)。
+    // 但若 pointerup 后压下了"抑制再次放大"标志（用于长按/慢点击松手后的平滑回落），
+    // 则即便 cardState=Hovered 也按未悬停处理，从而走平滑回缩分支、与 dragScaleMul 同步回到 1.0。
+    const isHovered =
+      !this.suppressHoverScaleUntilReenter &&
+      (this.cardState === CardState.Hovered || (this.isMouseOver && this.cardState === CardState.Selected));
 
     if (isHovered) {
       // 鼠标重新进入：取消正在进行的过弹回缩，回到入场分支。
@@ -1135,11 +1341,17 @@ export class CardView extends Container {
 
     // 2. 外层呼吸晃动 / hover 缩放 / 旋转晃动 —— 全部作用在 displayWrapper 上。
     //    displayWrapper 的 pivot 是 (W/2, H/2)、position = (W/2, H/2 + breathingY)，
-    //    确保旋转/缩放围绕几何中心，breathingY 让卡牌做上下呼吸位移。
+    //    确保旋转/缩放围绕几何中心。
+    //    Y 位移与 Z 旋转 = 常态通道 + 鼠标触碰呼吸晃动通道（两个独立 sin/cos 输出相加），
+    //    两者完全独立，触碰通道衰减结束后只剩下常态通道。
     if (this.displayWrapper) {
-      this.displayWrapper.position.set(W / 2, H / 2 + this.breathingY);
-      this.displayWrapper.rotation = this.wobbleRot;
-      this.displayWrapper.scale.set(this.currentScale, this.currentScale);
+      const totalY = this.breathingY + this.hoverBreathingY;
+      const totalRot = this.wobbleRot + this.hoverWobbleRot;
+      this.displayWrapper.position.set(W / 2, H / 2 + totalY);
+      this.displayWrapper.rotation = totalRot;
+      // 最终缩放 = hover/常态 currentScale × 拖拽缩放乘数（独立通道、可与 hover 复合）
+      const finalScale = this.currentScale * this.dragScaleMul;
+      this.displayWrapper.scale.set(finalScale, finalScale);
     }
   }
 
@@ -1179,7 +1391,12 @@ export class CardView extends Container {
       if (this.cardState === CardState.Normal) {
         this.cardState = CardState.Hovered;
       }
+      // 鼠标真正重新进入卡牌：解除"长按松手后的 hoverScale 抑制"，允许下一次正常放大。
+      this.suppressHoverScaleUntilReenter = false;
       if (this.isDragging) return;
+      // 触发"鼠标触碰呼吸晃动"（独立通道，一次性脱手脉冲）。
+      // 每次进入都重置进度与相位，重新从满幅度起跳，可打断上一次未播完的脉冲。
+      this.triggerHoverBreathing();
       this.callbacks.onHoverIn(this);
     });
 
@@ -1190,6 +1407,9 @@ export class CardView extends Container {
       }
       this.mouseLocalX = null;
       this.mouseLocalY = null;
+      // 鼠标离开卡牌：抑制标志自然失效（cardState 已经不是 Hovered，updateHoverScale 也会走回缩分支）。
+      // 显式清掉，避免下次进入时还残留。
+      this.suppressHoverScaleUntilReenter = false;
       if (this.isDragging) return;
       this.callbacks.onHoverOut(this);
     });

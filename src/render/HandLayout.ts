@@ -1,5 +1,6 @@
 import type { CardView } from "./CardView";
 import { CardSkin } from "./CardSkin";
+import { CONFIG } from "@game/config";
 
 /**
  * 手牌扇形排布算法（纯计算 -> 返回每张牌的目标位姿）
@@ -48,7 +49,11 @@ export function computeHandLayout(
   opts: HandLayoutOptions
 ): CardSlot[] {
   const spacing = opts.cardSpacing ?? 65;
-  const rise = opts.selectedRiseY ?? CardSkin.selectedRiseY;
+  // 选中弹起像素：优先用调用方传入 → CONFIG.cardVisuals.selectRiseY → CardSkin 默认值。
+  const rise =
+    opts.selectedRiseY ??
+    CONFIG.cardVisuals.selectRiseY ??
+    CardSkin.selectedRiseY;
   const arcEnabled = opts.arcEnabled ?? false;
   const arcHeight = opts.arcHeight ?? 0;
   const fanDeg = opts.fanAnglePerCardDeg ?? 0;

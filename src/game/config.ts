@@ -120,6 +120,16 @@ export interface RuntimeConfig {
     maxSpeed: number;
     /** 追踪插值系数 (0-1) */
     lerpFactor: number;
+    /** 拖拽时的目标缩放 (>=1 通常) */
+    dragScaleTarget: number;
+    /** 进入拖拽时的缩放过渡时长 (毫秒) */
+    dragScaleInDurationMS: number;
+    /** 退出拖拽时的缩放回弹时长 (毫秒) */
+    dragScaleOutDurationMS: number;
+    /** 进入拖拽缩放曲线 */
+    dragScaleInCurve: BezierCurveConfig;
+    /** 退出拖拽缩放曲线 */
+    dragScaleOutCurve: BezierCurveConfig;
   };
   cardVisuals: {
     expandedSections: {
@@ -128,10 +138,54 @@ export interface RuntimeConfig {
       breathing: boolean;
       idleTilt: boolean;
       hoverScale: boolean;
+      hoverBreathing: boolean;
       mouse3DTilt: boolean;
       dragHandCard: boolean;
       hoverHit: boolean;
+      selectMove: boolean;
+      cardOps: boolean;
     };
+
+    /**
+     * 选中与取消卡牌的位移效果（两段补间：到位 → 过弹 → 阻尼回弹）
+     *
+     * 触发：toggleSelection 翻转 view.selected 时（仅对那张牌）。
+     * 模型：
+     *   第一段 rise/fall：当前 y → (基准 y - rise ∓ overshoot)，用 selectMoveCurve 作为缓动，
+     *                    时长 = selectMoveDurationMS。
+     *   第二段 spring：上一段终点 → 基准 y，用 cubicOut 收敛，时长 = round(1000 / selectMoveStiffness)。
+     *
+     * 注：动画期间该牌会被 layoutHand 跳过 tween 写入（仅写 layoutX/Y/Rotation 元数据），
+     * 直到两段动画都结束后才解除标记，避免普通重排 tween 把过弹动画踢掉。
+     */
+    selectMoveEnabled: boolean;
+    /** 选中弹起高度（像素，世界坐标）。替代旧的 CardSkin.selectedRiseY。 */
+    selectRiseY: number;
+    /**
+     * 第一段位移时长（毫秒）。决定"到达目标高度（含过弹）"的速率：
+     * 时长越短，鼓起越爆裂；越长越温吞。
+     */
+    selectMoveDurationMS: number;
+    /**
+     * 第一段速率曲线（贝塞尔）。曲线 y(t) 直接作为 ease：
+     * y(0)=0、y(1)=1 之间的形状决定 rise/fall 的加速感觉。
+     * enabled=false 时退化为 cubicOut。
+     */
+    selectMoveCurve: BezierCurveConfig;
+    /**
+     * 过弹幅度（像素）：第一段的终点会越过最终目标 selectMoveOvershoot 像素。
+     *   选中 rise：终点 y = (基准 y - selectRiseY) - selectMoveOvershoot（向上多走）
+     *   取消 fall：终点 y = (基准 y)               + selectMoveOvershoot（向下多走）
+     * 设为 0 等同于关掉过弹（不过仍会有第二段、瞬时完成）。
+     */
+    selectMoveOvershoot: number;
+    /**
+     * 过弹回弹刚度（无单位，建议 3~30）。
+     * 用法：回弹段时长（ms）= round(1000 / selectMoveStiffness)。
+     * stiffness=10 → 100ms；stiffness=5 → 200ms；stiffness=20 → 50ms。
+     * 数值越大，从过弹点拉回目标越"硬"。
+     */
+    selectMoveStiffness: number;
     // 1. 常态呼吸晃动
     breathingEnabled: boolean;
     breathingSpeed: number;
@@ -194,6 +248,59 @@ export interface RuntimeConfig {
      */
     hoverScaleOutOvershootDamping: number;
     hoverScaleOutSpeed: number;
+
+    /**
+     * 2b. 鼠标呼吸晃动（触碰与回落） —— hover breathing
+     *
+     * 一个完全独立于"常态手牌呼吸晃动"的脱手式动画：在下列任一时机被触发，
+     * 播一段独立的呼吸 + 晃动包络，其输出值会与常态呼吸晃动 **相加叠加** 到
+     * 卡牌的 Y 位移与 Z 旋转上，两者互不干扰。
+     *
+     * 触发点（共两处，共用同一组参数）：
+     *   1. 鼠标 pointerover 进入卡牌时；
+     *   2. 鼠标在卡上按下后导致的"拖拽缩放退出动画"完成时——即卡牌从放大态
+     *      完全回落到原始尺寸的瞬间（既包括快速点击切换选中，也包括长按/拖拽松手）。
+     *
+     * 模型：
+     *   speedEnv(p)  = exp(-hoverBreathingSpeedDecay     * p)        // 速率衰减包络
+     *   ampEnv(p)    = exp(-hoverBreathingAmplitudeDecay * p)        // 幅度衰减包络
+     *   progress     = elapsedMS / hoverBreathingDurationMS          // 0 → 1 线性推进
+     *
+     *   // 相位累加器内部速率也按 speedEnv 衰减（积分形式），所以振荡频率
+     *   // 会随时间逐渐变慢，而不是恒速振荡 + 幅度被生硬压扁。
+     *   phase' = phase + dt * baseSpeed * speedEnv(progress)
+     *   hoverBreathY = sin(phaseBreath) * hoverBreathingAmplitude * ampEnv(progress)
+     *   hoverWobbleR = cos(phaseWobble) * hoverWobbleAmplitude    * ampEnv(progress)
+     *
+     * 触发时 progress 与内部相位均重置为 0，每次都是"满速率 + 满幅度起跳、
+     * 随时间逐渐放慢并减小到接近 0"。progress 到 1 时整段动画结束，
+     * hover 通道完全归零（此时卡牌只剩下常态呼吸晃动）。
+     */
+    hoverBreathingEnabled: boolean;
+    /** 整段触碰呼吸晃动的总时长（毫秒）。从触发到完全归零的时间。 */
+    hoverBreathingDurationMS: number;
+    /** Y 位移呼吸速率（rad/ms，与常态 breathingSpeed 同量纲）。 */
+    hoverBreathingSpeed: number;
+    /** Y 位移呼吸初始幅度（像素，触发瞬间的峰值）。 */
+    hoverBreathingAmplitude: number;
+    /** Z 旋转晃动速率（rad/ms，与常态 wobbleSpeed 同量纲）。 */
+    hoverWobbleSpeed: number;
+    /** Z 旋转晃动初始幅度（弧度，触发瞬间的峰值）。 */
+    hoverWobbleAmplitude: number;
+    /**
+     * 速率衰减率：speedEnv(p) = exp(-hoverBreathingSpeedDecay * p)，p ∈ [0,1]。
+     * 控制 sin/cos 内部相位的累加速度按时间比例衰减——数值越大，振荡频率
+     * 越快变慢（开头剧烈快速、结尾慢悠悠几乎不动）。0 = 不衰减（全程匀速）。
+     *   2 时结尾保留约 14% 速率，4 时约 1.8%，6 时约 0.25%。
+     */
+    hoverBreathingSpeedDecay: number;
+    /**
+     * 幅度衰减率：ampEnv(p) = exp(-hoverBreathingAmplitudeDecay * p)，p ∈ [0,1]。
+     * 控制每帧 sin/cos 输出的幅度按时间比例衰减——数值越大，整体振幅
+     * 越快变小（开头大幅、结尾几乎看不到）。0 = 不衰减（全程满幅）。
+     *   2 时结尾保留约 14% 幅度，4 时约 1.8%，6 时约 0.25%。
+     */
+    hoverBreathingAmplitudeDecay: number;
 
     // 3. 卡牌鼠标悬停伪3D倾斜效果
     mouse3DTiltEnabled: boolean;
@@ -325,6 +432,23 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
   dragHandCard: Object.freeze({
     maxSpeed: 3000,
     lerpFactor: 0.15,
+    dragScaleTarget: 1.15,
+    dragScaleInDurationMS: 180,
+    dragScaleOutDurationMS: 180,
+    dragScaleInCurve: Object.freeze({
+      enabled: true,
+      startScale: 0,
+      endScale: 1,
+      p1: { x: 0.22, y: 1.0 },
+      p2: { x: 0.36, y: 1.0 },
+    }) as BezierCurveConfig,
+    dragScaleOutCurve: Object.freeze({
+      enabled: true,
+      startScale: 0,
+      endScale: 1,
+      p1: { x: 0.4, y: 0.0 },
+      p2: { x: 0.6, y: 1.0 },
+    }) as BezierCurveConfig,
   }),
   cardVisuals: Object.freeze({
     expandedSections: Object.freeze({
@@ -333,10 +457,26 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       breathing: true,
       idleTilt: true,
       hoverScale: true,
+      hoverBreathing: true,
       mouse3DTilt: true,
       dragHandCard: true,
       hoverHit: true,
+      selectMove: true,
+      cardOps: true,
     }),
+    selectMoveEnabled: true,
+    selectRiseY: 30,
+    selectMoveDurationMS: 180,
+    selectMoveCurve: Object.freeze({
+      enabled: true,
+      startScale: 0,
+      endScale: 1,
+      // 类似 cubicOut 的"先快后慢"形状，第一段以较高初速度冲到过弹点。
+      p1: { x: 0.18, y: 0.85 },
+      p2: { x: 0.32, y: 1.0 },
+    }) as BezierCurveConfig,
+    selectMoveOvershoot: 8,
+    selectMoveStiffness: 10,
     breathingEnabled: true,
     breathingSpeed: 0.002,
     breathingAmplitude: 3,
@@ -366,6 +506,15 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     hoverScaleOutOvershootFirstScale: 0.97,
     hoverScaleOutOvershootDamping: 0.5,
     hoverScaleOutSpeed: 0.15,
+
+    hoverBreathingEnabled: true,
+    hoverBreathingDurationMS: 800,
+    hoverBreathingSpeed: 0.006,
+    hoverBreathingAmplitude: 4,
+    hoverWobbleSpeed: 0.003,
+    hoverWobbleAmplitude: 0.06,
+    hoverBreathingSpeedDecay: 3.0,
+    hoverBreathingAmplitudeDecay: 4.0,
 
     mouse3DTiltEnabled: true,
     mouse3DTiltStrength: 2.0,
@@ -435,6 +584,16 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     },
     dragHandCard: {
       ...src.dragHandCard,
+      dragScaleInCurve: src.dragHandCard.dragScaleInCurve ? {
+        ...src.dragHandCard.dragScaleInCurve,
+        p1: { ...src.dragHandCard.dragScaleInCurve.p1 },
+        p2: { ...src.dragHandCard.dragScaleInCurve.p2 },
+      } : undefined as any,
+      dragScaleOutCurve: src.dragHandCard.dragScaleOutCurve ? {
+        ...src.dragHandCard.dragScaleOutCurve,
+        p1: { ...src.dragHandCard.dragScaleOutCurve.p1 },
+        p2: { ...src.dragHandCard.dragScaleOutCurve.p2 },
+      } : undefined as any,
     },
     cardVisuals: {
       ...src.cardVisuals,
@@ -445,6 +604,11 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
         ...src.cardVisuals.hoverScaleCurve,
         p1: { ...src.cardVisuals.hoverScaleCurve.p1 },
         p2: { ...src.cardVisuals.hoverScaleCurve.p2 },
+      } : undefined as any,
+      selectMoveCurve: src.cardVisuals.selectMoveCurve ? {
+        ...src.cardVisuals.selectMoveCurve,
+        p1: { ...src.cardVisuals.selectMoveCurve.p1 },
+        p2: { ...src.cardVisuals.selectMoveCurve.p2 },
       } : undefined as any,
     },
     scoreCurve: {
@@ -530,6 +694,22 @@ export function applyConfig(source: unknown): void {
     merged.dragHandCard = {
       ...merged.dragHandCard,
       ...incoming.dragHandCard,
+      dragScaleInCurve: incoming.dragHandCard.dragScaleInCurve
+        ? {
+            ...merged.dragHandCard.dragScaleInCurve,
+            ...incoming.dragHandCard.dragScaleInCurve,
+            p1: { ...(merged.dragHandCard.dragScaleInCurve?.p1 ?? {}), ...(incoming.dragHandCard.dragScaleInCurve.p1 ?? {}) },
+            p2: { ...(merged.dragHandCard.dragScaleInCurve?.p2 ?? {}), ...(incoming.dragHandCard.dragScaleInCurve.p2 ?? {}) },
+          }
+        : merged.dragHandCard.dragScaleInCurve,
+      dragScaleOutCurve: incoming.dragHandCard.dragScaleOutCurve
+        ? {
+            ...merged.dragHandCard.dragScaleOutCurve,
+            ...incoming.dragHandCard.dragScaleOutCurve,
+            p1: { ...(merged.dragHandCard.dragScaleOutCurve?.p1 ?? {}), ...(incoming.dragHandCard.dragScaleOutCurve.p1 ?? {}) },
+            p2: { ...(merged.dragHandCard.dragScaleOutCurve?.p2 ?? {}), ...(incoming.dragHandCard.dragScaleOutCurve.p2 ?? {}) },
+          }
+        : merged.dragHandCard.dragScaleOutCurve,
     };
   }
   if (incoming.cardVisuals) {
@@ -550,6 +730,14 @@ export function applyConfig(source: unknown): void {
             p2: { ...(merged.cardVisuals.hoverScaleCurve?.p2 ?? {}), ...(incoming.cardVisuals.hoverScaleCurve.p2 ?? {}) },
           }
         : merged.cardVisuals.hoverScaleCurve,
+      selectMoveCurve: incoming.cardVisuals.selectMoveCurve
+        ? {
+            ...merged.cardVisuals.selectMoveCurve,
+            ...incoming.cardVisuals.selectMoveCurve,
+            p1: { ...(merged.cardVisuals.selectMoveCurve?.p1 ?? {}), ...(incoming.cardVisuals.selectMoveCurve.p1 ?? {}) },
+            p2: { ...(merged.cardVisuals.selectMoveCurve?.p2 ?? {}), ...(incoming.cardVisuals.selectMoveCurve.p2 ?? {}) },
+          }
+        : merged.cardVisuals.selectMoveCurve,
     };
   }
   if (incoming.scoreCurve) {
@@ -626,6 +814,22 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.dragHandCard = {
       ...activeDefaultConfig.dragHandCard,
       ...incoming.dragHandCard,
+      dragScaleInCurve: incoming.dragHandCard.dragScaleInCurve
+        ? {
+            ...activeDefaultConfig.dragHandCard.dragScaleInCurve,
+            ...incoming.dragHandCard.dragScaleInCurve,
+            p1: { ...(activeDefaultConfig.dragHandCard.dragScaleInCurve?.p1 ?? {}), ...(incoming.dragHandCard.dragScaleInCurve.p1 ?? {}) },
+            p2: { ...(activeDefaultConfig.dragHandCard.dragScaleInCurve?.p2 ?? {}), ...(incoming.dragHandCard.dragScaleInCurve.p2 ?? {}) },
+          }
+        : activeDefaultConfig.dragHandCard.dragScaleInCurve,
+      dragScaleOutCurve: incoming.dragHandCard.dragScaleOutCurve
+        ? {
+            ...activeDefaultConfig.dragHandCard.dragScaleOutCurve,
+            ...incoming.dragHandCard.dragScaleOutCurve,
+            p1: { ...(activeDefaultConfig.dragHandCard.dragScaleOutCurve?.p1 ?? {}), ...(incoming.dragHandCard.dragScaleOutCurve.p1 ?? {}) },
+            p2: { ...(activeDefaultConfig.dragHandCard.dragScaleOutCurve?.p2 ?? {}), ...(incoming.dragHandCard.dragScaleOutCurve.p2 ?? {}) },
+          }
+        : activeDefaultConfig.dragHandCard.dragScaleOutCurve,
     };
   }
   if (incoming.cardVisuals) {
@@ -646,6 +850,14 @@ export function applyShippingDefaults(source: unknown): void {
             p2: { ...(activeDefaultConfig.cardVisuals.hoverScaleCurve?.p2 ?? {}), ...(incoming.cardVisuals.hoverScaleCurve.p2 ?? {}) },
           }
         : activeDefaultConfig.cardVisuals.hoverScaleCurve,
+      selectMoveCurve: incoming.cardVisuals.selectMoveCurve
+        ? {
+            ...activeDefaultConfig.cardVisuals.selectMoveCurve,
+            ...incoming.cardVisuals.selectMoveCurve,
+            p1: { ...(activeDefaultConfig.cardVisuals.selectMoveCurve?.p1 ?? {}), ...(incoming.cardVisuals.selectMoveCurve.p1 ?? {}) },
+            p2: { ...(activeDefaultConfig.cardVisuals.selectMoveCurve?.p2 ?? {}), ...(incoming.cardVisuals.selectMoveCurve.p2 ?? {}) },
+          }
+        : activeDefaultConfig.cardVisuals.selectMoveCurve,
     };
   }
   if (incoming.scoreCurve) {
