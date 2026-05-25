@@ -30,6 +30,7 @@ import {
 } from "@game/config";
 import { assets } from "@core/AssetManager";
 import { CardAtlas } from "@render/CardSkin";
+import { computeMaxRot } from "@render/CardView";
 import { HierarchyView } from "./HierarchyView";
 import { buildCurvePanel, type BezierCurvePanel } from "./BezierCurveEditor";
 import { uiHierarchy } from "@ui/hierarchy";
@@ -1155,6 +1156,54 @@ export function setupControlPanel(
         }
       });
     }
+
+    // 卡牌移动旋转（velocity-based tilt）：与 dragHandCard 同属"卡牌逻辑"专区。
+    bindSectionExpand("inp-expandCardMoveRotation", "val-expandCardMoveRotation", "cardVisuals.expandedSections.cardMoveRotation", "sect-cardMoveRotation-params");
+    bindToggle("inp-cardMoveRotationEnabled", "val-cardMoveRotationEnabled", "cardMoveRotation.enabled");
+    bindToggle("inp-cardMoveRotationShowPivot", "val-cardMoveRotationShowPivot", "cardMoveRotation.showPivot");
+    bindNumber("inp-cardMoveRotationPivotX", "val-cardMoveRotationPivotX", "cardMoveRotation.pivotOffsetX", { integer: true });
+    bindNumber("inp-cardMoveRotationPivotY", "val-cardMoveRotationPivotY", "cardMoveRotation.pivotOffsetY", { integer: true });
+    bindNumber("inp-cardMoveRotationPerSpeed", "val-cardMoveRotationPerSpeed", "cardMoveRotation.rotationPerSpeed", { digits: 3 });
+
+    // 最大旋转角是派生量（dragHandCard.maxSpeed × cardMoveRotation.rotationPerSpeed / 1000），
+    // input 在 HTML 中已经标了 readonly+disabled，所以这里不挂 change 监听，
+    // 只做"只读 sync"。两条更新路径：
+    //   (a) 挂在 syncers 里 —— refreshAllControls / preset 加载 / 撤回反撤回 时触发；
+    //   (b) 在两个上游 input（追踪速度上限、单位速度→旋转角系数）上各加一个 input/change
+    //       监听，用户实时拖动时也能让派生值跟着变（普通 bindNumber 的 input 事件只
+    //       notify、不触发 syncers，所以必须手动挂）。
+    //
+    //   防重复：用独立的 dataset 键 derivedMaxRotHook，不与 bindNumber 的 panelBound 冲突。
+    {
+      const input = document.getElementById("inp-cardMoveRotationMaxRad") as HTMLInputElement | null;
+      const valueEl = document.getElementById("val-cardMoveRotationMaxRad");
+      if (input && valueEl) {
+        const sync = (): void => {
+          const v = computeMaxRot();
+          input.value = formatNumber(v, 3);
+          valueEl.textContent = formatNumber(v, 3);
+        };
+        sync();
+        if (input.dataset["derivedMaxRotHook"] !== "1") {
+          input.dataset["derivedMaxRotHook"] = "1";
+          syncers.push(sync);
+
+          // 上游输入实时联动。两个上游 id：inp-dragMaxSpeed / inp-cardMoveRotationPerSpeed。
+          for (const upstreamId of ["inp-dragMaxSpeed", "inp-cardMoveRotationPerSpeed"]) {
+            const up = document.getElementById(upstreamId) as HTMLInputElement | null;
+            if (up && up.dataset["derivedMaxRotHook"] !== "1") {
+              up.dataset["derivedMaxRotHook"] = "1";
+              up.addEventListener("input", sync);
+              up.addEventListener("change", sync);
+            }
+          }
+        }
+      }
+    }
+
+    bindNumber("inp-cardMoveRotationFollowLerp", "val-cardMoveRotationFollowLerp", "cardMoveRotation.followLerp", { digits: 2 });
+    bindNumber("inp-cardMoveRotationFriction", "val-cardMoveRotationFriction", "cardMoveRotation.friction", { digits: 2 });
+    bindNumber("inp-cardMoveRotationMinSpeed", "val-cardMoveRotationMinSpeed", "cardMoveRotation.minSpeed", { digits: 3 });
 
     // 已经绑定过的控件只重跑 sync，避免重复挂监听
     syncers.forEach((fn) => fn());

@@ -131,6 +131,69 @@ export interface RuntimeConfig {
     /** 退出拖拽缩放曲线 */
     dragScaleOutCurve: BezierCurveConfig;
   };
+  /**
+   * 卡牌移动旋转（velocity-based tilt）
+   *
+   * 物理直觉：想象一根钉子垂直于牌面插进卡牌的中上部（轴点）。当钉子带动卡牌移动时，
+   * 卡牌会以"穿孔点"为旋转中心产生轻微的拖尾旋转——水平移动越快、卡牌偏移越明显，
+   * 而垂直移动（沿轴点-质心方向）几乎不会产生旋转（无力臂）。
+   *
+   * 适用范围：所有卡牌移动场景统一生效——鼠标拖拽、松手归位、未来的理牌/发牌/弃牌等。
+   *
+   * 模型：
+   *   1. 每帧采样位移：vx = (curX - prevX) / dtMS，单位 px/ms。
+   *   2. 方向投影：旋转目标只取与"轴点→中心"垂直方向上的速度分量。
+   *      轴点放在卡牌中上部时，该方向就是水平方向，所以垂直拖动几乎不产生旋转目标。
+   *   3. 目标旋转角 = clamp(vEffective * rotationPerSpeed, ±maxRot)，
+   *      其中 maxRot = (dragHandCard.maxSpeed / 1000) * rotationPerSpeed
+   *      ——即"卡牌能达到的最高速度下产生的旋转角"，作为派生上限自动同步，
+   *      无需手动设置（也避免手动值与速度上限不匹配造成的死区或溢出）。
+   *   4. 平滑跟随：velocityRotation 以 followLerp 的速率追目标，
+   *      同时受 friction（摩擦力）的恒定拉回，最终静止时回到 0。
+   *   5. 绕轴点效果：通过对 displayWrapper.position 做反向补偿，
+   *      使最终视觉效果等价于"以 pivotOffset 处为不动点旋转 velocityRotation"。
+   */
+  cardMoveRotation: {
+    /** 总开关 */
+    enabled: boolean;
+    /**
+     * 调试开关：在每张卡牌上叠加一个红色十字小点，标记当前 pivotOffset 在卡面上的位置。
+     * 该标记不跟随 velocityRotation 旋转，因此可以用作"轴点应不动"的视觉参考——
+     * 拖拽时若补偿数学正确，卡面上原本在标记下的图案点应当始终被标记盖住。
+     * 正式构建时保持 false。
+     */
+    showPivot: boolean;
+    /**
+     * 旋转轴点相对于卡牌几何中心 (W/2, H/2) 的偏移（卡牌本地坐标，像素）。
+     * 默认中上部：pivotOffsetX = 0, pivotOffsetY < 0（向上偏）。
+     * 例如 H = 180 时，pivotOffsetY = -60 表示轴点位于卡牌顶端往下约 1/3 处。
+     */
+    pivotOffsetX: number;
+    pivotOffsetY: number;
+    /**
+     * 每单位有效速度（px/ms）映射到多少弧度的目标旋转角。
+     * 数值越大，相同速度下旋转越明显。建议范围 0.02 ~ 0.15。
+     * 注：vx 为 px/ms，所以速度 1 px/ms = 1000 px/s 是相当快的拖拽。
+     */
+    rotationPerSpeed: number;
+    /**
+     * 速度→旋转目标的跟随插值系数 (0~1，按 16.67ms 标准帧计算)。
+     * 越大跟得越快、越灵敏；越小越钝。建议 0.15 ~ 0.45。
+     */
+    followLerp: number;
+    /**
+     * 穿孔摩擦力 (0~1)：每帧把 velocityRotation 向 0 衰减的比例（按标准帧）。
+     * 摩擦力越大，旋转越快回正，速度变化产生的旋转越被压制；
+     * 摩擦力越小，旋转更持久、更"自由"。建议 0.05 ~ 0.30。
+     * 设为 0 时只靠 followLerp 回正（速度恢复 0 后旋转才衰减）。
+     */
+    friction: number;
+    /**
+     * 极小速度阈值 (px/ms)：|vEffective| 低于此值时直接视为 0,
+     * 避免微抖动造成持续小幅旋转。建议 0.01 ~ 0.05。
+     */
+    minSpeed: number;
+  };
   cardVisuals: {
     expandedSections: {
       shadow: boolean;
@@ -144,6 +207,7 @@ export interface RuntimeConfig {
       hoverHit: boolean;
       selectMove: boolean;
       cardOps: boolean;
+      cardMoveRotation: boolean;
     };
 
     /**
@@ -450,6 +514,21 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       p2: { x: 0.6, y: 1.0 },
     }) as BezierCurveConfig,
   }),
+  cardMoveRotation: Object.freeze({
+    enabled: true,
+    // 默认不显示轴点（仅调参时打开）。
+    showPivot: false,
+    // 轴点：卡牌几何中心向上偏 35 像素（卡牌 H ≈ 180，此值落在"中上部"区间）。
+    pivotOffsetX: 0,
+    pivotOffsetY: -35,
+    // 1 px/ms ≈ 1000 px/s（正常拖拽速度）× 0.06 ≈ 0.06 rad ≈ 3.4°
+    // 注：旋转上限 maxRot 由 (dragHandCard.maxSpeed/1000) × rotationPerSpeed 派生，
+    //     不再作为独立配置项存储。默认 (3000/1000)*0.06 = 0.18 rad ≈ 10.3°。
+    rotationPerSpeed: 0.06,
+    followLerp: 0.25,
+    friction: 0.12,
+    minSpeed: 0.02,
+  }),
   cardVisuals: Object.freeze({
     expandedSections: Object.freeze({
       shadow: true,
@@ -463,6 +542,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       hoverHit: true,
       selectMove: true,
       cardOps: true,
+      cardMoveRotation: true,
     }),
     selectMoveEnabled: true,
     selectRiseY: 30,
@@ -595,6 +675,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
         p2: { ...src.dragHandCard.dragScaleOutCurve.p2 },
       } : undefined as any,
     },
+    cardMoveRotation: { ...src.cardMoveRotation },
     cardVisuals: {
       ...src.cardVisuals,
       expandedSections: src.cardVisuals.expandedSections ? {
@@ -712,6 +793,12 @@ export function applyConfig(source: unknown): void {
         : merged.dragHandCard.dragScaleOutCurve,
     };
   }
+  if (incoming.cardMoveRotation) {
+    merged.cardMoveRotation = {
+      ...merged.cardMoveRotation,
+      ...incoming.cardMoveRotation,
+    };
+  }
   if (incoming.cardVisuals) {
     merged.cardVisuals = {
       ...merged.cardVisuals,
@@ -762,6 +849,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.cardShadow = merged.cardShadow;
   CONFIG.dragShadow = merged.dragShadow;
   CONFIG.dragHandCard = merged.dragHandCard;
+  CONFIG.cardMoveRotation = merged.cardMoveRotation;
   CONFIG.cardVisuals = merged.cardVisuals;
   CONFIG.scoreCurve = merged.scoreCurve;
   CONFIG.uiNodes = merged.uiNodes;
@@ -830,6 +918,12 @@ export function applyShippingDefaults(source: unknown): void {
             p2: { ...(activeDefaultConfig.dragHandCard.dragScaleOutCurve?.p2 ?? {}), ...(incoming.dragHandCard.dragScaleOutCurve.p2 ?? {}) },
           }
         : activeDefaultConfig.dragHandCard.dragScaleOutCurve,
+    };
+  }
+  if (incoming.cardMoveRotation) {
+    activeDefaultConfig.cardMoveRotation = {
+      ...activeDefaultConfig.cardMoveRotation,
+      ...incoming.cardMoveRotation,
     };
   }
   if (incoming.cardVisuals) {

@@ -18,6 +18,25 @@ import { CardSkin } from "./CardSkin";
 import { getPixelOutlineTexture } from "./PixelOutlineTexture";
 
 /**
+ * 计算卡牌移动旋转的派生上限（弧度，无符号）。
+ *   maxRot = (dragHandCard.maxSpeed / 1000) × cardMoveRotation.rotationPerSpeed
+ *
+ * 单位换算：maxSpeed 是 px/s，除以 1000 得 px/ms；
+ * rotationPerSpeed 单位是 rad/(px/ms)；相乘即得弧度。
+ *
+ * 这是"卡牌按追踪速度上限匀速运动时"会达到的最大有效速度产生的旋转目标——
+ * 即"理论上能达到的最大旋转角"。所以用它作为 targetRot 截断上限既安全又恰好。
+ *
+ * 任一相关配置改变（maxSpeed 或 rotationPerSpeed）时，maxRot 自动更新，
+ * 无需用户手动同步——这也是把它从独立配置项改为派生量的初衷。
+ */
+export function computeMaxRot(): number {
+  const speedPerMs = (CONFIG.dragHandCard?.maxSpeed ?? 0) / 1000;
+  const k = CONFIG.cardMoveRotation?.rotationPerSpeed ?? 0;
+  return Math.abs(speedPerMs * k);
+}
+
+/**
  * 手牌的四种核心状态
  */
 export enum CardState {
@@ -161,20 +180,38 @@ export class CardView extends Container {
   private dragTargetX = 0;
   private dragTargetY = 0;
 
+  // 卡牌移动旋转（velocity-based tilt）的内部状态：
+  //   prevX/prevY 在 updateMoveRotation 速度采样紧后保存"本帧入口位置"，
+  //     下一帧入口用 (curX - prevX) / dtMS 计算这一整帧的瞬时平均速度（px/ms）。
+  //   prevSampled 标志位用于规避第一次 update 时 prevX/prevY 还未初始化造成的伪速度突变。
+  //   velocityRotation 是当前帧实际作用到 displayWrapper 上的旋转量（弧度），
+  //   它以 followLerp 追逐 targetRot，同时每帧受 friction 持续向 0 收敛。
+  private prevX = 0;
+  private prevY = 0;
+  private prevSampled = false;
+  private velocityRotation = 0;
+  // 轴点可视化调试小点：直接挂在 CardView 自身（不进入 contentContainer / displayWrapper），
+  // 因此它不参与卡牌内容的离屏烘焙，也不会跟着 velocityRotation 旋转，
+  // 永远停在"轴点应该在的位置"——拖拽时若旋转补偿正确，卡牌上该点的图案会牢牢
+  // 钉在这个标记下；若不正确，会看到二者相对滑动。
+  // null 表示当前未启用（CONFIG.cardMoveRotation.showPivot = false）。
+  private pivotMarker: Graphics | null = null;
+
   override addChild<U extends ContainerChild[]>(...children: U): U[0] {
     for (const child of children) {
       if (child && "roundPixels" in child) {
         (child as any).roundPixels = false;
       }
     }
-    // 视觉元素重定向：除 shadowGraphics / contentContainer / displayWrapper 本身，
+    // 视觉元素重定向：除 shadowGraphics / contentContainer / displayWrapper / pivotMarker 本身，
     // 其余全部塞进 contentContainer（用于离屏烘焙）。
     const first = children[0];
     if (
       this.contentContainer &&
       first !== this.contentContainer &&
       first !== this.shadowGraphics &&
-      first !== this.displayWrapper
+      first !== this.displayWrapper &&
+      first !== this.pivotMarker
     ) {
       return this.contentContainer.addChild(...children);
     }
@@ -204,6 +241,9 @@ export class CardView extends Container {
       this.tiltMesh = null;
     }
     this.displayWrapper = null; // 由 removeChildren 自动 destroy
+    // pivotMarker 也挂在 CardView 直接 children 内，会被 removeChildren 一并 destroy；
+    // 这里仅需把引用清掉，下一次 update() 看到 showPivot=true 时会重新创建。
+    this.pivotMarker = null;
     // 离屏 contentContainer 不在 CardView children 里，要单独 destroy。
     if (this.contentContainer) {
       this.contentContainer.destroy({ children: true });
@@ -239,6 +279,13 @@ export class CardView extends Container {
     if (this.cardTexture) {
       this.cardTexture.destroy(true);
       this.cardTexture = null;
+    }
+    if (this.pivotMarker) {
+      if (this.pivotMarker.parent) {
+        this.pivotMarker.parent.removeChild(this.pivotMarker);
+      }
+      this.pivotMarker.destroy();
+      this.pivotMarker = null;
     }
     super.destroy(options);
   }
@@ -806,7 +853,17 @@ export class CardView extends Container {
       this.bakeCardTexture();
     }
 
-    // 0. 更新拖拽追赶逻辑
+    // 0a. 卡牌移动旋转——速度采样阶段（必须在任何位置修改之前进行）。
+    //     用上一帧 update 入口保存的 prevX/prevY 与本帧入口的 this.x/this.y 做差，
+    //     得到"上一帧入口 → 本帧入口"完整一帧之间所有来源（tween、drag lerp 等）
+    //     累积的位移，再除以 dtMS 得到 px/ms 量纲的瞬时平均速度。
+    //     这是统一捕获手段：无论 drag / 归位 tween / select / fly / 未来的发牌弃牌，
+    //     最终都会写到 this.x/this.y 上，速度采样不需要每个调用点单独处理。
+    //     必须在 updateDragging 等位置修改之前调用——否则本帧 drag 写入会被算到下一帧
+    //     的 prev 上、被自身吃掉，差分恒为 0（这是原始实现的 bug）。
+    this.updateMoveRotation(dtMS);
+
+    // 0b. 更新拖拽追赶逻辑
     this.updateDragging(dtMS);
     this.updateDragScale(dtMS);
 
@@ -834,6 +891,123 @@ export class CardView extends Container {
 
     // 4. 将计算后的效果应用到视觉容器
     this.applyVisuals();
+  }
+
+  /**
+   * 卡牌移动旋转（velocity-based tilt）：根据卡牌实际移动速度产生符合直觉的拖尾旋转。
+   *
+   * 物理直觉：把卡牌想象成一张被钉子（轴点）插进中上部的纸片。钉子带着卡牌移动时，
+   * 卡牌不会刚性地随钉子平移，而是会以钉孔为支点产生轻微的拖尾旋转——
+   *   - 水平移动产生明显旋转（钉孔到质心的连线垂直于运动方向，有最大力臂）；
+   *   - 沿"钉孔→质心"方向（这里是垂直方向）的移动几乎不产生旋转（无力臂）。
+   *
+   * 实现：把瞬时位移分解到"与轴点-中心连线垂直"的方向上，作为有效速度 vEffective；
+   * 再线性映射到目标旋转角并夹到 ±maxRotationRad。velocityRotation 用 followLerp 追目标，
+   * 同时每帧受 friction 持续向 0 衰减——这两个机制叠加形成"刚开始动→快速跟到目标→
+   * 持续运动时维持→停下后自然回正"的观感。
+   *
+   * 重要：本函数只更新 velocityRotation 这一个状态量。最终把它转化为
+   * "绕轴点旋转的视觉效果"是在 applyVisuals() 中通过位置补偿完成的——
+   * 这样可以保持 displayWrapper 几何 pivot 不变（中心），不污染其他效果。
+   */
+  private updateMoveRotation(dtMS: number): void {
+    const cfg = CONFIG.cardMoveRotation;
+    if (!cfg || !cfg.enabled || dtMS <= 0) {
+      // 关闭或时间步无效时，平滑回零（不直接置零，避免开关切换的瞬间跳变）。
+      this.velocityRotation *= 0.85;
+      if (Math.abs(this.velocityRotation) < 1e-4) this.velocityRotation = 0;
+      // 首次进入时仍要把 prev 同步到当前 x/y，避免之后再开启时第一次速度爆冲。
+      if (!this.prevSampled) {
+        this.prevX = this.x;
+        this.prevY = this.y;
+        this.prevSampled = true;
+      }
+      return;
+    }
+
+    // 首帧初始化：不计算速度，直接同步 prev 后跳出。
+    if (!this.prevSampled) {
+      this.prevX = this.x;
+      this.prevY = this.y;
+      this.prevSampled = true;
+      return;
+    }
+
+    // 帧率归一化系数：以 16.67ms（60fps）为基准，dt 越大每帧应用的衰减/插值越多。
+    const frameScale = dtMS / 16.6667;
+
+    // 1. 瞬时速度（px/ms）。
+    //    prevX/prevY 是"上一帧 update 入口"看到的位置；this.x/this.y 是"本帧 update 入口"
+    //    看到的位置。两次入口之间完整覆盖了一帧——包括上一帧 update 内部 updateDragging
+    //    对 this.x 的写入，也包括两帧之间外部 tween（CardFx.moveTo / selectMove / flyOut）
+    //    经由 TweenManager.update() 对 this.x 的写入。所以这里采样的是真正的
+    //    "每帧位移"，能稳定捕获 drag、归位 tween、未来的发牌弃牌等一切移动来源。
+    //
+    //    关键时序：必须在 updateDragging 之前采样（否则当前帧的 updateDragging 写入会被
+    //    算到下一帧的 prev → 实际等于把本帧 drag 位移整个吃掉，vx 永远 ≈ 0）。
+    //    我们在 update() 主体最早一步就调用了 updateMoveRotation，正好满足此前提。
+    const vx = (this.x - this.prevX) / dtMS;
+    const vy = (this.y - this.prevY) / dtMS;
+
+    // 采样完立刻 snapshot 当前位置作为下一帧的 prev。
+    // （之前的实现把 snapshot 放到 update 出口，会导致"出口→下一帧入口"之间
+    // 没有任何 x 写入，差分始终为 0——这是个隐蔽 bug。）
+    this.prevX = this.x;
+    this.prevY = this.y;
+
+    // 2. 方向投影：把速度投影到"与 (pivotOffsetX, pivotOffsetY) 向量垂直"的方向上。
+    //    设 d = (ox, oy) 是从几何中心指向轴点的向量。
+    //    若 d 是非零向量，其垂直方向单位向量为 perp = (-oy, ox) / |d|。
+    //    钉子带动卡牌平移时，沿 d 方向的速度分量没有力臂（不产生旋转），
+    //    沿 perp 方向的速度分量贡献全部旋转。这天然实现了用户要求的
+    //    "轴点在中上部时，垂直拖动几乎不旋转、水平拖动旋转最明显"。
+    //    当 d 退化为 0（轴点在几何中心）时，回退为只使用 vx——保持有意义的水平偏转。
+    const ox = cfg.pivotOffsetX;
+    const oy = cfg.pivotOffsetY;
+    const dLen = Math.hypot(ox, oy);
+    let vEffective: number;
+    if (dLen > 1e-3) {
+      // perp = (-oy, ox) / dLen
+      vEffective = (-oy * vx + ox * vy) / dLen;
+    } else {
+      vEffective = vx;
+    }
+
+    // 3. 最小速度阈值过滤微抖动。
+    if (Math.abs(vEffective) < cfg.minSpeed) {
+      vEffective = 0;
+    }
+
+    // 4. 映射到目标旋转角并截断。
+    //    maxRot 是派生上限：由"卡牌追踪速度上限 (CONFIG.dragHandCard.maxSpeed, px/s)"
+    //    和 rotationPerSpeed (rad/(px/ms)) 计算得到——即"卡牌达到最高速度时产生的旋转角"。
+    //    这样做的好处：当速度上限或速度系数任一改变时，旋转幅度上限自动匹配，
+    //    避免手填值与速度上限失配造成的"打不到上限"或"长期被截断"等死区。
+    //    实际截断仍然保留作为安全网（vEffective 来自 updateDragging 的位置差分，
+    //    理论上不会超过 maxSpeed/1000，但其他移动源如 tween 突变时可能瞬时超出）。
+    let targetRot = vEffective * cfg.rotationPerSpeed;
+    const maxRot = computeMaxRot();
+    if (targetRot > maxRot) targetRot = maxRot;
+    else if (targetRot < -maxRot) targetRot = -maxRot;
+
+    // 5. 驱动 velocityRotation：followLerp 拉向 target + friction 衰减到 0。
+    //    两个机制叠加形成"刚开始动→快速跟到目标→持续运动时维持→停下后自然回正"
+    //    的观感。followAlpha / frictionAlpha 都按 frameScale 做了帧率归一化，
+    //    保证不同帧率下行为一致。
+    const lerpRaw = Math.max(0, Math.min(1, cfg.followLerp));
+    const followAlpha = 1 - Math.pow(1 - lerpRaw, frameScale);
+    const frictionRaw = Math.max(0, Math.min(1, cfg.friction));
+    const frictionAlpha = frictionRaw > 0 ? 1 - Math.pow(1 - frictionRaw, frameScale) : 0;
+
+    this.velocityRotation += (targetRot - this.velocityRotation) * followAlpha;
+    if (frictionAlpha > 0) {
+      this.velocityRotation *= 1 - frictionAlpha;
+    }
+
+    // 6. 微量裁剪：避免长期 1e-7 量级的浮点尾巴持续耗算。
+    if (Math.abs(this.velocityRotation) < 1e-5) {
+      this.velocityRotation = 0;
+    }
   }
 
   private updateDragging(dtMS: number): void {
@@ -1339,19 +1513,122 @@ export class CardView extends Container {
       );
     }
 
-    // 2. 外层呼吸晃动 / hover 缩放 / 旋转晃动 —— 全部作用在 displayWrapper 上。
-    //    displayWrapper 的 pivot 是 (W/2, H/2)、position = (W/2, H/2 + breathingY)，
-    //    确保旋转/缩放围绕几何中心。
-    //    Y 位移与 Z 旋转 = 常态通道 + 鼠标触碰呼吸晃动通道（两个独立 sin/cos 输出相加），
-    //    两者完全独立，触碰通道衰减结束后只剩下常态通道。
+    // 2. 外层呼吸晃动 / hover 缩放 / 旋转晃动 / 卡牌移动旋转 —— 全部作用在 displayWrapper 上。
+    //    displayWrapper 的 pivot 是 (W/2, H/2)，position 基准在 (W/2, H/2)，
+    //    旋转/缩放原本围绕几何中心。
+    //
+    //    Z 旋转 = 常态 wobbleRot + hover 通道 hoverWobbleRot + 卡牌移动旋转 velocityRotation，
+    //    三者完全独立相加。
+    //
+    //    关键：velocityRotation 物理上要求"以轴点（pivotOffset 处）为不动点旋转"，
+    //    而 displayWrapper 的几何 pivot 仍然必须保持在中心（不能直接改 pivot，
+    //    否则会污染所有其他效果——缩放、wobble、breathing 等都假设围绕中心）。
+    //    解决方案：在保持几何 pivot 不变的前提下，给 displayWrapper.position 加一个
+    //    "反向补偿位移"，使最终视觉效果等价于"绕中心旋转后，再把整体平移回去，
+    //    让轴点回到旋转前的位置"。
+    //
+    //    数学：设 d = (ox, oy) 是从几何中心指向轴点的本地向量（未旋转）。
+    //    绕中心旋转 θ 后，d 变成 R(θ)·d。要让轴点位置不变（即父坐标系中保持
+    //    旋转前的位置），需要把整体平移 (d - R(θ)·d)。
+    //    注意：wobbleRot/hoverWobbleRot 仍按"绕几何中心"的语义生效（它们的物理意义
+    //    就是绕中心微抖），所以补偿仅针对 velocityRotation 这一分量。
     if (this.displayWrapper) {
       const totalY = this.breathingY + this.hoverBreathingY;
-      const totalRot = this.wobbleRot + this.hoverWobbleRot;
-      this.displayWrapper.position.set(W / 2, H / 2 + totalY);
+      const wobbleTotal = this.wobbleRot + this.hoverWobbleRot;
+      // 卡牌移动旋转：velocityRotation 现在是整个状态机统一输出的旋转量，
+      // 包含 IDLE/ARMED 的跟随、INERTIA 的惯性过冲、SPRING 的弹簧回弹三阶段
+      // 全部合并在一个变量里——所以无需再叠加其他过冲通道。
+      const vRot = this.velocityRotation;
+      const totalRot = wobbleTotal + vRot;
+
+      // 仅为 velocityRotation 计算绕轴点的位置补偿。
+      // 当 vRot ≈ 0 或轴点恰在中心时补偿为 0，自动退化为原行为。
+      let pivotCompX = 0;
+      let pivotCompY = 0;
+      if (vRot !== 0) {
+        const mv = CONFIG.cardMoveRotation;
+        const ox = mv?.pivotOffsetX ?? 0;
+        const oy = mv?.pivotOffsetY ?? 0;
+        if (ox !== 0 || oy !== 0) {
+          const cos = Math.cos(vRot);
+          const sin = Math.sin(vRot);
+          // R(θ)·d = (cos·ox - sin·oy, sin·ox + cos·oy)
+          const rotOx = cos * ox - sin * oy;
+          const rotOy = sin * ox + cos * oy;
+          // 补偿 = d - R(θ)·d，使轴点在旋转前后位置不变。
+          // 同时这个补偿也要被外层 currentScale × dragScaleMul 缩放——
+          // 因为 displayWrapper 自身的 scale 会作用在它的子节点上，而 position
+          // 是相对父节点（CardView）的，不受 displayWrapper.scale 影响。
+          // 所以这里直接用本地未缩放量即可（外层 CardView 在父级用 pivot/scale 整体缩放，
+          // 与本补偿独立）。
+          pivotCompX = ox - rotOx;
+          pivotCompY = oy - rotOy;
+        }
+      }
+
+      this.displayWrapper.position.set(W / 2 + pivotCompX, H / 2 + totalY + pivotCompY);
       this.displayWrapper.rotation = totalRot;
       // 最终缩放 = hover/常态 currentScale × 拖拽缩放乘数（独立通道、可与 hover 复合）
       const finalScale = this.currentScale * this.dragScaleMul;
       this.displayWrapper.scale.set(finalScale, finalScale);
+    }
+
+    // 3. 轴点可视化（调试用）。
+    //    挂在 CardView 自身、不进入 displayWrapper：所以它不跟着 velocityRotation 转，
+    //    永远停在"轴点应该在的位置"——这正是调参时想看到的参考点。
+    //    懒创建 / 懒销毁，避免常态运行时多一份 Graphics 开销。
+    this.updatePivotMarker(W, H);
+  }
+
+  /**
+   * 根据 CONFIG.cardMoveRotation.showPivot 与 pivotOffsetX/Y 同步轴点可视化标记。
+   *
+   * 标记是个红色小十字 + 半透明圆点，画在 CardView 本地坐标 (W/2 + ox, H/2 + oy)。
+   * 由于挂在 CardView 直接 children 而非 displayWrapper 里，
+   * 它不会跟随 velocityRotation 旋转——这恰恰是"轴点应当不动"的视觉证据：
+   * 拖拽时若补偿数学正确，卡牌图案上"原本在标记下的那个点"应当始终被标记盖住，
+   * 不出现相对滑动。
+   */
+  private updatePivotMarker(W: number, H: number): void {
+    const cfg = CONFIG.cardMoveRotation;
+    const enabled = !!cfg?.showPivot;
+
+    if (!enabled) {
+      if (this.pivotMarker) {
+        if (this.pivotMarker.parent) {
+          this.pivotMarker.parent.removeChild(this.pivotMarker);
+        }
+        this.pivotMarker.destroy();
+        this.pivotMarker = null;
+      }
+      return;
+    }
+
+    // 启用：创建或更新位置。
+    if (!this.pivotMarker) {
+      const g = new Graphics();
+      // 半透明红色圆点（外圈）
+      g.circle(0, 0, 7).fill({ color: 0xff3344, alpha: 0.35 });
+      // 实心红色小点（中心）
+      g.circle(0, 0, 2.5).fill({ color: 0xff3344, alpha: 0.95 });
+      // 十字辅助线
+      g.moveTo(-9, 0).lineTo(9, 0).stroke({ color: 0xff3344, width: 1, alpha: 0.85 });
+      g.moveTo(0, -9).lineTo(0, 9).stroke({ color: 0xff3344, width: 1, alpha: 0.85 });
+      g.roundPixels = false;
+      // 必须放在 displayWrapper 之上，确保不被卡面遮挡。
+      this.pivotMarker = g;
+      super.addChild(g); // 用 super 绕开 addChild 重定向，确保挂在 CardView 直接 children 下
+    }
+
+    const ox = cfg?.pivotOffsetX ?? 0;
+    const oy = cfg?.pivotOffsetY ?? 0;
+    this.pivotMarker.position.set(W / 2 + ox, H / 2 + oy);
+    // 确保它总在最上层（hover 时 displayWrapper 的 zIndex 等不会盖住它）。
+    if (this.pivotMarker.parent) {
+      this.pivotMarker.parent.setChildIndex(
+        this.pivotMarker,
+        this.pivotMarker.parent.children.length - 1,
+      );
     }
   }
 

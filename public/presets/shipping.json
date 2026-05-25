@@ -27,7 +27,7 @@
     "cardArt": {
       "useSprites": true,
       "cornerRadius": 7,
-      "faceColor": 16777205,
+      "faceColor": 16777195,
       "outlineColor": 13092807,
       "back": {
         "row": 2,
@@ -54,15 +54,60 @@
     },
     "dragShadow": {
       "color": 0,
-      "alpha": 0.25,
+      "alpha": 0.35,
       "lightX": 720,
       "lightY": 800,
-      "distanceRatio": 0.04,
+      "distanceRatio": 0.08,
       "scaleRatio": 0.95
     },
     "dragHandCard": {
       "maxSpeed": 4000,
-      "lerpFactor": 0.85
+      "lerpFactor": 0.85,
+      "dragScaleTarget": 1.1,
+      "dragScaleInDurationMS": 50,
+      "dragScaleOutDurationMS": 20,
+      "dragScaleInCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 1,
+        "p1": {
+          "x": 0.22,
+          "y": 1
+        },
+        "p2": {
+          "x": 0.36,
+          "y": 1
+        }
+      },
+      "dragScaleOutCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 1,
+        "p1": {
+          "x": 0.4,
+          "y": 0
+        },
+        "p2": {
+          "x": 0.6,
+          "y": 1
+        }
+      }
+    },
+    "cardMoveRotation": {
+      "enabled": true,
+      "showPivot": false,
+      "pivotOffsetX": -4,
+      "pivotOffsetY": -43,
+      "rotationPerSpeed": 0.57,
+      "followLerp": 0.33,
+      "friction": 0.01,
+      "minSpeed": 0.005,
+      "overshootEnabled": true,
+      "triggerSpeedRatio": 0.1,
+      "overshootAngle": 0.26,
+      "springStiffness": 0.1,
+      "maxRotationRad": 1.85,
+      "triggerStopRatio": 0
     },
     "cardVisuals": {
       "expandedSections": {
@@ -70,15 +115,37 @@
         "dragShadow": false,
         "breathing": false,
         "idleTilt": false,
-        "hoverScale": true,
+        "hoverScale": false,
+        "hoverBreathing": true,
         "mouse3DTilt": false,
-        "dragHandCard": false,
+        "dragHandCard": true,
         "hoverHit": false,
+        "selectMove": false,
+        "cardOps": false,
+        "cardMoveRotation": true,
         "mouseOffset": true
       },
+      "selectMoveEnabled": true,
+      "selectRiseY": 26,
+      "selectMoveDurationMS": 100,
+      "selectMoveCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 1,
+        "p1": {
+          "x": 0.18,
+          "y": 0.85
+        },
+        "p2": {
+          "x": 0.32,
+          "y": 1
+        }
+      },
+      "selectMoveOvershoot": 6,
+      "selectMoveStiffness": 43,
       "breathingEnabled": true,
       "breathingSpeed": 0.003,
-      "breathingAmplitude": 0.5,
+      "breathingAmplitude": 0.4,
       "wobbleSpeed": 0.0018,
       "wobbleAmplitude": 0.02,
       "idleTiltEnabled": true,
@@ -86,17 +153,17 @@
       "idleTiltStrength": 1.1,
       "idleTiltRadius": 0.45,
       "hoverScaleEnabled": true,
-      "hoverOvershootScale": 1.08,
-      "hoverSettleScale": 1.07,
-      "hoverOvershootCount": 5,
-      "hoverOvershootDamping": 0.1,
-      "hoverScaleDurationMS": 240,
+      "hoverOvershootScale": 1.07,
+      "hoverSettleScale": 1.06,
+      "hoverOvershootCount": 2,
+      "hoverOvershootDamping": 0.05,
+      "hoverScaleDurationMS": 200,
       "hoverScaleCurve": {
         "enabled": true,
         "startScale": 0,
         "endScale": 1,
         "p1": {
-          "x": 0.42,
+          "x": 0,
           "y": 0
         },
         "p2": {
@@ -104,11 +171,19 @@
           "y": 1
         }
       },
-      "hoverScaleOutDurationMS": 200,
-      "hoverScaleOutOvershootCount": 3,
-      "hoverScaleOutOvershootFirstScale": 0.97,
-      "hoverScaleOutOvershootDamping": 0.65,
+      "hoverScaleOutDurationMS": 150,
+      "hoverScaleOutOvershootCount": 2,
+      "hoverScaleOutOvershootFirstScale": 0.99,
+      "hoverScaleOutOvershootDamping": 0.05,
       "hoverScaleOutSpeed": 1,
+      "hoverBreathingEnabled": true,
+      "hoverBreathingDurationMS": 450,
+      "hoverBreathingSpeed": 0,
+      "hoverBreathingAmplitude": 0,
+      "hoverWobbleSpeed": 0.047,
+      "hoverWobbleAmplitude": 0.04,
+      "hoverBreathingSpeedDecay": 0,
+      "hoverBreathingAmplitudeDecay": 5,
       "mouse3DTiltEnabled": true,
       "mouse3DTiltStrength": 3,
       "mouse3DTiltInvertTL": true,
@@ -130,7 +205,25 @@
       "mouseOffsetFactorY": 0.08,
       "mouseOffsetLimit": 8,
       "hoverScaleFactor": 1.05,
-      "hoverScaleSpeed": 0.15
+      "hoverScaleSpeed": 0.15,
+      "hoverBreathingDecay": 0.5,
+      "hoverBreathingBreathingSpeedMultiplier": 20,
+      "hoverBreathingWobbleSpeedMultiplier": 20,
+      "hoverBreathingBreathingAmplitudeMultiplier": 1,
+      "hoverBreathingWobbleAmplitudeMultiplier": 0.4,
+      "hoverBreathingCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 0,
+        "p1": {
+          "x": 0.42,
+          "y": 0
+        },
+        "p2": {
+          "x": 0.58,
+          "y": 1
+        }
+      }
     },
     "scoreCurve": {
       "enabled": false,
@@ -411,7 +504,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "5"
             }
           }
         ]
@@ -455,7 +548,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "1"
             }
           }
         ]
@@ -477,7 +570,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "牌型: 无"
+              "text": "牌型: 高牌"
             }
           }
         ]
@@ -499,7 +592,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "本次预期: 0"
+              "text": "本次预期: 16"
             }
           }
         ]
