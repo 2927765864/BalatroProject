@@ -93,12 +93,82 @@
         }
       }
     },
+    "cardOvershoot": {
+      "enabled": true,
+      "tweenOvershootPx": 21,
+      "tweenSpeedRatioThreshold": 0.3,
+      "tweenRiseRatio": 0.8,
+      "tweenRiseCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 1,
+        "p1": {
+          "x": 0,
+          "y": 0
+        },
+        "p2": {
+          "x": 0.58,
+          "y": 1
+        }
+      },
+      "tweenSpringStiffness": 10,
+      "tweenSpringCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 1,
+        "p1": {
+          "x": 0.22,
+          "y": 1
+        },
+        "p2": {
+          "x": 0.36,
+          "y": 1
+        }
+      },
+      "dragInertiaEnabled": true,
+      "dragOvershootPx": 32,
+      "dragRiseDurationMS": 60,
+      "dragSpringDurationMS": 60,
+      "dragRiseCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 1,
+        "p1": {
+          "x": 0,
+          "y": 0
+        },
+        "p2": {
+          "x": 0.58,
+          "y": 1
+        }
+      },
+      "dragSpringCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 1,
+        "p1": {
+          "x": 0,
+          "y": 0
+        },
+        "p2": {
+          "x": 0.58,
+          "y": 1
+        }
+      },
+      "dragQuietTriggerMS": 45,
+      "dragTriggerCooldownMS": 180,
+      "dragLowSpeedRatio": 0.6,
+      "dragCancelDistancePx": 40,
+      "dragVelFollow": 0.54,
+      "dragMaxOvershootPx": 36,
+      "dragConvergenceEpsilon": 5
+    },
     "cardMoveRotation": {
       "enabled": true,
       "showPivot": false,
       "pivotOffsetX": -4,
       "pivotOffsetY": -43,
-      "rotationPerSpeed": 0.57,
+      "rotationPerSpeed": 0.42,
       "followLerp": 0.33,
       "friction": 0.01,
       "minSpeed": 0.005,
@@ -118,11 +188,12 @@
         "hoverScale": false,
         "hoverBreathing": true,
         "mouse3DTilt": false,
-        "dragHandCard": true,
+        "dragHandCard": false,
         "hoverHit": false,
         "selectMove": false,
         "cardOps": false,
-        "cardMoveRotation": true,
+        "cardMoveRotation": false,
+        "cardOvershoot": true,
         "mouseOffset": true
       },
       "selectMoveEnabled": true,
@@ -504,7 +575,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "5"
+              "text": "0"
             }
           }
         ]
@@ -548,7 +619,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "1"
+              "text": "0"
             }
           }
         ]
@@ -570,7 +641,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "牌型: 高牌"
+              "text": "牌型: 无"
             }
           }
         ]
@@ -592,7 +663,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "本次预期: 16"
+              "text": "本次预期: 0"
             }
           }
         ]

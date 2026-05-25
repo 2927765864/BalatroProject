@@ -155,6 +155,10 @@ export function setupControlPanel(
   let dragScaleInCurvePanel: BezierCurvePanel | null = null;
   let dragScaleOutCurvePanel: BezierCurvePanel | null = null;
   let selectMoveCurvePanel: BezierCurvePanel | null = null;
+  let tweenRiseCurvePanel: BezierCurvePanel | null = null;
+  let tweenSpringCurvePanel: BezierCurvePanel | null = null;
+  let dragRiseCurvePanel: BezierCurvePanel | null = null;
+  let dragSpringCurvePanel: BezierCurvePanel | null = null;
 
   // 收集所有"按 CONFIG 当前值刷新自身"的回调，preset 加载后批量重跑。
   const syncers: Array<() => void> = [];
@@ -1205,6 +1209,89 @@ export function setupControlPanel(
     bindNumber("inp-cardMoveRotationFriction", "val-cardMoveRotationFriction", "cardMoveRotation.friction", { digits: 2 });
     bindNumber("inp-cardMoveRotationMinSpeed", "val-cardMoveRotationMinSpeed", "cardMoveRotation.minSpeed", { digits: 3 });
 
+    // === 卡牌过冲反弹（overshoot / spring-back）===
+    bindSectionExpand("inp-expandCardOvershoot", "val-expandCardOvershoot", "cardVisuals.expandedSections.cardOvershoot", "sect-cardOvershoot-params");
+    bindToggle("inp-cardOvershootEnabled", "val-cardOvershootEnabled", "cardOvershoot.enabled");
+    // 组 1：归位 / 发牌
+    bindNumber("inp-tweenOvershootPx", "val-tweenOvershootPx", "cardOvershoot.tweenOvershootPx", { digits: 1 });
+    bindNumber("inp-tweenSpeedRatioThreshold", "val-tweenSpeedRatioThreshold", "cardOvershoot.tweenSpeedRatioThreshold", { digits: 2 });
+    bindNumber("inp-tweenRiseRatio", "val-tweenRiseRatio", "cardOvershoot.tweenRiseRatio", { digits: 2 });
+    bindNumber("inp-tweenSpringStiffness", "val-tweenSpringStiffness", "cardOvershoot.tweenSpringStiffness", { digits: 1 });
+
+    const tweenRiseCurveMount = document.getElementById("mount-tweenRiseCurve");
+    if (tweenRiseCurveMount && !tweenRiseCurvePanel) {
+      tweenRiseCurvePanel = buildCurvePanel(tweenRiseCurveMount, CONFIG.cardOvershoot.tweenRiseCurve, {
+        label: "第一段（rise）缓动曲线",
+        onChange: () => {
+          notify("cardOvershoot.tweenRiseCurve", CONFIG.cardOvershoot.tweenRiseCurve);
+        }
+      });
+
+      syncers.push(() => {
+        if (tweenRiseCurvePanel) {
+          tweenRiseCurvePanel.setCurve(CONFIG.cardOvershoot.tweenRiseCurve);
+        }
+      });
+    }
+
+    const tweenSpringCurveMount = document.getElementById("mount-tweenSpringCurve");
+    if (tweenSpringCurveMount && !tweenSpringCurvePanel) {
+      tweenSpringCurvePanel = buildCurvePanel(tweenSpringCurveMount, CONFIG.cardOvershoot.tweenSpringCurve, {
+        label: "第二段（spring）缓动曲线",
+        onChange: () => {
+          notify("cardOvershoot.tweenSpringCurve", CONFIG.cardOvershoot.tweenSpringCurve);
+        }
+      });
+
+      syncers.push(() => {
+        if (tweenSpringCurvePanel) {
+          tweenSpringCurvePanel.setCurve(CONFIG.cardOvershoot.tweenSpringCurve);
+        }
+      });
+    }
+
+    // 组 2：拖拽中急停（一次性过冲，独立曲线 / 幅度 / 时长）
+    bindToggle("inp-dragInertiaEnabled", "val-dragInertiaEnabled", "cardOvershoot.dragInertiaEnabled");
+    bindNumber("inp-dragLowSpeedRatio", "val-dragLowSpeedRatio", "cardOvershoot.dragLowSpeedRatio", { digits: 2 });
+    bindNumber("inp-dragQuietTriggerMS", "val-dragQuietTriggerMS", "cardOvershoot.dragQuietTriggerMS", { digits: 0 });
+    bindNumber("inp-dragTriggerCooldownMS", "val-dragTriggerCooldownMS", "cardOvershoot.dragTriggerCooldownMS", { digits: 0 });
+    bindNumber("inp-dragOvershootPx", "val-dragOvershootPx", "cardOvershoot.dragOvershootPx", { digits: 1 });
+    bindNumber("inp-dragRiseDurationMS", "val-dragRiseDurationMS", "cardOvershoot.dragRiseDurationMS", { digits: 0 });
+    bindNumber("inp-dragSpringDurationMS", "val-dragSpringDurationMS", "cardOvershoot.dragSpringDurationMS", { digits: 0 });
+    bindNumber("inp-dragCancelDistancePx", "val-dragCancelDistancePx", "cardOvershoot.dragCancelDistancePx", { digits: 1 });
+
+    const dragRiseCurveMount = document.getElementById("mount-dragRiseCurve");
+    if (dragRiseCurveMount && !dragRiseCurvePanel) {
+      dragRiseCurvePanel = buildCurvePanel(dragRiseCurveMount, CONFIG.cardOvershoot.dragRiseCurve, {
+        label: "拖拽第一段（rise）缓动曲线",
+        onChange: () => {
+          notify("cardOvershoot.dragRiseCurve", CONFIG.cardOvershoot.dragRiseCurve);
+        }
+      });
+
+      syncers.push(() => {
+        if (dragRiseCurvePanel) {
+          dragRiseCurvePanel.setCurve(CONFIG.cardOvershoot.dragRiseCurve);
+        }
+      });
+    }
+
+    const dragSpringCurveMount = document.getElementById("mount-dragSpringCurve");
+    if (dragSpringCurveMount && !dragSpringCurvePanel) {
+      dragSpringCurvePanel = buildCurvePanel(dragSpringCurveMount, CONFIG.cardOvershoot.dragSpringCurve, {
+        label: "拖拽回弹（spring）缓动曲线",
+        onChange: () => {
+          notify("cardOvershoot.dragSpringCurve", CONFIG.cardOvershoot.dragSpringCurve);
+        }
+      });
+
+      syncers.push(() => {
+        if (dragSpringCurvePanel) {
+          dragSpringCurvePanel.setCurve(CONFIG.cardOvershoot.dragSpringCurve);
+        }
+      });
+    }
+
     // 已经绑定过的控件只重跑 sync，避免重复挂监听
     syncers.forEach((fn) => fn());
   }
@@ -1245,6 +1332,10 @@ export function setupControlPanel(
       dragScaleInCurvePanel?.destroy();
       dragScaleOutCurvePanel?.destroy();
       selectMoveCurvePanel?.destroy();
+      tweenRiseCurvePanel?.destroy();
+      tweenSpringCurvePanel?.destroy();
+      dragRiseCurvePanel?.destroy();
+      dragSpringCurvePanel?.destroy();
       removeHistoryShortcuts();
       removeHierarchyHistory();
       for (const name of eventsToStop) {

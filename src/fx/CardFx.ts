@@ -1,7 +1,7 @@
 import type { CardView } from "@render/CardView";
 import type { TweenManager } from "@tween/TweenManager";
 import { Easing, type EaseFn } from "@tween/Easing";
-import type { BezierCurveConfig } from "@game/config";
+import { CONFIG, type BezierCurveConfig } from "@game/config";
 
 /**
  * 把 BezierCurveConfig 当成"自定义缓动函数"采样。
@@ -45,6 +45,130 @@ export const CardFx = {
           .to(target, durationMS)
           .easing(Easing.cubicOut)
           .onComplete(resolve)
+      );
+    });
+  },
+
+  /**
+   * 带过冲反弹的"平滑移动到目标位姿"——moveTo 的进阶版。
+   *
+   * 仅当 currentSpeed ≥ dragHandCard.maxSpeed × cardOvershoot.tweenSpeedRatioThreshold
+   * （或显式 forceOvershoot=true）时启用两段动画：
+   *   第一段（rise）：起点 → 沿运动方向越过终点 overshootPx 像素的过冲点，
+   *                   时长 = totalMS × tweenRiseRatio，缓动 = tweenRiseCurve（贝塞尔）。
+   *   第二段（spring）：过冲点 → 真正终点，时长 = round(1000 / tweenSpringStiffness)，
+   *                   缓动 = tweenSpringCurve（贝塞尔）。
+   *
+   * 不满足触发条件时直接降级为普通 moveTo（cubicOut），保证低速归位/普通重排不抖。
+   *
+   * 与 selectMove 同构：两段补间用 TweenManager 同对象-同字段互斥即可衔接，
+   * 第一段 onComplete 时若 view 已经再次被拖拽（isDragging=true）则不调度第二段。
+   *
+   * @param tm           TweenManager
+   * @param card         目标 CardView
+   * @param target       最终落点位姿（layoutX/Y/Rotation）
+   * @param totalMS      总时长（与原 moveTo 同义；第一段会按 tweenRiseRatio 占其一部分）
+   * @param currentSpeed 触发判定用的当前速度，单位 px/s（由调用方传入，
+   *                     通常取 view.getLastSpeed()）
+   * @param forceOvershoot 强制走过冲路径（如发牌：此时 view 速度可能尚未稳定，
+   *                       但语义上是"从远处快速进场"，应当过冲）。默认 false。
+   */
+  moveToWithOvershoot(
+    tm: TweenManager,
+    card: CardView,
+    target: { x: number; y: number; rotation: number },
+    totalMS = 280,
+    currentSpeed = 0,
+    forceOvershoot = false
+  ): Promise<void> {
+    const cfg = CONFIG.cardOvershoot;
+    const drag = CONFIG.dragHandCard;
+    const maxSpeed = drag?.maxSpeed ?? 3000;
+
+    // 触发判定：禁用 / 速度未达阈值且未强制 → 降级为普通 moveTo。
+    const threshold = (cfg?.tweenSpeedRatioThreshold ?? 0.5) * maxSpeed;
+    const trigger =
+      !!cfg?.enabled && (forceOvershoot || currentSpeed >= threshold);
+
+    if (!trigger) {
+      return CardFx.moveTo(tm, card, target, totalMS);
+    }
+
+    const dx = target.x - card.x;
+    const dy = target.y - card.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // 起点与终点几乎重合：直接置到位即可，过冲没有意义。
+    if (dist < 1e-3) {
+      card.x = target.x;
+      card.y = target.y;
+      card.rotation = target.rotation;
+      return Promise.resolve();
+    }
+
+    const overshootPx = Math.max(0, cfg.tweenOvershootPx ?? 0);
+    // 过冲点 = 终点 + 单位方向向量 × overshoot
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const overX = target.x + nx * overshootPx;
+    const overY = target.y + ny * overshootPx;
+
+    const riseRatio = Math.min(1, Math.max(0, cfg.tweenRiseRatio ?? 0.75));
+    const riseMS = Math.max(1, Math.round(totalMS * riseRatio));
+
+    // 弹簧回弹时长 = round(1000 / stiffness)，与 selectMove 同公式。
+    const stiffness = Math.max(0.001, cfg.tweenSpringStiffness ?? 10);
+    const springMS = Math.min(2000, Math.max(1, Math.round(1000 / stiffness)));
+
+    // 缓动：曲线 disabled 时分别用 cubicOut（rise 偏减速）和 cubicOut（spring 柔和）兜底。
+    const riseCurveEnabled =
+      cfg.tweenRiseCurve && cfg.tweenRiseCurve.enabled !== false;
+    const riseEase: EaseFn = riseCurveEnabled
+      ? curveToEase(cfg.tweenRiseCurve)
+      : Easing.cubicOut;
+    const springCurveEnabled =
+      cfg.tweenSpringCurve && cfg.tweenSpringCurve.enabled !== false;
+    const springEase: EaseFn = springCurveEnabled
+      ? curveToEase(cfg.tweenSpringCurve)
+      : Easing.cubicOut;
+
+    // 过冲幅度为 0：直接走单段补间，省一次 tween。
+    if (overshootPx <= 0) {
+      return new Promise((resolve) => {
+        tm.add(
+          tm
+            .create(card)
+            .to({ x: target.x, y: target.y, rotation: target.rotation }, totalMS)
+            .easing(riseEase)
+            .onComplete(resolve)
+        );
+      });
+    }
+
+    return new Promise((resolve) => {
+      // 第一段：start → overshootPoint。rotation 也在第一段做到位（不参与回弹）。
+      tm.add(
+        tm
+          .create(card)
+          .to({ x: overX, y: overY, rotation: target.rotation }, riseMS)
+          .easing(riseEase)
+          .onComplete(() => {
+            // 防御：第一段播放期间用户可能又抓住卡牌再次拖拽——
+            // 此时 onDragStart 已经 killOf(view)，第一段会被 stop 而不触发 onComplete。
+            // 但 stop 不调 onComplete（见 Tween.stop），所以这里仅做兜底：
+            // 如果不知怎么 onComplete 触发了又恰好 isDragging=true，跳过第二段。
+            if (card.isDragging) {
+              resolve();
+              return;
+            }
+            tm.add(
+              tm
+                .create(card)
+                .to({ x: target.x, y: target.y }, springMS)
+                .easing(springEase)
+                .onComplete(resolve)
+            );
+          })
       );
     });
   },

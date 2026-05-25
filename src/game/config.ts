@@ -153,6 +153,98 @@ export interface RuntimeConfig {
    *   5. 绕轴点效果：通过对 displayWrapper.position 做反向补偿，
    *      使最终视觉效果等价于"以 pivotOffset 处为不动点旋转 velocityRotation"。
    */
+  /**
+   * 卡牌过冲反弹（overshoot / spring-back）
+   *
+   * 把"快速移动 → 抵达最终落点"的场景统一加上"略微越过落点再回弹"的视觉细节。
+   * 适用三类运动：
+   *   1. 归位（拖拽松手后回到 layout 位置）
+   *   2. 发牌（牌从屏幕外飞到手牌位置）
+   *   3. 拖拽急停（鼠标快速移动后骤停，卡牌冲过手指位置再拉回）
+   *
+   * 分两组参数：
+   *   - tween*：作用于"归位"和"发牌"两类 Tween 路径，由 CardFx.moveToWithOvershoot 消费。
+   *   - drag* ：作用于拖拽中（CardView.updateDragging）的速度模型，让急停时自然过冲。
+   *
+   * 触发条件：仅当"最近一帧实际速度 ≥ dragHandCard.maxSpeed × *SpeedRatioThreshold"时
+   *           才进入过冲段；速度不达标自动降级为普通的 cubicOut / 朝目标 lerp，
+   *           避免低速归位 / 普通重排时出现不必要的小幅度抖动。
+   */
+  cardOvershoot: {
+    /** 总开关 */
+    enabled: boolean;
+
+    // ── 组 1：归位 / 发牌（Tween 路径） ──────────────────────────
+    /** 过冲幅度（像素，沿运动方向投影）。建议 8~30。 */
+    tweenOvershootPx: number;
+    /**
+     * 触发阈值（0~1）：仅当 view.getLastSpeed() ≥ dragHandCard.maxSpeed × 此比例
+     * 时才走过冲两段补间，否则退化为普通 moveTo。
+     */
+    tweenSpeedRatioThreshold: number;
+    /** 第一段（rise）时长占总时长的比例（0~1）。例如 0.75 表示 75% 给第一段、25% 给回弹。 */
+    tweenRiseRatio: number;
+    /** 第一段（start → 过冲点）缓动曲线（贝塞尔）。建议偏减速形状，便于和过冲衔接。 */
+    tweenRiseCurve: BezierCurveConfig;
+    /** 弹簧回弹刚度（无量纲）：第二段时长 = round(1000 / 此值)。建议 5~30。 */
+    tweenSpringStiffness: number;
+    /** 第二段（过冲点 → 终点）缓动曲线（贝塞尔）。建议类似 cubicOut，柔和回拉。 */
+    tweenSpringCurve: BezierCurveConfig;
+
+    // ── 组 2：拖拽中急停（一次性过冲） ──────────────────────────
+    /**
+     * 是否启用拖拽急停过冲。
+     * 开启后，鼠标在拖拽中急停时（基于"速度突降"信号判定，详见 dragLowSpeedRatio），
+     * 触发一次性"rise + spring"两段补间：
+     *   rise   : 卡牌当前位置 → 沿运动方向越过 dragTarget tweenOvershootPx 像素的过冲点
+     *   spring : 过冲点 → dragTarget
+     * 整个过程只过冲一次，不振荡。
+     *
+     * 关闭后退化为原始朝目标 lerp，急停时卡牌瞬间停在 dragTarget 附近。
+     *
+     * 注：rise / spring 段的过冲幅度、时长占比、缓动曲线、回弹刚度
+     * 直接复用上面"组 1"里 tween* 系列参数，保证两条路径的过冲手感一致；
+     * 拖拽总时长固定为 animation.moveDurationMS / 2（拖拽急停比归位更"急"）。
+     */
+    dragInertiaEnabled: boolean;
+    /** 拖拽急停过冲幅度（像素，独立于归位/发牌）。 */
+    dragOvershootPx: number;
+    /** 拖拽急停第一段（当前位置 → 过冲点）时长。 */
+    dragRiseDurationMS: number;
+    /** 拖拽急停第二段（过冲点 → 手指落点）时长。 */
+    dragSpringDurationMS: number;
+    /** 拖拽急停第一段缓动曲线。 */
+    dragRiseCurve: BezierCurveConfig;
+    /** 拖拽急停第二段回弹曲线。 */
+    dragSpringCurve: BezierCurveConfig;
+    /**
+     * 急停静默兜底时长（ms）：如果最后一次 pointermove 已经达到高速阈值，
+     * 之后超过这段时间没有新的 pointermove，也视为急停。
+     * 设为 0 时禁用静默兜底，只使用"高速 → 低速"速度突降信号。
+     */
+    dragQuietTriggerMS: number;
+    /** 触发冷却（ms）：一次拖拽急停过冲请求后，至少间隔这段时间才允许下一次。 */
+    dragTriggerCooldownMS: number;
+    /**
+     * 急停触发的"低速比例"阈值（0~1）：
+     * 触发判定 = 上一次 pointermove 采样的瞬时速度 ≥ maxSpeed × tweenSpeedRatioThreshold
+     *           && 本次采样的瞬时速度 ≤ maxSpeed × dragLowSpeedRatio。
+     *
+     * 物理语义：手指曾经处于"快速移动"状态，最新一次采样突然降到"明显慢"——
+     * 这就是"急停"。原来基于"30ms 静默"的判定在浏览器 pointermove 节流（每帧都发）
+     * 下永远无法满足，所以改成这套"速度突降"信号。
+     *
+     * 建议 0.2~0.4：太低（如 0.05）需要鼠标几乎完全静止才触发，错过半急停；
+     * 太高（如 0.6）容易把正常减速也当作急停反复触发。默认 0.3。
+     */
+    dragLowSpeedRatio: number;
+    /**
+     * 过冲取消阈值（像素）：在 rise/spring 进行期间，
+     * 如果 dragTarget 相对触发时锚定的目标偏移超过此值（意味着用户重新挪动了鼠标），
+     * 立刻取消过冲、回到普通 lerp 跟随。建议 12~40。
+     */
+    dragCancelDistancePx: number;
+  };
   cardMoveRotation: {
     /** 总开关 */
     enabled: boolean;
@@ -208,6 +300,7 @@ export interface RuntimeConfig {
       selectMove: boolean;
       cardOps: boolean;
       cardMoveRotation: boolean;
+      cardOvershoot: boolean;
     };
 
     /**
@@ -514,6 +607,54 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       p2: { x: 0.6, y: 1.0 },
     }) as BezierCurveConfig,
   }),
+  cardOvershoot: Object.freeze({
+    enabled: true,
+    // 归位/发牌（Tween 路径）：默认过冲 14px，速度比例阈值 0.5
+    tweenOvershootPx: 14,
+    tweenSpeedRatioThreshold: 0.5,
+    tweenRiseRatio: 0.75,
+    tweenRiseCurve: Object.freeze({
+      enabled: true,
+      startScale: 0,
+      endScale: 1,
+      // 类似 cubicOut 的减速形状：开头快、末尾接近水平，便于和过冲点衔接。
+      p1: { x: 0.18, y: 0.85 },
+      p2: { x: 0.32, y: 1.0 },
+    }) as BezierCurveConfig,
+    tweenSpringStiffness: 10, // → 第二段约 100ms
+    tweenSpringCurve: Object.freeze({
+      enabled: true,
+      startScale: 0,
+      endScale: 1,
+      // cubicOut 风格：从过冲点柔和回拉到终点。
+      p1: { x: 0.22, y: 1.0 },
+      p2: { x: 0.36, y: 1.0 },
+    }) as BezierCurveConfig,
+    // 拖拽中急停一次性过冲
+    dragInertiaEnabled: true,
+    dragOvershootPx: 14,
+    dragRiseDurationMS: 112,
+    dragSpringDurationMS: 100,
+    dragRiseCurve: Object.freeze({
+      enabled: true,
+      startScale: 0,
+      endScale: 1,
+      p1: { x: 0.18, y: 0.85 },
+      p2: { x: 0.32, y: 1.0 },
+    }) as BezierCurveConfig,
+    dragSpringCurve: Object.freeze({
+      enabled: true,
+      startScale: 0,
+      endScale: 1,
+      p1: { x: 0.22, y: 1.0 },
+      p2: { x: 0.36, y: 1.0 },
+    }) as BezierCurveConfig,
+    dragQuietTriggerMS: 45,
+    dragTriggerCooldownMS: 180,
+    // 急停信号：上一次采样高速 (>= 0.5×maxSpeed) 且本次采样降到 (<= 0.3×maxSpeed)
+    dragLowSpeedRatio: 0.3,
+    dragCancelDistancePx: 24,
+  }),
   cardMoveRotation: Object.freeze({
     enabled: true,
     // 默认不显示轴点（仅调参时打开）。
@@ -543,6 +684,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       selectMove: true,
       cardOps: true,
       cardMoveRotation: true,
+      cardOvershoot: true,
     }),
     selectMoveEnabled: true,
     selectRiseY: 30,
@@ -675,6 +817,29 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
         p2: { ...src.dragHandCard.dragScaleOutCurve.p2 },
       } : undefined as any,
     },
+    cardOvershoot: {
+      ...src.cardOvershoot,
+      tweenRiseCurve: src.cardOvershoot.tweenRiseCurve ? {
+        ...src.cardOvershoot.tweenRiseCurve,
+        p1: { ...src.cardOvershoot.tweenRiseCurve.p1 },
+        p2: { ...src.cardOvershoot.tweenRiseCurve.p2 },
+      } : undefined as any,
+      tweenSpringCurve: src.cardOvershoot.tweenSpringCurve ? {
+        ...src.cardOvershoot.tweenSpringCurve,
+        p1: { ...src.cardOvershoot.tweenSpringCurve.p1 },
+        p2: { ...src.cardOvershoot.tweenSpringCurve.p2 },
+      } : undefined as any,
+      dragRiseCurve: src.cardOvershoot.dragRiseCurve ? {
+        ...src.cardOvershoot.dragRiseCurve,
+        p1: { ...src.cardOvershoot.dragRiseCurve.p1 },
+        p2: { ...src.cardOvershoot.dragRiseCurve.p2 },
+      } : undefined as any,
+      dragSpringCurve: src.cardOvershoot.dragSpringCurve ? {
+        ...src.cardOvershoot.dragSpringCurve,
+        p1: { ...src.cardOvershoot.dragSpringCurve.p1 },
+        p2: { ...src.cardOvershoot.dragSpringCurve.p2 },
+      } : undefined as any,
+    },
     cardMoveRotation: { ...src.cardMoveRotation },
     cardVisuals: {
       ...src.cardVisuals,
@@ -799,6 +964,44 @@ export function applyConfig(source: unknown): void {
       ...incoming.cardMoveRotation,
     };
   }
+  if (incoming.cardOvershoot) {
+    merged.cardOvershoot = {
+      ...merged.cardOvershoot,
+      ...incoming.cardOvershoot,
+      tweenRiseCurve: incoming.cardOvershoot.tweenRiseCurve
+        ? {
+            ...merged.cardOvershoot.tweenRiseCurve,
+            ...incoming.cardOvershoot.tweenRiseCurve,
+            p1: { ...(merged.cardOvershoot.tweenRiseCurve?.p1 ?? {}), ...(incoming.cardOvershoot.tweenRiseCurve.p1 ?? {}) },
+            p2: { ...(merged.cardOvershoot.tweenRiseCurve?.p2 ?? {}), ...(incoming.cardOvershoot.tweenRiseCurve.p2 ?? {}) },
+          }
+        : merged.cardOvershoot.tweenRiseCurve,
+      tweenSpringCurve: incoming.cardOvershoot.tweenSpringCurve
+        ? {
+            ...merged.cardOvershoot.tweenSpringCurve,
+            ...incoming.cardOvershoot.tweenSpringCurve,
+            p1: { ...(merged.cardOvershoot.tweenSpringCurve?.p1 ?? {}), ...(incoming.cardOvershoot.tweenSpringCurve.p1 ?? {}) },
+            p2: { ...(merged.cardOvershoot.tweenSpringCurve?.p2 ?? {}), ...(incoming.cardOvershoot.tweenSpringCurve.p2 ?? {}) },
+          }
+        : merged.cardOvershoot.tweenSpringCurve,
+      dragRiseCurve: incoming.cardOvershoot.dragRiseCurve
+        ? {
+            ...merged.cardOvershoot.dragRiseCurve,
+            ...incoming.cardOvershoot.dragRiseCurve,
+            p1: { ...(merged.cardOvershoot.dragRiseCurve?.p1 ?? {}), ...(incoming.cardOvershoot.dragRiseCurve.p1 ?? {}) },
+            p2: { ...(merged.cardOvershoot.dragRiseCurve?.p2 ?? {}), ...(incoming.cardOvershoot.dragRiseCurve.p2 ?? {}) },
+          }
+        : merged.cardOvershoot.dragRiseCurve,
+      dragSpringCurve: incoming.cardOvershoot.dragSpringCurve
+        ? {
+            ...merged.cardOvershoot.dragSpringCurve,
+            ...incoming.cardOvershoot.dragSpringCurve,
+            p1: { ...(merged.cardOvershoot.dragSpringCurve?.p1 ?? {}), ...(incoming.cardOvershoot.dragSpringCurve.p1 ?? {}) },
+            p2: { ...(merged.cardOvershoot.dragSpringCurve?.p2 ?? {}), ...(incoming.cardOvershoot.dragSpringCurve.p2 ?? {}) },
+          }
+        : merged.cardOvershoot.dragSpringCurve,
+    };
+  }
   if (incoming.cardVisuals) {
     merged.cardVisuals = {
       ...merged.cardVisuals,
@@ -850,6 +1053,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.dragShadow = merged.dragShadow;
   CONFIG.dragHandCard = merged.dragHandCard;
   CONFIG.cardMoveRotation = merged.cardMoveRotation;
+  CONFIG.cardOvershoot = merged.cardOvershoot;
   CONFIG.cardVisuals = merged.cardVisuals;
   CONFIG.scoreCurve = merged.scoreCurve;
   CONFIG.uiNodes = merged.uiNodes;
@@ -924,6 +1128,44 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.cardMoveRotation = {
       ...activeDefaultConfig.cardMoveRotation,
       ...incoming.cardMoveRotation,
+    };
+  }
+  if (incoming.cardOvershoot) {
+    activeDefaultConfig.cardOvershoot = {
+      ...activeDefaultConfig.cardOvershoot,
+      ...incoming.cardOvershoot,
+      tweenRiseCurve: incoming.cardOvershoot.tweenRiseCurve
+        ? {
+            ...activeDefaultConfig.cardOvershoot.tweenRiseCurve,
+            ...incoming.cardOvershoot.tweenRiseCurve,
+            p1: { ...(activeDefaultConfig.cardOvershoot.tweenRiseCurve?.p1 ?? {}), ...(incoming.cardOvershoot.tweenRiseCurve.p1 ?? {}) },
+            p2: { ...(activeDefaultConfig.cardOvershoot.tweenRiseCurve?.p2 ?? {}), ...(incoming.cardOvershoot.tweenRiseCurve.p2 ?? {}) },
+          }
+        : activeDefaultConfig.cardOvershoot.tweenRiseCurve,
+      tweenSpringCurve: incoming.cardOvershoot.tweenSpringCurve
+        ? {
+            ...activeDefaultConfig.cardOvershoot.tweenSpringCurve,
+            ...incoming.cardOvershoot.tweenSpringCurve,
+            p1: { ...(activeDefaultConfig.cardOvershoot.tweenSpringCurve?.p1 ?? {}), ...(incoming.cardOvershoot.tweenSpringCurve.p1 ?? {}) },
+            p2: { ...(activeDefaultConfig.cardOvershoot.tweenSpringCurve?.p2 ?? {}), ...(incoming.cardOvershoot.tweenSpringCurve.p2 ?? {}) },
+          }
+        : activeDefaultConfig.cardOvershoot.tweenSpringCurve,
+      dragRiseCurve: incoming.cardOvershoot.dragRiseCurve
+        ? {
+            ...activeDefaultConfig.cardOvershoot.dragRiseCurve,
+            ...incoming.cardOvershoot.dragRiseCurve,
+            p1: { ...(activeDefaultConfig.cardOvershoot.dragRiseCurve?.p1 ?? {}), ...(incoming.cardOvershoot.dragRiseCurve.p1 ?? {}) },
+            p2: { ...(activeDefaultConfig.cardOvershoot.dragRiseCurve?.p2 ?? {}), ...(incoming.cardOvershoot.dragRiseCurve.p2 ?? {}) },
+          }
+        : activeDefaultConfig.cardOvershoot.dragRiseCurve,
+      dragSpringCurve: incoming.cardOvershoot.dragSpringCurve
+        ? {
+            ...activeDefaultConfig.cardOvershoot.dragSpringCurve,
+            ...incoming.cardOvershoot.dragSpringCurve,
+            p1: { ...(activeDefaultConfig.cardOvershoot.dragSpringCurve?.p1 ?? {}), ...(incoming.cardOvershoot.dragSpringCurve.p1 ?? {}) },
+            p2: { ...(activeDefaultConfig.cardOvershoot.dragSpringCurve?.p2 ?? {}), ...(incoming.cardOvershoot.dragSpringCurve.p2 ?? {}) },
+          }
+        : activeDefaultConfig.cardOvershoot.dragSpringCurve,
     };
   }
   if (incoming.cardVisuals) {

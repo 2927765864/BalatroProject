@@ -138,6 +138,10 @@ export class GameController {
       view.x = GameConfig.world.width + 200;
       view.y = GameConfig.world.height + 200;
       view.rotation = 0;
+      // 标记"本次 layoutHand 应当对该牌触发过冲反弹动画"——
+      // 屏幕外瞬移过来时 lastSpeed 不可靠（没有真实跨帧位移可采样），
+      // 用这个一次性标志显式告诉 moveToWithOvershoot 走过冲路径。
+      view.forceOvershootOnce = true;
       newHand.push(view);
     }
     this.store.setState({ hand: newHand });
@@ -215,7 +219,21 @@ export class GameController {
         return;
       }
 
-      CardFx.moveTo(this.tween, view, slot, GameConfig.animation.moveDurationMS);
+      // 判定是否启用过冲反弹：
+      //   1. 显式 forceOvershoot（发牌瞬间）—— 一次性标志，用后即清。
+      //   2. 否则按 view.getLastSpeed() ≥ maxSpeed × tweenSpeedRatioThreshold 触发。
+      // 拖拽刚结束的牌天然满足 (2)，普通重排（lastSpeed≈0）会被自动降级为普通 moveTo。
+      const force = view.forceOvershootOnce === true;
+      if (force) view.forceOvershootOnce = false;
+      const speed = view.getLastSpeed();
+      CardFx.moveToWithOvershoot(
+        this.tween,
+        view,
+        slot,
+        GameConfig.animation.moveDurationMS,
+        speed,
+        force,
+      );
     });
   }
 
