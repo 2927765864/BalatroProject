@@ -2015,7 +2015,22 @@ export class CardView extends Container {
   }
 
   private bindEvents(): void {
-    this.eventMode = "static";
+    // eventMode = "dynamic"：让 Pixi 每帧用最后已知的鼠标位置主动重做 hit-test。
+    //
+    // 必须用 dynamic 而非 static 的原因：
+    //   松手归位场景——拖拽时鼠标停在某处不动，松手后卡牌从鼠标下方飞回手牌槽位。
+    //   此时鼠标如果一直不动，"static" 模式不会重新 hit-test，于是：
+    //     - isMouseOver 一直停在 true
+    //     - cardState 一直停在 Hovered
+    //     - updateHoverScale 持续把 currentScale 推到 hoverSettleScale 并稳定在那里
+    //     - 卡牌视觉上看起来"被放大卡死"，直到鼠标轻轻一动 Pixi 才重做 hit-test
+    //       发现鼠标已不在卡上 → 触发 pointerout → cardState=Normal → 缩放回落。
+    //   切到 "dynamic" 后，Pixi 每帧用最后已知鼠标位置发一次合成 pointermove，
+    //   归位中的卡牌脱离鼠标的瞬间就会触发 pointerout，无需用户移动鼠标。
+    //
+    // 性能：dynamic 比 static 每帧多一次按对象的 hit-test。一手 8 张牌的量级
+    //   完全可以忽略（每帧 ~8 次矩形包含测试）。
+    this.eventMode = "dynamic";
     this.cursor = "pointer";
 
     // 鼠标触碰碰撞范围（迟滞 hit area）：
