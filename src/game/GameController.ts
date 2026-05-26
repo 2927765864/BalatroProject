@@ -162,6 +162,12 @@ export class GameController {
         onHoverOut: (view) => this.onHoverOut(view),
         onDragStart: (view) => {
           this.tween.killOf(view);
+          // killOf 会 stop 所有相关 tween。CardFx 中的 swapMove/selectMove 已通过
+          // Tween.onStop 在被打断时清旗，所以这里通常已经为 false。
+          // 但为防御任何路径下的标志残留（例如 tween 未启动但标志已置位、或
+          // 未来新增的动画忘记挂 onStop），在此显式清零作为最后一道保险。
+          view.isSwapAnimating = false;
+          view.isSelectAnimating = false;
           view.zIndex = 9999;
           view.isReturning = false;
         },
@@ -230,8 +236,14 @@ export class GameController {
       // 正在播放"选中/取消选中位移过弹动画"的牌：交给 CardFx.selectMove 自己跑两段补间。
       // 这里只更新 layoutX/Y/Rotation 元数据，不再下发普通 moveTo（避免 TweenManager
       // 同字段冲突踢掉过弹段）。
+      //
+      // 自愈兜底：若标志为 true 但实际已无活跃 tween（异常中断且未清旗），
+      // 视为残留并清零，落入下方常规重排，避免被永久豁免。
       if (view.isSelectAnimating) {
-        return;
+        if (this.tween.hasTweenFor(view)) {
+          return;
+        }
+        view.isSelectAnimating = false;
       }
 
       // 「手动理牌换位让位」分支：本次 layoutHand 由 reorderHandWhileDragging 触发，
@@ -244,13 +256,19 @@ export class GameController {
 
       // 「swap 弹性豁免」分支：view 当前正在播放 swapMove 的 rise→spring 弹性动画，
       // 且本帧不在 swapFor 中（说明拖拽牌已不再覆盖它）。如果继续走下面的
-      // moveToWithOvershoot，会通过 TweenManager 同字段互斥停掉 rise 阶段；而
-      // Tween.stop() 不会触发 onComplete，导致 spring 段（在 rise 的 onComplete 内
-      // lazy 调度）永远排不上——弹性效果丢失。这是"一次跨越多张牌时弹性失效"
-      // 的根因。豁免后让它自己跑完 rise→spring；最终位置已经是新 slot，不会错位。
+      // moveToWithOvershoot，会通过 TweenManager 同字段互斥停掉 rise 阶段；
+      // 让它自己跑完 rise→spring，最终位置已经是新 slot，不会错位。
       // opts.force=true 时（手牌数量变化等强制对齐场景）跳过此豁免。
+      //
+      // 自愈兜底：若标志为 true 但 TweenManager 中实际已无该 view 的活跃 tween
+      // （动画在异常路径下被中断且标志未及时清零），则视为标志残留，清零后
+      // 落入下方常规重排路径——避免该牌被永久豁免、停留在错位。
       if (!opts?.force && view.isSwapAnimating) {
-        return;
+        if (this.tween.hasTweenFor(view)) {
+          return;
+        }
+        view.isSwapAnimating = false;
+        // 落入下面的 moveToWithOvershoot 常规分支。
       }
 
       // 过冲反弹判定（v2：距离驱动）：

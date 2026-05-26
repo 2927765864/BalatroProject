@@ -32,6 +32,7 @@ export class Tween<T extends object> {
   private completed = false;
   private onCompleteFn?: () => void;
   private onUpdateFn?: () => void;
+  private onStopFn?: () => void;
 
   constructor(
     public readonly target: T,
@@ -62,6 +63,16 @@ export class Tween<T extends object> {
 
   onComplete(fn: () => void): this {
     this.onCompleteFn = fn;
+    return this;
+  }
+
+  /**
+   * 被外部主动 stop() 打断时触发的回调（区别于正常完成触发的 onComplete）。
+   * 用于：依赖 onComplete 做"动画结束"标志清理的代码，需要在 tween 被打断时
+   * 也能正确清理标志，避免标志残留导致后续状态错误。
+   */
+  onStop(fn: () => void): this {
+    this.onStopFn = fn;
     return this;
   }
 
@@ -102,10 +113,11 @@ export class Tween<T extends object> {
     }
   }
 
-  /** 提前结束（不触发 onComplete）。 */
+  /** 提前结束（不触发 onComplete，但会触发 onStop 用于清理）。 */
   stop(): void {
     if (!this.running) return;
     this.running = false;
+    this.onStopFn?.();
     this.onFinish(this);
   }
 

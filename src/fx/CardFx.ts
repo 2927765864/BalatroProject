@@ -368,11 +368,18 @@ export const CardFx = {
 
     return new Promise((resolve) => {
       // 第一段：rise 越过目标到过冲点；rotation 也在此段做到位。
+      // 同时挂 onStop：rise 段被外部打断时（killOf 或被新 swap/归位 tween 互斥停掉），
+      // 必须清零 isSwapAnimating，否则 spring 段不会被调度，标志会永久残留，
+      // 导致后续无 force 的 layoutHand 永久豁免该牌而停在错位。
       tm.add(
         tm
           .create(card)
           .to({ x: overX, y: overY, rotation: target.rotation }, riseMS)
           .easing(riseEase)
+          .onStop(() => {
+            card.isSwapAnimating = false;
+            resolve();
+          })
           .onComplete(() => {
             // 防御：理论上让位牌不会同时被拖拽（拖拽牌是另一张），
             // 但保留与 moveToWithOvershoot 一致的守卫，避免极端竞态下跳到错位。
@@ -382,11 +389,16 @@ export const CardFx = {
               return;
             }
             // 第二段：spring 回弹到真正落点（rotation 不再动）。
+            // 同样挂 onStop 兜底：spring 段被打断时也清零标志。
             tm.add(
               tm
                 .create(card)
                 .to({ x: target.x, y: target.y }, springMS)
                 .easing(springEase)
+                .onStop(() => {
+                  card.isSwapAnimating = false;
+                  resolve();
+                })
                 .onComplete(() => {
                   card.isSwapAnimating = false;
                   resolve();
@@ -427,7 +439,19 @@ export const CardFx = {
       : Easing.cubicOut;
 
     return new Promise((resolve) => {
+      // 防止 onSettle 在 onStop 和 onComplete 双路径下被重复触发（虽然 stop 与
+      // complete 在 Tween 内部互斥，但二段补间下也防御一下）。
+      let settled = false;
+      const settle = () => {
+        if (settled) return;
+        settled = true;
+        opts.onSettle?.();
+        resolve();
+      };
       // 第一段：x / y / rotation 同时驱动；y 到过弹点。
+      // 挂 onStop：被打断（如新 layoutHand/swap 互斥停掉本 tween）时，
+      // 同样要清 isSelectAnimating（通过 opts.onSettle），避免标志残留导致
+      // 后续 layoutHand 永久豁免该牌。
       tm.add(
         tm
           .create(card)
@@ -436,13 +460,13 @@ export const CardFx = {
             durationMS
           )
           .easing(stage1Ease)
+          .onStop(settle)
           .onComplete(() => {
             // 第二段：只回弹 y。
             if (overshoot <= 0 || reboundMS <= 0) {
               // 没有过弹幅度/回弹时长为 0 时，直接置到位并结束。
               card.y = target.y;
-              opts.onSettle?.();
-              resolve();
+              settle();
               return;
             }
             tm.add(
@@ -450,10 +474,8 @@ export const CardFx = {
                 .create(card)
                 .to({ y: target.y }, reboundMS)
                 .easing(Easing.cubicOut)
-                .onComplete(() => {
-                  opts.onSettle?.();
-                  resolve();
-                })
+                .onStop(settle)
+                .onComplete(settle)
             );
           })
       );

@@ -54,6 +54,18 @@ export class TweenManager {
     }
   }
 
+  /**
+   * 查询某个目标身上是否还有任何活跃 tween。
+   * 用于状态自愈：若某个豁免标志（如 isSwapAnimating）残留，但实际已无 tween 在跑，
+   * 可据此判定标志已失效，应当清零。
+   */
+  hasTweenFor(target: object): boolean {
+    for (const t of this.tweens) {
+      if (t.target === target && t.isRunning()) return true;
+    }
+    return false;
+  }
+
   clear(): void {
     for (const t of [...this.tweens]) t.stop();
     this.tweens.clear();
