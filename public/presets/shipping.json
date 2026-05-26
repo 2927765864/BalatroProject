@@ -95,12 +95,12 @@
     },
     "cardOvershoot": {
       "enabled": true,
-      "tweenOvershootPx": 60,
+      "tweenOvershootPx": 40,
       "tweenMinOvershootPx": 10,
       "tweenMinOvershootDistancePx": 30,
       "tweenFullOvershootDistancePx": 1000,
       "tweenReturnAvgSpeed": 2500,
-      "tweenReturnMinMS": 88,
+      "tweenReturnMinMS": 140,
       "tweenReturnMaxMS": 420,
       "tweenSpeedRatioThreshold": 0.1,
       "tweenRiseRatio": 0.5,
@@ -132,15 +132,17 @@
         }
       },
       "dragInertiaEnabled": true,
-      "dragOvershootPx": 32,
-      "dragRiseDurationMS": 60,
-      "dragSpringDurationMS": 60,
+      "dragOvershootPx": 50,
+      "dragMinOvershootPx": 20,
+      "dragOvershootMinSpeedRatio": 0.2,
+      "dragRiseDurationMS": 40,
+      "dragSpringDurationMS": 80,
       "dragRiseCurve": {
         "enabled": true,
         "startScale": 0,
         "endScale": 1,
         "p1": {
-          "x": 0,
+          "x": 0.42,
           "y": 0
         },
         "p2": {
@@ -153,7 +155,7 @@
         "startScale": 0,
         "endScale": 1,
         "p1": {
-          "x": 0,
+          "x": 0.42,
           "y": 0
         },
         "p2": {
@@ -162,9 +164,12 @@
         }
       },
       "dragQuietTriggerMS": 0,
-      "dragTriggerCooldownMS": 180,
+      "dragTriggerCooldownMS": 0,
       "dragLowSpeedRatio": 0.6,
       "dragCancelDistancePx": 40,
+      "dragPointerMaxSpeed": 6000,
+      "dragSpeedSmoothingMS": 0,
+      "dragPeakDecayPerSec": 4,
       "dragVelFollow": 0.54,
       "dragMaxOvershootPx": 36,
       "dragConvergenceEpsilon": 5
@@ -176,7 +181,7 @@
       "pivotOffsetY": -43,
       "rotationPerSpeed": 0.42,
       "followLerp": 0.33,
-      "friction": 0.01,
+      "friction": 0.1,
       "minSpeed": 0.005,
       "overshootEnabled": true,
       "triggerSpeedRatio": 0.1,
@@ -192,13 +197,13 @@
         "breathing": false,
         "idleTilt": false,
         "hoverScale": false,
-        "hoverBreathing": true,
+        "hoverBreathing": false,
         "mouse3DTilt": false,
         "dragHandCard": false,
         "hoverHit": false,
         "selectMove": false,
         "cardOps": false,
-        "cardMoveRotation": false,
+        "cardMoveRotation": true,
         "cardOvershoot": true,
         "mouseOffset": true
       },
@@ -669,7 +674,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "本次预期: 8"
+              "text": "本次预期: 13"
             }
           }
         ]

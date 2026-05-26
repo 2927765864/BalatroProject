@@ -1264,9 +1264,14 @@ export function setupControlPanel(
     bindNumber("inp-dragQuietTriggerMS", "val-dragQuietTriggerMS", "cardOvershoot.dragQuietTriggerMS", { digits: 0 });
     bindNumber("inp-dragTriggerCooldownMS", "val-dragTriggerCooldownMS", "cardOvershoot.dragTriggerCooldownMS", { digits: 0 });
     bindNumber("inp-dragOvershootPx", "val-dragOvershootPx", "cardOvershoot.dragOvershootPx", { digits: 1 });
+    bindNumber("inp-dragMinOvershootPx", "val-dragMinOvershootPx", "cardOvershoot.dragMinOvershootPx", { digits: 1 });
+    bindNumber("inp-dragOvershootMinSpeedRatio", "val-dragOvershootMinSpeedRatio", "cardOvershoot.dragOvershootMinSpeedRatio", { digits: 2 });
     bindNumber("inp-dragRiseDurationMS", "val-dragRiseDurationMS", "cardOvershoot.dragRiseDurationMS", { digits: 0 });
     bindNumber("inp-dragSpringDurationMS", "val-dragSpringDurationMS", "cardOvershoot.dragSpringDurationMS", { digits: 0 });
     bindNumber("inp-dragCancelDistancePx", "val-dragCancelDistancePx", "cardOvershoot.dragCancelDistancePx", { digits: 1 });
+    bindNumber("inp-dragPointerMaxSpeed", "val-dragPointerMaxSpeed", "cardOvershoot.dragPointerMaxSpeed", { digits: 0 });
+    bindNumber("inp-dragSpeedSmoothingMS", "val-dragSpeedSmoothingMS", "cardOvershoot.dragSpeedSmoothingMS", { digits: 0 });
+    bindNumber("inp-dragPeakDecayPerSec", "val-dragPeakDecayPerSec", "cardOvershoot.dragPeakDecayPerSec", { digits: 1 });
 
     const dragRiseCurveMount = document.getElementById("mount-dragRiseCurve");
     if (dragRiseCurveMount && !dragRiseCurvePanel) {

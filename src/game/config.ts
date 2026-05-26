@@ -249,8 +249,30 @@ export interface RuntimeConfig {
      * 拖拽总时长固定为 animation.moveDurationMS / 2（拖拽急停比归位更"急"）。
      */
     dragInertiaEnabled: boolean;
-    /** 拖拽急停过冲幅度（像素，独立于归位/发牌）。 */
+    /**
+     * 拖拽急停【最大】过冲幅度（像素）。
+     * 当急停触发瞬间「高速段速度」达到 maxSpeed 时使用此幅度。
+     * 与 dragMinOvershootPx + dragOvershootMinSpeedRatio 一起线性映射。
+     */
     dragOvershootPx: number;
+    /**
+     * 拖拽急停【最小】过冲幅度（像素）。
+     * 当急停触发瞬间「高速段速度」刚好达到 dragOvershootMinSpeedRatio × maxSpeed 时
+     * 使用此幅度；速度更低也不会更低（但本来低于 tweenSpeedRatioThreshold 就不会触发急停）。
+     * 建议 2~8，明显小于 dragOvershootPx。
+     */
+    dragMinOvershootPx: number;
+    /**
+     * 拖拽急停过冲幅度的「最小速度比例」（0~1）：
+     * 急停触发瞬间，prev pointermove 采样的瞬时速度 / maxSpeed 若 ≤ 此比例，
+     * 使用 dragMinOvershootPx；若 ≥ 1.0（达到 maxSpeed），使用 dragOvershootPx；
+     * 中间按线性插值。
+     *
+     * 与 tweenSpeedRatioThreshold 解耦：tweenSpeedRatioThreshold 决定「是否触发急停」，
+     * 而本字段只决定「触发后过冲幅度的线性映射下界」。建议 ≥ tweenSpeedRatioThreshold，
+     * 否则下半段映射区间不会被实际使用。建议 0.5~0.7。
+     */
+    dragOvershootMinSpeedRatio: number;
     /** 拖拽急停第一段（当前位置 → 过冲点）时长。 */
     dragRiseDurationMS: number;
     /** 拖拽急停第二段（过冲点 → 手指落点）时长。 */
@@ -286,6 +308,28 @@ export interface RuntimeConfig {
      * 立刻取消过冲、回到普通 lerp 跟随。建议 12~40。
      */
     dragCancelDistancePx: number;
+    /**
+     * 鼠标速度上限（px/s）——所有「速度 / maxSpeed」计算的统一分母。
+     * 注意与 dragHandCard.maxSpeed 区分：后者是「卡牌跟手能被推到的最大速度」，
+     * 而鼠标本身的瞬时速度（pointermove 采样）可以远超那个值（甩动时 6000~10000 px/s）。
+     * 若混用同一分母会导致 ratio 长期撞顶到 1.0，线性映射区间形同虚设。
+     * 建议 5000~8000（屏幕分辨率/玩家习惯而异）。
+     */
+    dragPointerMaxSpeed: number;
+    /**
+     * 鼠标速度采样的 EMA 平滑时间常数（ms）。
+     * 0 = 禁用平滑，直接用 raw = 位移 / dt。值越大越平滑但越滞后。
+     * 主要作用：抑制 pointermove dt 抖动（8ms vs 24ms）导致的伪突降/伪峰值。
+     * 建议 16~32（约 1~2 帧）。
+     */
+    dragSpeedSmoothingMS: number;
+    /**
+     * 峰值速度衰减率（1/s）。pointerPeakSpeed 在没有更高速度刷新时按
+     * peak *= exp(-rate * dt) 衰减，避免一次甩动后的峰值永久驻留导致后续
+     * 慢速急停也用满档过冲幅度。
+     * 0 = 不衰减（峰值始终保持）。建议 3~8。
+     */
+    dragPeakDecayPerSec: number;
   };
   cardMoveRotation: {
     /** 总开关 */
@@ -684,7 +728,11 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     }) as BezierCurveConfig,
     // 拖拽中急停一次性过冲
     dragInertiaEnabled: true,
+    // 过冲幅度按急停触发瞬间「高速段速度」在 [dragOvershootMinSpeedRatio×maxSpeed, maxSpeed]
+    // 之间线性插值到 [dragMinOvershootPx, dragOvershootPx]。
     dragOvershootPx: 14,
+    dragMinOvershootPx: 4,
+    dragOvershootMinSpeedRatio: 0.5,
     dragRiseDurationMS: 112,
     dragSpringDurationMS: 100,
     dragRiseCurve: Object.freeze({
@@ -706,6 +754,12 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     // 急停信号：上一次采样高速 (>= 0.5×maxSpeed) 且本次采样降到 (<= 0.3×maxSpeed)
     dragLowSpeedRatio: 0.3,
     dragCancelDistancePx: 24,
+    // 鼠标速度上限（独立于 dragHandCard.maxSpeed）。
+    dragPointerMaxSpeed: 6000,
+    // 鼠标速度 EMA 平滑窗口（≈1.5 帧）。
+    dragSpeedSmoothingMS: 24,
+    // 峰值速度衰减率：≈250ms 衰减到约 1/e，足以保留单次甩动的峰值但不会跨次驻留。
+    dragPeakDecayPerSec: 4,
   }),
   cardMoveRotation: Object.freeze({
     enabled: true,
