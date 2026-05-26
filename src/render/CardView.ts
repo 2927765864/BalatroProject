@@ -67,6 +67,21 @@ export interface CardViewCallbacks {
   onHoverIn: (view: CardView) => void;
   onHoverOut: (view: CardView) => void;
   onDragStart?: (view: CardView) => void;
+  /**
+   * 拖拽过程中、每次 pointermove 末尾触发一次。
+   * 用途：手动理牌——GameController 据此判断拖拽牌的中心是否越过相邻牌中线、
+   * 进而 splice hand 数组并触发 layoutHand 让相邻牌让位。
+   *
+   * 不在 update tick 里轮询而走事件驱动：
+   *   - 节流粒度与浏览器 pointermove 一致（约 15~20ms 一次），足够顺滑；
+   *   - 控制器代码无需每帧检查所有牌，开销低。
+   *
+   * 参数 (x, y) 是拖拽中卡牌在父容器坐标系下的"逻辑目标位置"（即 dragTargetX/Y，
+   * 等价于鼠标当前位置 - 抓握偏移）。
+   * 之所以不用 view.x / view.y：那是经 lerp 平滑后、滞后于鼠标的值，
+   * 用它会让换位判定延迟一帧，并在卡牌还在追赶鼠标时反复抖动触发。
+   */
+  onDragging?: (view: CardView, x: number, y: number) => void;
   onDragEnd?: (view: CardView) => void;
 }
 
@@ -89,6 +104,14 @@ export class CardView extends Container {
    * layoutHand 看到 true 时跳过对该牌的 Tween，避免普通重排把过弹动画踢掉。
    */
   isSelectAnimating = false;
+  /**
+   * 当前是否正在播放"拖拽换位的弹性动画"（CardFx.swapMove）。
+   * 由 CardFx.swapMove 入口设为 true，spring 阶段 onComplete 时清零。
+   * layoutHand 看到 true 且本帧未再次出现在 swapFor 中时，会跳过对该牌的常规重排，
+   * 避免后续 onDragging 帧用 moveToWithOvershoot 打断未完成的 rise，丢失 spring 弹性。
+   * 当 layoutHand 的 opts.force = true 时（手牌数量变化等强制对齐场景）会无视此标志。
+   */
+  isSwapAnimating = false;
 
   // 当前卡牌在手牌数组中的索引（0 = 最左）。由 GameController.layoutHand() 每次重排时写入。
   // 用于"鼠标悬停伪3D倾斜"按位置插值卡牌强度（最左 vs 最右）。未参与布局时默认 0。
@@ -1076,6 +1099,10 @@ export class CardView extends Container {
 
       this.dragTargetX = newTargetX;
       this.dragTargetY = newTargetY;
+
+      // 通知上层（GameController）：拖拽位置已更新一次。
+      // 传 dragTarget 而非 this.x —— 详见 CardViewCallbacks.onDragging 注释。
+      this.callbacks.onDragging?.(this, newTargetX, newTargetY);
     }
   }
 

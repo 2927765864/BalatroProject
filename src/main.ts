@@ -91,8 +91,9 @@ async function bootstrap(): Promise<void> {
       }
 
       // 手牌摆放参数（间距 / 弧形 / 扇形旋转）：只需重新摆位，不需重绘卡牌。
+      // force:true 跳过 swap 弹性豁免，调参需要立即在所有牌上生效。
       if (key === "*" || key.startsWith("handLayout.")) {
-        game.layoutHand();
+        game.layoutHand({ force: true });
       }
 
       // 选中弹起像素改值：当前已选中牌的 y 是上次 layoutHand 写好的旧值，
@@ -100,7 +101,7 @@ async function bootstrap(): Promise<void> {
       // 其余 selectMove 参数（时长/曲线/过弹/刚度）只影响下次触发的动画，
       // 即时读 CONFIG 即可，不需要主动 apply。
       if (key === "*" || key === "cardVisuals.selectRiseY") {
-        game.layoutHand();
+        game.layoutHand({ force: true });
       }
     },
   });

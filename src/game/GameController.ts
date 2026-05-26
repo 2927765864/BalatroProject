@@ -124,7 +124,8 @@ export class GameController {
   private drawToFull(): void {
     const need = GameConfig.rules.handSize - this.store.getState().hand.length;
     if (need <= 0) {
-      this.layoutHand();
+      // 手牌数量校正路径：force 强制对齐，避免极端情况下豁免 swap 弹性导致错位。
+      this.layoutHand({ force: true });
       return;
     }
     const drawn = this.deck.draw(need);
@@ -146,7 +147,8 @@ export class GameController {
     }
     this.store.setState({ hand: newHand });
     this.hud.deckView.setCount(this.deck.size);
-    this.layoutHand();
+    // 抽牌后：手牌数量变化，必须强制对齐（force），不豁免任何"正在弹性"的牌。
+    this.layoutHand({ force: true });
   }
 
   private getOrCreateView(data: CardData): CardView {
@@ -162,6 +164,9 @@ export class GameController {
           this.tween.killOf(view);
           view.zIndex = 9999;
           view.isReturning = false;
+        },
+        onDragging: (view, x, _y) => {
+          this.reorderHandWhileDragging(view, x);
         },
         onDragEnd: (view) => {
           // 选中状态完全由 toggleSelection 翻转，慢点击/拖拽松手不会改动 view.selected，
@@ -180,8 +185,18 @@ export class GameController {
    * 重新计算并应用手牌摆位。
    *
    * 公开访问以便 ControlPanel 调整 handLayout.* 参数后能立即触发重排。
+   *
+   * @param opts.swapFor 可选——本次重排是「手动理牌换位」触发的，集合中的 CardView
+   *                     是被让位的相邻牌，应走 CardFx.swapMove（rise + 过冲 + spring）
+   *                     而非默认的 moveToWithOvershoot（距离驱动归位手感）。
+   *                     不在集合中、且未被 isDragging/isSelectAnimating 跳过的牌仍走
+   *                     moveToWithOvershoot，保证发牌/松手归位等其它场景行为不变。
+   * @param opts.force   可选——true 时无视 view.isSwapAnimating 的豁免，对所有牌强制
+   *                     重排。用于"手牌数量变化"等必须立刻整齐对齐的场景（抽牌、出牌、
+   *                     弃牌、回合重置等）。拖拽中的 onDragging 重排不应传 true，
+   *                     否则会打断正在播放的 swap 弹性。默认 false。
    */
-  layoutHand(): void {
+  layoutHand(opts?: { swapFor?: ReadonlySet<CardView>; force?: boolean }): void {
     const hand = this.store.getState().hand;
     const slots = computeHandLayout(hand, {
       areaLeft: this.hud.handAreaLeft,
@@ -219,6 +234,25 @@ export class GameController {
         return;
       }
 
+      // 「手动理牌换位让位」分支：本次 layoutHand 由 reorderHandWhileDragging 触发，
+      // view 在被让位集合里——走专属的 CardFx.swapMove（固定时长 + 固定过冲），
+      // 不复用 moveToWithOvershoot 的距离驱动模型（短距离会被阈值短路成无过冲单段）。
+      if (opts?.swapFor?.has(view)) {
+        CardFx.swapMove(this.tween, view, slot);
+        return;
+      }
+
+      // 「swap 弹性豁免」分支：view 当前正在播放 swapMove 的 rise→spring 弹性动画，
+      // 且本帧不在 swapFor 中（说明拖拽牌已不再覆盖它）。如果继续走下面的
+      // moveToWithOvershoot，会通过 TweenManager 同字段互斥停掉 rise 阶段；而
+      // Tween.stop() 不会触发 onComplete，导致 spring 段（在 rise 的 onComplete 内
+      // lazy 调度）永远排不上——弹性效果丢失。这是"一次跨越多张牌时弹性失效"
+      // 的根因。豁免后让它自己跑完 rise→spring；最终位置已经是新 slot，不会错位。
+      // opts.force=true 时（手牌数量变化等强制对齐场景）跳过此豁免。
+      if (!opts?.force && view.isSwapAnimating) {
+        return;
+      }
+
       // 过冲反弹判定（v2：距离驱动）：
       //   过冲幅度与 rise 段时长完全由 CardFx.moveToWithOvershoot 内部按
       //   "起点 → 终点"距离自适应计算，调用方无需提供速度信息。
@@ -236,6 +270,79 @@ export class GameController {
         force,
       );
     });
+  }
+
+  /**
+   * 拖拽中手动理牌：当拖拽牌的中心 x 越过左/右邻牌的当前槽位中线时，
+   * 立即与该邻牌在 hand 数组中互换位置，并触发 layoutHand 让让位牌平滑移动到新槽位。
+   *
+   * 设计要点：
+   *   1. 判定基准用「相邻牌的 layoutX」而非「相邻牌的实时 view.x」。
+   *      layoutX 是 layoutHand 写入的、与 hand 数组顺序一一对应的目标槽位 x；
+   *      用它做基准等价于"按数组当前顺序计算的稳定槽位中线"，不会因相邻牌
+   *      还在动画途中其 view.x 漂移而出现"反复 swap 抖动"。
+   *
+   *   2. 每次 onDragging 用 while 循环允许「一次性跳多格」——快速划过 2~3 张牌
+   *      时也能跟手，不会因为单帧只换一格而残留视觉错位。
+   *
+   *   3. swap 之后立即调用 layoutHand：
+   *      - 拖拽牌本身：layoutHand 会更新它的 zIndex / handIndex / layoutX/Y/Rotation
+   *        元数据，但因 isDragging=true 会跳过 TweenManager 写位置（鼠标仍主导）。
+   *        新的 layoutX 即"松手回弹的目标点"。
+   *      - 被让位的相邻牌：layoutHand 会用 moveToWithOvershoot 自然带它过去。
+   *        相邻槽位距离正好 = cardSpacing（远小于 tweenFullOvershootDistancePx），
+   *        会走"小距离单段补间"路径，节奏顺滑。
+   *
+   *   4. 只看 x 不看 y：手牌区域是横向一字排开（带轻微弧形），换位仅由水平位置决定。
+   */
+  private reorderHandWhileDragging(view: CardView, dragX: number): void {
+    const hand = this.store.getState().hand;
+    const i = hand.indexOf(view);
+    if (i < 0) return;
+
+    let newIndex = i;
+    // 本次手势中被「跨过 / 让位」的相邻牌——它们将走 CardFx.swapMove 走利落的过冲动画，
+    // 而不是默认的 moveToWithOvershoot（短距离会被距离阈值短路为无过冲）。
+    const swapFor = new Set<CardView>();
+
+    // 向左检查：拖拽牌中心 x 是否越过左邻牌槽位中线 = (left.layoutX + view.layoutX)/2。
+    // 越过则交换，并继续向左追问新左邻；while 支持单次手势跨多格。
+    while (newIndex > 0) {
+      const left = hand[newIndex - 1]!;
+      // 当前牌的 layoutX 在数组顺序变化前不会同步刷新，所以这里用「左邻 layoutX + spacing/2」
+      // 作为中线——等价于左邻槽位与当前槽位的几何中点（spacing 恒定）。
+      const midLine = left.layoutX + GameConfig.handLayout.cardSpacing / 2;
+      if (dragX < midLine) {
+        swapFor.add(left);
+        newIndex -= 1;
+      } else {
+        break;
+      }
+    }
+
+    // 向右检查：对称逻辑。
+    while (newIndex < hand.length - 1) {
+      const right = hand[newIndex + 1]!;
+      const midLine = right.layoutX - GameConfig.handLayout.cardSpacing / 2;
+      if (dragX > midLine) {
+        swapFor.add(right);
+        newIndex += 1;
+      } else {
+        break;
+      }
+    }
+
+    if (newIndex === i) return;
+
+    // 应用换位：splice(i,1) 取出，再 splice(newIndex,0,view) 插回。
+    // 注意：当 newIndex > i 时，先删后插用同一个目标下标即可——因为删除已经
+    // 让后面元素整体左移一位，目标下标对齐"删除后的视角"。
+    const newHand = hand.slice();
+    newHand.splice(i, 1);
+    newHand.splice(newIndex, 0, view);
+    this.store.setState({ hand: newHand });
+
+    this.layoutHand({ swapFor });
   }
 
   // --- 交互 --------------------------------------------------------
@@ -269,7 +376,9 @@ export class GameController {
       view.isSelectAnimating = true;
     }
 
-    this.layoutHand();
+    // 选中/取消选中：需要其它牌立即对齐到新基线（被选中的牌弹起后腾出/腾回位置），
+    // 用 force 跳过 swap 弹性豁免，避免视觉错位。
+    this.layoutHand({ force: true });
 
     // 取出该牌经 layoutHand 写好的目标位姿，启动选中/取消选中过弹动画。
     if (useSelectFx && direction) {
@@ -382,7 +491,8 @@ export class GameController {
     for (const view of this.viewByCardId.values()) {
       view.refreshArt();
     }
-    this.layoutHand();
+    // 开发面板手动 refresh：强制对齐所有牌，不豁免正在弹性的牌。
+    this.layoutHand({ force: true });
   }
 
   private recycleSelected(): void {

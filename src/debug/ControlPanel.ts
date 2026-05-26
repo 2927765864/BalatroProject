@@ -1161,6 +1161,15 @@ export function setupControlPanel(
       });
     }
 
+    // === 卡牌换位（手动理牌）===
+    // 让位牌走 CardFx.swapMove（rise → 过冲 → spring）。与 cardOvershoot 完全独立，
+    // 因为换位距离固定 ≈ cardSpacing，无需距离/速度自适应。
+    bindSectionExpand("inp-expandHandSwap", "val-expandHandSwap", "cardVisuals.expandedSections.handSwap", "sect-handSwap-params");
+    bindToggle("inp-handSwapEnabled", "val-handSwapEnabled", "handSwap.enabled");
+    bindNumber("inp-handSwapRiseDurationMS", "val-handSwapRiseDurationMS", "handSwap.riseDurationMS", { integer: true });
+    bindNumber("inp-handSwapSpringDurationMS", "val-handSwapSpringDurationMS", "handSwap.springDurationMS", { integer: true });
+    bindNumber("inp-handSwapOvershootPx", "val-handSwapOvershootPx", "handSwap.overshootPx", { digits: 1 });
+
     // 卡牌移动旋转（velocity-based tilt）：与 dragHandCard 同属"卡牌逻辑"专区。
     bindSectionExpand("inp-expandCardMoveRotation", "val-expandCardMoveRotation", "cardVisuals.expandedSections.cardMoveRotation", "sect-cardMoveRotation-params");
     bindToggle("inp-cardMoveRotationEnabled", "val-cardMoveRotationEnabled", "cardMoveRotation.enabled");

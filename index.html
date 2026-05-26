@@ -354,6 +354,49 @@
             </div>
 
             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>卡牌换位</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandHandSwap" style="color: var(--accent);">开</span>
+                <input id="inp-expandHandSwap" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+
+            <div id="sect-handSwap-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用换位过冲</span>
+                  <span id="val-handSwapEnabled">开</span>
+                </div>
+                <input id="inp-handSwapEnabled" type="checkbox" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>rise 段时长 (ms)</span>
+                  <span id="val-handSwapRiseDurationMS">110</span>
+                </div>
+                <input id="inp-handSwapRiseDurationMS" type="number" step="10" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>spring 段时长 (ms)</span>
+                  <span id="val-handSwapSpringDurationMS">110</span>
+                </div>
+                <input id="inp-handSwapSpringDurationMS" type="number" step="10" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>过冲幅度 (px)</span>
+                  <span id="val-handSwapOvershootPx">12.0</span>
+                </div>
+                <input id="inp-handSwapOvershootPx" type="number" step="1" min="0" max="100" />
+              </div>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>卡牌移动旋转</span>
               <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
                 <span>展开详情</span>

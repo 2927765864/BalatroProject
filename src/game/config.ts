@@ -132,6 +132,38 @@ export interface RuntimeConfig {
     dragScaleOutCurve: BezierCurveConfig;
   };
   /**
+   * 卡牌换位（手动理牌）
+   *
+   * 触发场景：玩家拖拽手牌时，拖拽牌中心 x 越过相邻牌当前槽位中线 →
+   * GameController.reorderHandWhileDragging 在 hand 数组中 splice 互换位置 →
+   * 被让位的相邻牌走此动画到新槽位。
+   *
+   * 与「归位/发牌（cardOvershoot 组 1）」和「拖拽急停（cardOvershoot 组 2）」完全独立：
+   * 换位距离总是 ≈ handLayout.cardSpacing（小且固定），无需距离/速度自适应——
+   * 固定时长 + 固定过冲幅度即可达到"利落 + 过冲 + 回弹"的视觉反馈。
+   *
+   * 动画形态（与 selectMove 同构，仅作用轴向不同）：
+   *   rise   ：当前位置 → 沿目标方向越过 overshootPx 的"过冲点"（rotation 也在此段做到位）
+   *   spring ：过冲点 → 真正落点（只动 x/y）
+   *
+   * 缓动曲线复用 cardOvershoot.tweenRiseCurve / tweenSpringCurve，
+   * 保持与归位/发牌的曲线观感一致；如果未来需要独立调整，再升级为独立曲线字段。
+   */
+  handSwap: {
+    /** 总开关。关闭后让位走单段补间，无过冲。 */
+    enabled: boolean;
+    /** rise 段时长（ms）：从当前位置加速越过目标到过冲点。建议 80~140。 */
+    riseDurationMS: number;
+    /** spring 段时长（ms）：从过冲点回弹到 target。建议 80~140。 */
+    springDurationMS: number;
+    /**
+     * 过冲幅度（像素，沿运动方向投影）。
+     * 建议不超过 handLayout.cardSpacing 的 25%（默认 spacing=65 → 不超过 16），
+     * 否则视觉上会撞到下一张牌的位置造成穿插错觉。
+     */
+    overshootPx: number;
+  };
+  /**
    * 卡牌移动旋转（velocity-based tilt）
    *
    * 物理直觉：想象一根钉子垂直于牌面插进卡牌的中上部（轴点）。当钉子带动卡牌移动时，
@@ -387,6 +419,7 @@ export interface RuntimeConfig {
       cardOps: boolean;
       cardMoveRotation: boolean;
       cardOvershoot: boolean;
+      handSwap: boolean;
     };
 
     /**
@@ -693,6 +726,12 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       p2: { x: 0.6, y: 1.0 },
     }) as BezierCurveConfig,
   }),
+  handSwap: Object.freeze({
+    enabled: true,
+    riseDurationMS: 110,
+    springDurationMS: 110,
+    overshootPx: 12,
+  }),
   cardOvershoot: Object.freeze({
     enabled: true,
     // 归位/发牌（Tween 路径，距离驱动）：
@@ -791,6 +830,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       cardOps: true,
       cardMoveRotation: true,
       cardOvershoot: true,
+      handSwap: true,
     }),
     selectMoveEnabled: true,
     selectRiseY: 30,
@@ -946,6 +986,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
         p2: { ...src.cardOvershoot.dragSpringCurve.p2 },
       } : undefined as any,
     },
+    handSwap: { ...src.handSwap },
     cardMoveRotation: { ...src.cardMoveRotation },
     cardVisuals: {
       ...src.cardVisuals,
@@ -1106,6 +1147,12 @@ export function applyConfig(source: unknown): void {
             p2: { ...(merged.cardOvershoot.dragSpringCurve?.p2 ?? {}), ...(incoming.cardOvershoot.dragSpringCurve.p2 ?? {}) },
           }
         : merged.cardOvershoot.dragSpringCurve,
+    };
+  }
+  if (incoming.handSwap) {
+    merged.handSwap = {
+      ...merged.handSwap,
+      ...incoming.handSwap,
     };
   }
   if (incoming.cardVisuals) {
@@ -1272,6 +1319,12 @@ export function applyShippingDefaults(source: unknown): void {
             p2: { ...(activeDefaultConfig.cardOvershoot.dragSpringCurve?.p2 ?? {}), ...(incoming.cardOvershoot.dragSpringCurve.p2 ?? {}) },
           }
         : activeDefaultConfig.cardOvershoot.dragSpringCurve,
+    };
+  }
+  if (incoming.handSwap) {
+    activeDefaultConfig.handSwap = {
+      ...activeDefaultConfig.handSwap,
+      ...incoming.handSwap,
     };
   }
   if (incoming.cardVisuals) {

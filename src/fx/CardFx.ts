@@ -276,6 +276,127 @@ export const CardFx = {
    * @param opts         { durationMS, curve, overshoot, stiffness }
    * @param opts.onSettle 两段都结束时回调（用于业务侧清 isSelectAnimating）。
    */
+  /**
+   * 卡牌换位动画（手动理牌让位）。
+   *
+   * 触发场景：玩家拖拽手牌越过相邻牌中线 → GameController 在 hand 数组中互换位置 →
+   * 被让位的相邻牌走此动画到新槽位。
+   *
+   * 与 moveToWithOvershoot 的区别：
+   *   - 后者按距离驱动过冲幅度、按目标平均速度自适应时长——为「归位/发牌」这类
+   *     起点距离差异巨大的场景设计；
+   *   - 让位场景的距离总是 ≈ cardSpacing（小且固定），用固定时长 + 固定过冲幅度
+   *     更利落直接，避免被 tweenReturnMinMS 下限拖沓、也避免短距离被
+   *     tweenMinOvershootDistancePx 阈值短路为单段补间没有过冲。
+   *
+   * 与 selectMove 的形态同构：
+   *   rise   : 当前位置 → 沿目标方向越过 overshootPx 的过冲点（rotation 在此段做到位）
+   *   spring : 过冲点 → 真正落点（只动 x/y，rotation 不参与回弹）
+   *
+   * 缓动复用 cardOvershoot.tweenRiseCurve / tweenSpringCurve，保持视觉风格一致。
+   *
+   * 退化路径（任一条件命中走单段补间）：
+   *   - CONFIG.handSwap.enabled === false
+   *   - overshootPx <= 0
+   *   - 起点终点几乎重合（< 1e-3）
+   *
+   * 同对象同字段被 TweenManager 自动互斥：如果用户连续左右换位，旧 swap 动画
+   * 会被新一次 swap 打断；视觉是「从当前所在位置（可能是过冲点）出发再次 swap」，
+   * 这是想要的连贯感。
+   *
+   * 配合 CardView.isSwapAnimating 标志：函数入口设为 true，最终落位（spring 完成、
+   * 或退化路径完成）时清零。GameController.layoutHand 会跳过 isSwapAnimating=true
+   * 且本帧不在 swapFor 的牌，避免后续 onDragging 帧用 moveToWithOvershoot 打断
+   * rise，导致 spring 阶段（在 rise 的 onComplete 内 lazy 调度）永远排不上。
+   * 这是修复"一次跨越多张牌时弹性丢失"的关键。
+   */
+  swapMove(
+    tm: TweenManager,
+    card: CardView,
+    target: { x: number; y: number; rotation: number }
+  ): Promise<void> {
+    const cfg = CONFIG.handSwap;
+    const overshootCfg = CONFIG.cardOvershoot;
+    const riseMS = Math.max(1, cfg?.riseDurationMS ?? 110);
+    const springMS = Math.max(1, cfg?.springDurationMS ?? 110);
+    const overshootPx = Math.max(0, cfg?.overshootPx ?? 0);
+
+    // 缓动：复用归位/发牌的两条贝塞尔曲线，曲线 disabled 时用 cubicOut 兜底。
+    const riseCurveEnabled =
+      overshootCfg?.tweenRiseCurve && overshootCfg.tweenRiseCurve.enabled !== false;
+    const riseEase: EaseFn = riseCurveEnabled
+      ? curveToEase(overshootCfg!.tweenRiseCurve)
+      : Easing.cubicOut;
+    const springCurveEnabled =
+      overshootCfg?.tweenSpringCurve && overshootCfg.tweenSpringCurve.enabled !== false;
+    const springEase: EaseFn = springCurveEnabled
+      ? curveToEase(overshootCfg!.tweenSpringCurve)
+      : Easing.cubicOut;
+
+    const dx = target.x - card.x;
+    const dy = target.y - card.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // 入口标记：本函数所有返回路径都必须最终清零（无论是直接返回还是动画完成）。
+    // 注意：如果在动画中途被另一次 swapMove 接管（TweenManager 互斥停掉旧 rise），
+    // 旧 rise 的 onComplete 不会被触发；但新 swapMove 入口会再次把它设为 true，
+    // 最终由"最新一次 swapMove"的 spring onComplete 负责清零，整体仍然平衡。
+    card.isSwapAnimating = true;
+
+    // 起点终点几乎重合：直接置位返回。
+    if (dist < 1e-3) {
+      card.x = target.x;
+      card.y = target.y;
+      card.rotation = target.rotation;
+      card.isSwapAnimating = false;
+      return Promise.resolve();
+    }
+
+    // 退化：开关关闭或过冲幅度为 0 → 单段补间。总时长 = rise + spring，
+    // 这样总播放时间与开启时一致，调参时的"总时长"观感不会突变。
+    if (!cfg?.enabled || overshootPx <= 0) {
+      return CardFx.moveTo(tm, card, target, riseMS + springMS).then(() => {
+        card.isSwapAnimating = false;
+      });
+    }
+
+    // 过冲点 = target + 单位方向向量 × overshootPx
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const overX = target.x + nx * overshootPx;
+    const overY = target.y + ny * overshootPx;
+
+    return new Promise((resolve) => {
+      // 第一段：rise 越过目标到过冲点；rotation 也在此段做到位。
+      tm.add(
+        tm
+          .create(card)
+          .to({ x: overX, y: overY, rotation: target.rotation }, riseMS)
+          .easing(riseEase)
+          .onComplete(() => {
+            // 防御：理论上让位牌不会同时被拖拽（拖拽牌是另一张），
+            // 但保留与 moveToWithOvershoot 一致的守卫，避免极端竞态下跳到错位。
+            if (card.isDragging) {
+              card.isSwapAnimating = false;
+              resolve();
+              return;
+            }
+            // 第二段：spring 回弹到真正落点（rotation 不再动）。
+            tm.add(
+              tm
+                .create(card)
+                .to({ x: target.x, y: target.y }, springMS)
+                .easing(springEase)
+                .onComplete(() => {
+                  card.isSwapAnimating = false;
+                  resolve();
+                })
+            );
+          })
+      );
+    });
+  },
+
   selectMove(
     tm: TweenManager,
     card: CardView,
