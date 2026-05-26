@@ -96,6 +96,7 @@
     "cardOvershoot": {
       "enabled": true,
       "tweenOvershootPx": 21,
+      "tweenMinOvershootPx": 6,
       "tweenSpeedRatioThreshold": 0.3,
       "tweenRiseRatio": 0.8,
       "tweenRiseCurve": {

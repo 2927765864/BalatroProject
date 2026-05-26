@@ -221,8 +221,7 @@ export class GameController {
 
       // 判定是否启用过冲反弹：
       //   1. 显式 forceOvershoot（发牌瞬间）—— 一次性标志，用后即清。
-      //   2. 否则按 view.getLastSpeed() ≥ maxSpeed × tweenSpeedRatioThreshold 触发。
-      // 拖拽刚结束的牌天然满足 (2)，普通重排（lastSpeed≈0）会被自动降级为普通 moveTo。
+      //   2. 否则按 view.getLastSpeed() 映射过冲幅度；低于最小速度比例时退化为普通 moveTo。
       const force = view.forceOvershootOnce === true;
       if (force) view.forceOvershootOnce = false;
       const speed = view.getLastSpeed();

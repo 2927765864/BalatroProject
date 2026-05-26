@@ -166,20 +166,21 @@ export interface RuntimeConfig {
    *   - tween*：作用于"归位"和"发牌"两类 Tween 路径，由 CardFx.moveToWithOvershoot 消费。
    *   - drag* ：作用于拖拽中（CardView.updateDragging）的速度模型，让急停时自然过冲。
    *
-   * 触发条件：仅当"最近一帧实际速度 ≥ dragHandCard.maxSpeed × *SpeedRatioThreshold"时
-   *           才进入过冲段；速度不达标自动降级为普通的 cubicOut / 朝目标 lerp，
-   *           避免低速归位 / 普通重排时出现不必要的小幅度抖动。
+   * 归位/发牌触发条件：最近一帧实际速度低于最小速度比例时不触发；达到最小速度比例后，
+   *                   过冲幅度随速度线性增长，最高速度使用最大过冲幅度。
    */
   cardOvershoot: {
     /** 总开关 */
     enabled: boolean;
 
     // ── 组 1：归位 / 发牌（Tween 路径） ──────────────────────────
-    /** 过冲幅度（像素，沿运动方向投影）。建议 8~30。 */
+    /** 最大过冲幅度（像素，沿运动方向投影）。最高速度时使用。建议 8~30。 */
     tweenOvershootPx: number;
+    /** 最小过冲幅度（像素）。达到最小触发速度比例时使用。 */
+    tweenMinOvershootPx: number;
     /**
-     * 触发阈值（0~1）：仅当 view.getLastSpeed() ≥ dragHandCard.maxSpeed × 此比例
-     * 时才走过冲两段补间，否则退化为普通 moveTo。
+     * 最小触发速度比例（0~1）：低于该比例不触发过冲；该比例到 1.0 之间，
+     * 过冲幅度从 tweenMinOvershootPx 线性插值到 tweenOvershootPx。
      */
     tweenSpeedRatioThreshold: number;
     /** 第一段（rise）时长占总时长的比例（0~1）。例如 0.75 表示 75% 给第一段、25% 给回弹。 */
@@ -609,8 +610,9 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
   }),
   cardOvershoot: Object.freeze({
     enabled: true,
-    // 归位/发牌（Tween 路径）：默认过冲 14px，速度比例阈值 0.5
+    // 归位/发牌（Tween 路径）：速度比例 0.5 → 6px，最高速度 → 14px
     tweenOvershootPx: 14,
+    tweenMinOvershootPx: 6,
     tweenSpeedRatioThreshold: 0.5,
     tweenRiseRatio: 0.75,
     tweenRiseCurve: Object.freeze({

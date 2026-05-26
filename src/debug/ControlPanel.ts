@@ -1214,6 +1214,7 @@ export function setupControlPanel(
     bindToggle("inp-cardOvershootEnabled", "val-cardOvershootEnabled", "cardOvershoot.enabled");
     // 组 1：归位 / 发牌
     bindNumber("inp-tweenOvershootPx", "val-tweenOvershootPx", "cardOvershoot.tweenOvershootPx", { digits: 1 });
+    bindNumber("inp-tweenMinOvershootPx", "val-tweenMinOvershootPx", "cardOvershoot.tweenMinOvershootPx", { digits: 1 });
     bindNumber("inp-tweenSpeedRatioThreshold", "val-tweenSpeedRatioThreshold", "cardOvershoot.tweenSpeedRatioThreshold", { digits: 2 });
     bindNumber("inp-tweenRiseRatio", "val-tweenRiseRatio", "cardOvershoot.tweenRiseRatio", { digits: 2 });
     bindNumber("inp-tweenSpringStiffness", "val-tweenSpringStiffness", "cardOvershoot.tweenSpringStiffness", { digits: 1 });

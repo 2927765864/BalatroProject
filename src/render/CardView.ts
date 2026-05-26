@@ -1002,12 +1002,6 @@ export class CardView extends Container {
       if (this.isMouseOver) {
         this.suppressHoverScaleUntilReenter = true;
       }
-      // 真正的"拖拽松手"：无论速度大小（长按慢拖也算），归位时都应当过冲反弹。
-      // 这是相对于"短按未拖出 = onClick"的另一分支：只要走到这里，玩家手指就已经
-      // 把卡牌拽到了距离原位较远的位置（dragMaxDistance > distanceThreshold），
-      // 视觉上理应有一次"扑回原位再轻轻弹一下"的反馈，
-      // 不应当因为松手前速度偏低就退化成普通 cubicOut。
-      this.forceOvershootOnce = true;
       this.callbacks.onDragEnd?.(this);
     }
   }

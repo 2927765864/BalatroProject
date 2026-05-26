@@ -19,6 +19,60 @@ function curveToEase(curve: BezierCurveConfig): EaseFn {
   };
 }
 
+function createReturnRiseEase(targetProgress: number): EaseFn {
+  const targetT = Math.min(0.999, Math.max(0.001, targetProgress));
+  // Reach the real slot before the proportional time, then spend the remaining
+  // time braking into the overshoot point. This avoids slowing down before home.
+  const passHomeT = Math.min(0.72, Math.max(0.05, targetT * 0.85));
+  const preSlope = targetT / passHomeT;
+  const postScale = (1 - targetT) / (1 - passHomeT);
+  const startSlope = postScale > 0 ? Math.min(1, preSlope / postScale) : 0;
+
+  return (t: number): number => {
+    const tt = t < 0 ? 0 : t > 1 ? 1 : t;
+    if (tt <= passHomeT) {
+      return (tt / passHomeT) * targetT;
+    }
+
+    const u = (tt - passHomeT) / (1 - passHomeT);
+    const u2 = u * u;
+    const u3 = u2 * u;
+    // Cubic Hermite from 0 to 1, starting with controlled speed and ending at 0 speed.
+    const brake =
+      (u3 - 2 * u2 + u) * startSlope +
+      (-2 * u3 + 3 * u2);
+    return targetT + (1 - targetT) * brake;
+  };
+}
+
+function computeTweenOvershootPx(
+  cfg: NonNullable<typeof CONFIG.cardOvershoot>,
+  maxSpeed: number,
+  currentSpeed: number,
+  forceOvershoot: boolean
+): number {
+  const maxOvershoot = Math.max(0, cfg.tweenOvershootPx ?? 0);
+  const minOvershoot = Math.min(
+    maxOvershoot,
+    Math.max(0, cfg.tweenMinOvershootPx ?? 0)
+  );
+
+  if (maxOvershoot <= 0) return 0;
+  if (forceOvershoot) return maxOvershoot;
+
+  const speedRatio = maxSpeed > 0 ? currentSpeed / maxSpeed : 0;
+  const minSpeedRatio = Math.min(
+    1,
+    Math.max(0, cfg.tweenSpeedRatioThreshold ?? 0.5)
+  );
+
+  if (speedRatio < minSpeedRatio) return 0;
+  if (minSpeedRatio >= 1) return maxOvershoot;
+
+  const t = Math.min(1, (speedRatio - minSpeedRatio) / (1 - minSpeedRatio));
+  return minOvershoot + (maxOvershoot - minOvershoot) * t;
+}
+
 /**
  * 卡牌视效集合
  *
@@ -53,9 +107,12 @@ export const CardFx = {
    * 带过冲反弹的"平滑移动到目标位姿"——moveTo 的进阶版。
    *
    * 仅当 currentSpeed ≥ dragHandCard.maxSpeed × cardOvershoot.tweenSpeedRatioThreshold
-   * （或显式 forceOvershoot=true）时启用两段动画：
+   * （或显式 forceOvershoot=true）时启用两段动画；过冲幅度按速度比例线性映射：
+   *   min speed ratio → tweenMinOvershootPx
+   *   1.0             → tweenOvershootPx
+   * 未达到最小速度比例时降级为普通 moveTo。
    *   第一段（rise）：起点 → 沿运动方向越过终点 overshootPx 像素的过冲点，
-   *                   时长 = totalMS × tweenRiseRatio，缓动 = tweenRiseCurve（贝塞尔）。
+   *                   时长 = totalMS × tweenRiseRatio；真实终点前不减速，越过后制动。
    *   第二段（spring）：过冲点 → 真正终点，时长 = round(1000 / tweenSpringStiffness)，
    *                   缓动 = tweenSpringCurve（贝塞尔）。
    *
@@ -85,12 +142,7 @@ export const CardFx = {
     const drag = CONFIG.dragHandCard;
     const maxSpeed = drag?.maxSpeed ?? 3000;
 
-    // 触发判定：禁用 / 速度未达阈值且未强制 → 降级为普通 moveTo。
-    const threshold = (cfg?.tweenSpeedRatioThreshold ?? 0.5) * maxSpeed;
-    const trigger =
-      !!cfg?.enabled && (forceOvershoot || currentSpeed >= threshold);
-
-    if (!trigger) {
+    if (!cfg?.enabled) {
       return CardFx.moveTo(tm, card, target, totalMS);
     }
 
@@ -106,7 +158,12 @@ export const CardFx = {
       return Promise.resolve();
     }
 
-    const overshootPx = Math.max(0, cfg.tweenOvershootPx ?? 0);
+    const overshootPx = computeTweenOvershootPx(
+      cfg,
+      maxSpeed,
+      currentSpeed,
+      forceOvershoot
+    );
     // 过冲点 = 终点 + 单位方向向量 × overshoot
     const nx = dx / dist;
     const ny = dy / dist;
@@ -120,12 +177,12 @@ export const CardFx = {
     const stiffness = Math.max(0.001, cfg.tweenSpringStiffness ?? 10);
     const springMS = Math.min(2000, Math.max(1, Math.round(1000 / stiffness)));
 
-    // 缓动：曲线 disabled 时分别用 cubicOut（rise 偏减速）和 cubicOut（spring 柔和）兜底。
-    const riseCurveEnabled =
-      cfg.tweenRiseCurve && cfg.tweenRiseCurve.enabled !== false;
-    const riseEase: EaseFn = riseCurveEnabled
-      ? curveToEase(cfg.tweenRiseCurve)
-      : Easing.cubicOut;
+    const fallbackRiseEase: EaseFn =
+      cfg.tweenRiseCurve && cfg.tweenRiseCurve.enabled !== false
+        ? curveToEase(cfg.tweenRiseCurve)
+        : Easing.cubicOut;
+    // 归位第一段：到达真实原位前保持推进，越过原位后才制动到过冲点。
+    const riseEase: EaseFn = createReturnRiseEase(dist / (dist + overshootPx));
     const springCurveEnabled =
       cfg.tweenSpringCurve && cfg.tweenSpringCurve.enabled !== false;
     const springEase: EaseFn = springCurveEnabled
@@ -139,7 +196,7 @@ export const CardFx = {
           tm
             .create(card)
             .to({ x: target.x, y: target.y, rotation: target.rotation }, totalMS)
-            .easing(riseEase)
+            .easing(fallbackRiseEase)
             .onComplete(resolve)
         );
       });
