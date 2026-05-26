@@ -484,9 +484,42 @@ export class CardView extends Container {
     this.shadowGraphics.roundRect(0, 0, width, height, cornerRadius);
     this.shadowGraphics.fill({ color: shadowConf.color });
 
-    // 计算阴影位置
-    const cx = this.x;
-    const cy = this.y;
+    // ─────────────────────────────────────────────────────────────────────
+    // 取卡牌"真实视觉位姿"（外层 CardView + 内层 displayWrapper 的叠加）。
+    //
+    // 单纯使用 this.rotation / this.x / this.y 只能反映外层位姿，
+    // 而 wobble / hoverWobble / velocityRotation / 呼吸晃动等所有实时动效
+    // 都叠加在 displayWrapper 上（见 applyVisuals 末尾），不同步会导致：
+    //   - 卡牌"运动拖尾旋转"时阴影还在按 layoutRotation 渲染；
+    //   - 呼吸/hover 抖动时阴影完全不动。
+    //
+    // 调用时机：GameController 每帧先调 child.update(dtMS)（其末尾会写好
+    // displayWrapper.rotation/position），再调 child.updateShadow()——所以
+    // 这里读 displayWrapper 是"最新一帧"的。
+    // ─────────────────────────────────────────────────────────────────────
+    const wrapper = this.displayWrapper;
+    // displayWrapper 的内层旋转（wobble + hoverWobble + velocityRotation）
+    const innerRot = wrapper ? wrapper.rotation : 0;
+    // displayWrapper 在 CardView 本地坐标里相对"默认中心 (W/2, H/2)"的位移
+    // （包含 breathingY + hoverBreathingY + pivotComp）
+    const innerLocalOffsetX = wrapper ? wrapper.position.x - width / 2 : 0;
+    const innerLocalOffsetY = wrapper ? wrapper.position.y - height / 2 : 0;
+
+    // 卡牌真实视觉旋转角（用于阴影自身姿态）
+    const visualRot = this.rotation + innerRot;
+
+    // 将 displayWrapper 的"本地位移"经外层 CardView 的 rotation/scale 变换到世界系
+    // 得到"卡牌视觉中心相对 layout 位姿的世界系偏移"
+    const cosOuter = Math.cos(this.rotation);
+    const sinOuter = Math.sin(this.rotation);
+    const innerWorldOffsetX = (innerLocalOffsetX * cosOuter - innerLocalOffsetY * sinOuter) * this.scale.x;
+    const innerWorldOffsetY = (innerLocalOffsetX * sinOuter + innerLocalOffsetY * cosOuter) * this.scale.y;
+
+    // 卡牌"视觉中心"在世界坐标系中的位置
+    const cx = this.x + innerWorldOffsetX;
+    const cy = this.y + innerWorldOffsetY;
+
+    // 计算阴影位置（从虚拟光源到卡牌中心，按 ratio 反向投影）
     const lx = shadowConf.lightX;
     const ly = shadowConf.lightY;
     const ratio = shadowConf.distanceRatio;
@@ -507,15 +540,27 @@ export class CardView extends Container {
         this.addChildAt(this.shadowGraphics, 0);
       }
 
-      // 将世界偏移转换到局部坐标（逆向旋转卡牌的 rotation）
-      const theta = this.rotation;
-      const cosT = Math.cos(-theta);
-      const sinT = Math.sin(-theta);
-      const localDx = worldDx * cosT - worldDy * sinT;
-      const localDy = worldDx * sinT + worldDy * cosT;
+      // 拖拽态阴影挂在 CardView 自身下：父级 CardView 已自动带它经过 this.rotation
+      // 与 this.scale 的变换，但 displayWrapper 的内层 rotation 不会自动传给它。
+      // 思路：让阴影自己再补一份 innerRot 的旋转，并把世界偏移逆变换到 CardView 局部。
 
-      this.shadowGraphics.position.set(width / 2 + localDx, height / 2 + localDy);
-      this.shadowGraphics.rotation = 0;
+      // 1) 把世界偏移逆向旋转/缩放到 CardView 局部坐标
+      //    注意：外层 scale 可能不是 1（hover/drag 缩放），需要除掉避免阴影过大或过小
+      const sx = this.scale.x || 1;
+      const sy = this.scale.y || 1;
+      const invCos = Math.cos(-this.rotation);
+      const invSin = Math.sin(-this.rotation);
+      const localDx = (worldDx * invCos - worldDy * invSin) / sx;
+      const localDy = (worldDx * invSin + worldDy * invCos) / sy;
+
+      // 2) 同样把 displayWrapper 的本地偏移也加上——它已经在 CardView 本地坐标里了
+      //    （wrapper.position 就是相对 CardView 的 local position），直接累加即可
+      this.shadowGraphics.position.set(
+        width / 2 + innerLocalOffsetX + localDx,
+        height / 2 + innerLocalOffsetY + localDy,
+      );
+      // 3) 阴影自身只需补 innerRot：外层 this.rotation 由父级带，外层 scale 同理
+      this.shadowGraphics.rotation = innerRot;
       this.shadowGraphics.scale.set(shadowConf.scaleRatio);
       this.shadowGraphics.alpha = shadowConf.alpha;
     } else {
@@ -527,9 +572,9 @@ export class CardView extends Container {
         this.shadowContainer.addChild(this.shadowGraphics);
       }
 
-      // 处于独立的层级中，因此我们需要使用其在父容器下的绝对位姿
+      // 常态阴影在独立层级中，需要直接把"卡牌视觉位姿"写到阴影自己身上
       this.shadowGraphics.position.set(cx + worldDx, cy + worldDy);
-      this.shadowGraphics.rotation = this.rotation;
+      this.shadowGraphics.rotation = visualRot;
       this.shadowGraphics.scale.set(this.scale.x * shadowConf.scaleRatio, this.scale.y * shadowConf.scaleRatio);
       this.shadowGraphics.alpha = shadowConf.alpha;
       this.shadowGraphics.pivot.set(width / 2, height / 2);
