@@ -461,7 +461,7 @@
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>最大过冲幅度（像素，最高速度）</span>
+                  <span>最大过冲幅度（像素，距离饱和时）</span>
                   <span id="val-tweenOvershootPx">14.0</span>
                 </div>
                 <input id="inp-tweenOvershootPx" type="number" step="1" min="0" max="100" />
@@ -469,7 +469,7 @@
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>最小过冲幅度（像素，触发速度）</span>
+                  <span>最小过冲幅度（像素，距离刚达阈值时）</span>
                   <span id="val-tweenMinOvershootPx">6.0</span>
                 </div>
                 <input id="inp-tweenMinOvershootPx" type="number" step="1" min="0" max="100" />
@@ -477,15 +477,55 @@
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>最小触发速度比例（× maxSpeed）</span>
+                  <span>触发过冲的最小距离（像素）</span>
+                  <span id="val-tweenMinOvershootDistancePx">30.0</span>
+                </div>
+                <input id="inp-tweenMinOvershootDistancePx" type="number" step="2" min="0" max="500" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>过冲幅度饱和距离（像素）</span>
+                  <span id="val-tweenFullOvershootDistancePx">280.0</span>
+                </div>
+                <input id="inp-tweenFullOvershootDistancePx" type="number" step="10" min="20" max="1500" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>归位目标平均速度（px/s）</span>
+                  <span id="val-tweenReturnAvgSpeed">1400</span>
+                </div>
+                <input id="inp-tweenReturnAvgSpeed" type="number" step="50" min="200" max="6000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>rise 时长下限（ms）</span>
+                  <span id="val-tweenReturnMinMS">140</span>
+                </div>
+                <input id="inp-tweenReturnMinMS" type="number" step="10" min="20" max="1000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>rise 时长上限（ms）</span>
+                  <span id="val-tweenReturnMaxMS">420</span>
+                </div>
+                <input id="inp-tweenReturnMaxMS" type="number" step="10" min="50" max="2000" />
+              </div>
+
+              <div class="panel-row" style="opacity: 0.7;">
+                <div class="panel-row-header">
+                  <span>高速判定比例（× maxSpeed，仅组 2 急停用）</span>
                   <span id="val-tweenSpeedRatioThreshold">0.50</span>
                 </div>
                 <input id="inp-tweenSpeedRatioThreshold" type="number" step="0.05" min="0" max="1.0" />
               </div>
 
-              <div class="panel-row">
+              <div class="panel-row" style="opacity: 0.4;">
                 <div class="panel-row-header">
-                  <span>第一段时长占比 (0~1)</span>
+                  <span>[已弃用] 第一段时长占比（已被距离/平均速度模型替代）</span>
                   <span id="val-tweenRiseRatio">0.75</span>
                 </div>
                 <input id="inp-tweenRiseRatio" type="number" step="0.05" min="0.1" max="0.95" />

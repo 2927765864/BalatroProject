@@ -19,36 +19,22 @@ function curveToEase(curve: BezierCurveConfig): EaseFn {
   };
 }
 
-function createReturnRiseEase(targetProgress: number): EaseFn {
-  const targetT = Math.min(0.999, Math.max(0.001, targetProgress));
-  // Reach the real slot before the proportional time, then spend the remaining
-  // time braking into the overshoot point. This avoids slowing down before home.
-  const passHomeT = Math.min(0.72, Math.max(0.05, targetT * 0.85));
-  const preSlope = targetT / passHomeT;
-  const postScale = (1 - targetT) / (1 - passHomeT);
-  const startSlope = postScale > 0 ? Math.min(1, preSlope / postScale) : 0;
-
-  return (t: number): number => {
-    const tt = t < 0 ? 0 : t > 1 ? 1 : t;
-    if (tt <= passHomeT) {
-      return (tt / passHomeT) * targetT;
-    }
-
-    const u = (tt - passHomeT) / (1 - passHomeT);
-    const u2 = u * u;
-    const u3 = u2 * u;
-    // Cubic Hermite from 0 to 1, starting with controlled speed and ending at 0 speed.
-    const brake =
-      (u3 - 2 * u2 + u) * startSlope +
-      (-2 * u3 + 3 * u2);
-    return targetT + (1 - targetT) * brake;
-  };
-}
-
+/**
+ * 距离驱动的过冲幅度计算。
+ *
+ * 物理直觉：把"卡牌当前位置 → layout 目标"这段距离视为一根被拉伸的弹簧的形变量。
+ * 形变越大，松开后弹回去越过头；形变小到一定程度（< minDist），可以视为无弹性形变，
+ * 不再过冲。形变达到/超过 fullDist 时，弹性能量已经"打到上限"，过冲幅度饱和。
+ *
+ * 该模型完全用"距离"作为输入，与速度无关——既泛用（不依赖采样链稳定性），
+ * 又自然契合物理直觉（甩得远 → 弹得明显；微调 → 不弹）。
+ *
+ * forceOvershoot=true 时直接返回最大幅度（保留给"未来需要强制过冲"的场景；
+ * 但新模型下发牌瞬移因距离极大也会自然得到满额，所以一般不再需要）。
+ */
 function computeTweenOvershootPx(
   cfg: NonNullable<typeof CONFIG.cardOvershoot>,
-  maxSpeed: number,
-  currentSpeed: number,
+  distance: number,
   forceOvershoot: boolean
 ): number {
   const maxOvershoot = Math.max(0, cfg.tweenOvershootPx ?? 0);
@@ -60,16 +46,13 @@ function computeTweenOvershootPx(
   if (maxOvershoot <= 0) return 0;
   if (forceOvershoot) return maxOvershoot;
 
-  const speedRatio = maxSpeed > 0 ? currentSpeed / maxSpeed : 0;
-  const minSpeedRatio = Math.min(
-    1,
-    Math.max(0, cfg.tweenSpeedRatioThreshold ?? 0.5)
-  );
+  const minDist = Math.max(0, cfg.tweenMinOvershootDistancePx ?? 30);
+  const fullDist = Math.max(minDist + 1, cfg.tweenFullOvershootDistancePx ?? 280);
 
-  if (speedRatio < minSpeedRatio) return 0;
-  if (minSpeedRatio >= 1) return maxOvershoot;
+  if (distance < minDist) return 0;
+  if (distance >= fullDist) return maxOvershoot;
 
-  const t = Math.min(1, (speedRatio - minSpeedRatio) / (1 - minSpeedRatio));
+  const t = (distance - minDist) / (fullDist - minDist);
   return minOvershoot + (maxOvershoot - minOvershoot) * t;
 }
 
@@ -106,17 +89,25 @@ export const CardFx = {
   /**
    * 带过冲反弹的"平滑移动到目标位姿"——moveTo 的进阶版。
    *
-   * 仅当 currentSpeed ≥ dragHandCard.maxSpeed × cardOvershoot.tweenSpeedRatioThreshold
-   * （或显式 forceOvershoot=true）时启用两段动画；过冲幅度按速度比例线性映射：
-   *   min speed ratio → tweenMinOvershootPx
-   *   1.0             → tweenOvershootPx
-   * 未达到最小速度比例时降级为普通 moveTo。
-   *   第一段（rise）：起点 → 沿运动方向越过终点 overshootPx 像素的过冲点，
-   *                   时长 = totalMS × tweenRiseRatio；真实终点前不减速，越过后制动。
-   *   第二段（spring）：过冲点 → 真正终点，时长 = round(1000 / tweenSpringStiffness)，
-   *                   缓动 = tweenSpringCurve（贝塞尔）。
+   * 【模型 v2：距离驱动的过冲 + 目标平均速度自适应时长】
    *
-   * 不满足触发条件时直接降级为普通 moveTo（cubicOut），保证低速归位/普通重排不抖。
+   * 过冲幅度（overshootPx）：
+   *   仅由 dist = |card → target| 决定（不再用速度），与速度采样链彻底解耦：
+   *     dist < tweenMinOvershootDistancePx：不过冲，走单段 moveTo
+   *     dist 在 [minDist, fullDist] 之间：tweenMinOvershootPx → tweenOvershootPx 线性插值
+   *     dist ≥ tweenFullOvershootDistancePx：tweenOvershootPx 满额
+   *   forceOvershoot=true 仍能强制满额（兼容旧 API；但通常不再需要——发牌时
+   *   "屏幕外瞬移过来"距离极大，自然会得到满额过冲）。
+   *
+   * rise 段时长（riseMS）：
+   *   自适应：riseMS = clamp(dist / tweenReturnAvgSpeed * 1000, tweenReturnMinMS, tweenReturnMaxMS)
+   *   语义：保持视觉"该牌归位的速度感"恒定（≈ tweenReturnAvgSpeed），与起点距离解耦——
+   *   彻底解决"快速甩牌释放时归位速度过高 / 定住释放时归位速度正常"的体验落差。
+   *   入参 totalMS 仅作为"调用方语义提示"，实际不参与 rise 时长计算（保留参数兼容签名）。
+   *
+   * 第二段（spring 弹簧回弹）：
+   *   过冲点 → 真正终点。时长 = round(1000 / tweenSpringStiffness)（与 selectMove 同公式），
+   *   缓动 = tweenSpringCurve；仅当 overshootPx > 0 时存在。
    *
    * 与 selectMove 同构：两段补间用 TweenManager 同对象-同字段互斥即可衔接，
    * 第一段 onComplete 时若 view 已经再次被拖拽（isDragging=true）则不调度第二段。
@@ -124,26 +115,31 @@ export const CardFx = {
    * @param tm           TweenManager
    * @param card         目标 CardView
    * @param target       最终落点位姿（layoutX/Y/Rotation）
-   * @param totalMS      总时长（与原 moveTo 同义；第一段会按 tweenRiseRatio 占其一部分）
-   * @param currentSpeed 触发判定用的当前速度，单位 px/s（由调用方传入，
-   *                     通常取 view.getLastSpeed()）
-   * @param forceOvershoot 强制走过冲路径（如发牌：此时 view 速度可能尚未稳定，
-   *                       但语义上是"从远处快速进场"，应当过冲）。默认 false。
+   * @param totalMS      已废弃：保留以兼容旧调用方；新模型 rise 段时长由距离 + 目标平均速度自适应。
+   * @param currentSpeed 已废弃：保留以兼容旧调用方；新模型不再消费速度。
+   * @param forceOvershoot 强制满额过冲（如发牌：保留以兼容旧 API；通常不再需要）。默认 false。
    */
   moveToWithOvershoot(
     tm: TweenManager,
     card: CardView,
     target: { x: number; y: number; rotation: number },
-    totalMS = 280,
-    currentSpeed = 0,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _totalMS = 280,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _currentSpeed = 0,
     forceOvershoot = false
   ): Promise<void> {
     const cfg = CONFIG.cardOvershoot;
-    const drag = CONFIG.dragHandCard;
-    const maxSpeed = drag?.maxSpeed ?? 3000;
 
     if (!cfg?.enabled) {
-      return CardFx.moveTo(tm, card, target, totalMS);
+      // 关闭过冲总开关时退化为普通 moveTo，但仍按"距离/目标速度"自适应时长，
+      // 保证关闭过冲后的归位速度感与开启时一致。
+      const fallbackDist = Math.hypot(target.x - card.x, target.y - card.y);
+      const avgSpeed = Math.max(1, cfg?.tweenReturnAvgSpeed ?? 1400);
+      const minMS = Math.max(1, cfg?.tweenReturnMinMS ?? 140);
+      const maxMS = Math.max(minMS, cfg?.tweenReturnMaxMS ?? 420);
+      const adaptiveMS = Math.min(maxMS, Math.max(minMS, (fallbackDist / avgSpeed) * 1000));
+      return CardFx.moveTo(tm, card, target, adaptiveMS);
     }
 
     const dx = target.x - card.x;
@@ -158,20 +154,22 @@ export const CardFx = {
       return Promise.resolve();
     }
 
-    const overshootPx = computeTweenOvershootPx(
-      cfg,
-      maxSpeed,
-      currentSpeed,
-      forceOvershoot
-    );
+    const overshootPx = computeTweenOvershootPx(cfg, dist, forceOvershoot);
+
+    // rise 时长：按"目标平均速度 + 上下限"自适应。
+    // 理论意义：让任何距离的归位都呈现接近 tweenReturnAvgSpeed 的视觉速度感，
+    // 既根除"远距离瞬移、近距离拖沓"的体验落差，又通过上下限 clamp 防止极端值。
+    const avgSpeed = Math.max(1, cfg.tweenReturnAvgSpeed ?? 1400);
+    const minMS = Math.max(1, cfg.tweenReturnMinMS ?? 140);
+    const maxMS = Math.max(minMS, cfg.tweenReturnMaxMS ?? 420);
+    const naturalMS = (dist / avgSpeed) * 1000;
+    const riseMS = Math.min(maxMS, Math.max(minMS, naturalMS));
+
     // 过冲点 = 终点 + 单位方向向量 × overshoot
     const nx = dx / dist;
     const ny = dy / dist;
     const overX = target.x + nx * overshootPx;
     const overY = target.y + ny * overshootPx;
-
-    const riseRatio = Math.min(1, Math.max(0, cfg.tweenRiseRatio ?? 0.75));
-    const riseMS = Math.max(1, Math.round(totalMS * riseRatio));
 
     // 弹簧回弹时长 = round(1000 / stiffness)，与 selectMove 同公式。
     const stiffness = Math.max(0.001, cfg.tweenSpringStiffness ?? 10);
@@ -181,21 +179,20 @@ export const CardFx = {
       cfg.tweenRiseCurve && cfg.tweenRiseCurve.enabled !== false
         ? curveToEase(cfg.tweenRiseCurve)
         : Easing.cubicOut;
-    // 归位第一段：到达真实原位前保持推进，越过原位后才制动到过冲点。
-    const riseEase: EaseFn = createReturnRiseEase(dist / (dist + overshootPx));
+    const riseEase: EaseFn = fallbackRiseEase;
     const springCurveEnabled =
       cfg.tweenSpringCurve && cfg.tweenSpringCurve.enabled !== false;
     const springEase: EaseFn = springCurveEnabled
       ? curveToEase(cfg.tweenSpringCurve)
       : Easing.cubicOut;
 
-    // 过冲幅度为 0：直接走单段补间，省一次 tween。
+    // 过冲幅度为 0（距离不足触发或配置为 0）：直接走单段补间，省一次 tween。
     if (overshootPx <= 0) {
       return new Promise((resolve) => {
         tm.add(
           tm
             .create(card)
-            .to({ x: target.x, y: target.y, rotation: target.rotation }, totalMS)
+            .to({ x: target.x, y: target.y, rotation: target.rotation }, riseMS)
             .easing(fallbackRiseEase)
             .onComplete(resolve)
         );

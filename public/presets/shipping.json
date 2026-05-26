@@ -95,10 +95,15 @@
     },
     "cardOvershoot": {
       "enabled": true,
-      "tweenOvershootPx": 21,
-      "tweenMinOvershootPx": 6,
-      "tweenSpeedRatioThreshold": 0.3,
-      "tweenRiseRatio": 0.8,
+      "tweenOvershootPx": 60,
+      "tweenMinOvershootPx": 10,
+      "tweenMinOvershootDistancePx": 30,
+      "tweenFullOvershootDistancePx": 1000,
+      "tweenReturnAvgSpeed": 2500,
+      "tweenReturnMinMS": 88,
+      "tweenReturnMaxMS": 420,
+      "tweenSpeedRatioThreshold": 0.1,
+      "tweenRiseRatio": 0.5,
       "tweenRiseCurve": {
         "enabled": true,
         "startScale": 0,
@@ -112,7 +117,7 @@
           "y": 1
         }
       },
-      "tweenSpringStiffness": 10,
+      "tweenSpringStiffness": 15,
       "tweenSpringCurve": {
         "enabled": true,
         "startScale": 0,
@@ -156,7 +161,7 @@
           "y": 1
         }
       },
-      "dragQuietTriggerMS": 45,
+      "dragQuietTriggerMS": 0,
       "dragTriggerCooldownMS": 180,
       "dragLowSpeedRatio": 0.6,
       "dragCancelDistancePx": 40,
@@ -576,7 +581,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "5"
             }
           }
         ]
@@ -620,7 +625,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "1"
             }
           }
         ]
@@ -642,7 +647,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "牌型: 无"
+              "text": "牌型: 高牌"
             }
           }
         ]
@@ -664,7 +669,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "本次预期: 0"
+              "text": "本次预期: 8"
             }
           }
         ]

@@ -174,16 +174,57 @@ export interface RuntimeConfig {
     enabled: boolean;
 
     // ── 组 1：归位 / 发牌（Tween 路径） ──────────────────────────
-    /** 最大过冲幅度（像素，沿运动方向投影）。最高速度时使用。建议 8~30。 */
+    //
+    // 【模型】距离驱动的过冲幅度 + 目标平均速度自适应时长。
+    //
+    // 过去版本以"释放瞬间卡牌速度"作为过冲幅度的输入，但快速甩牌时
+    // 卡牌实际位置滞后于鼠标，"卡牌位置→layout 目标"距离一定很大；
+    // 而定住释放时距离很小。距离差异天然区分了"重弹/轻弹/不弹"语义，
+    // 比速度更稳定（速度受 lerp、ticker 节流、ease 形状影响）且更符合
+    // 物理直觉：远距离归位 = 弹簧拉得远 = 弹回来的过冲也大。
+    //
+    // 时长（rise 段）则按"目标平均速度 + 上下限"自适应——保证不同
+    // 释放距离下"该牌归位的速度感"始终一致，避免远距离归位"嗖"地
+    // 飞回去、近距离归位拖拖拉拉的体验失衡。
+
+    /** 距离 ≥ tweenFullOvershootDistancePx 时使用的最大过冲幅度（像素，沿运动方向投影）。建议 8~30。 */
     tweenOvershootPx: number;
-    /** 最小过冲幅度（像素）。达到最小触发速度比例时使用。 */
+    /** 距离 = tweenMinOvershootDistancePx 时使用的最小过冲幅度（像素）。建议 2~10。 */
     tweenMinOvershootPx: number;
     /**
-     * 最小触发速度比例（0~1）：低于该比例不触发过冲；该比例到 1.0 之间，
-     * 过冲幅度从 tweenMinOvershootPx 线性插值到 tweenOvershootPx。
+     * 触发过冲所需的最小起点距离（像素）。
+     * 释放瞬间 |card → layoutTarget| < 此值时，认为是"轻微归位"，不触发过冲，
+     * 直接走单段 moveTo。建议 16~60。
+     */
+    tweenMinOvershootDistancePx: number;
+    /**
+     * 过冲幅度饱和距离（像素）：距离 ≥ 此值时使用 tweenOvershootPx 满额过冲。
+     * tweenMinOvershootDistancePx ~ 此值之间，过冲幅度从 tweenMinOvershootPx
+     * 线性插值到 tweenOvershootPx。建议 180~400（≈ 卡牌甩到屏幕半幅的距离）。
+     * 必须 > tweenMinOvershootDistancePx，否则插值退化。
+     */
+    tweenFullOvershootDistancePx: number;
+    /**
+     * 归位目标平均速度（px/s）：rise 段时长 = 距离 / 此值，从而无论
+     * 释放距离远近，视觉"归位速度"都接近该值。
+     * 建议 800~2000。值越大，归位越急；越小越温吞。
+     */
+    tweenReturnAvgSpeed: number;
+    /** rise 段时长下限（ms）：自适应时长被 clamp 到这个下限，避免极短距离瞬移。建议 100~180。 */
+    tweenReturnMinMS: number;
+    /** rise 段时长上限（ms）：自适应时长被 clamp 到这个上限，避免极远距离拖沓。建议 360~600。 */
+    tweenReturnMaxMS: number;
+    /**
+     * 【已弃用】最小触发速度比例（0~1）。
+     * 组 1（归位/发牌）已迁移到"距离驱动"模型，不再读取此值。
+     * 仍保留是因为组 2（拖拽急停）共用此字段作为"高速判定阈值"。
      */
     tweenSpeedRatioThreshold: number;
-    /** 第一段（rise）时长占总时长的比例（0~1）。例如 0.75 表示 75% 给第一段、25% 给回弹。 */
+    /**
+     * 【已弃用】rise 段时长占比。
+     * 组 1 改为按"目标平均速度+上下限"自适应 riseMS，不再读取此值。
+     * 保留以兼容 UI 输入框；可在后续版本中彻底移除。
+     */
     tweenRiseRatio: number;
     /** 第一段（start → 过冲点）缓动曲线（贝塞尔）。建议偏减速形状，便于和过冲衔接。 */
     tweenRiseCurve: BezierCurveConfig;
@@ -610,9 +651,18 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
   }),
   cardOvershoot: Object.freeze({
     enabled: true,
-    // 归位/发牌（Tween 路径）：速度比例 0.5 → 6px，最高速度 → 14px
+    // 归位/发牌（Tween 路径，距离驱动）：
+    //   距离 < 30px：不过冲
+    //   距离 30~280px：过冲幅度 6 → 14 像素线性插值
+    //   距离 ≥ 280px：14 像素满额
+    // rise 时长：距离 / 1400 px/s，clamp 到 [140, 420] ms
     tweenOvershootPx: 14,
     tweenMinOvershootPx: 6,
+    tweenMinOvershootDistancePx: 30,
+    tweenFullOvershootDistancePx: 280,
+    tweenReturnAvgSpeed: 1400,
+    tweenReturnMinMS: 140,
+    tweenReturnMaxMS: 420,
     tweenSpeedRatioThreshold: 0.5,
     tweenRiseRatio: 0.75,
     tweenRiseCurve: Object.freeze({

@@ -731,13 +731,9 @@ export class CardView extends Container {
   /**
    * 读取最近一帧的卡牌位移速度模长（px/s）。
    *
-   * 主要用途：GameController.layoutHand 在调用 CardFx.moveToWithOvershoot 时
-   * 把此值作为"是否达到过冲触发阈值"的依据——拖拽刚结束的牌，松手瞬间
-   * 速度往往很高，于是触发"两段补间过冲反弹"；普通重排速度接近 0，则降级为
-   * 普通 cubicOut moveTo，不抖。
-   *
-   * 注：每一帧的 update() 主体最早一步就更新此值，所以 layoutHand 在 update()
-   * 间隙调用时读到的就是"卡牌入帧瞬间相对前一帧入口的真实平均速度"。
+   * 当前已无外部消费者：组 1 归位过冲改为距离驱动；组 2 急停信号
+   * 直接读 pointerLastSampleSpeed。保留此函数与字段维护是为了未来的
+   * 移动旋转 / 拖尾 / 调试可视化等可能用到 "卡牌每帧速度模长" 的场景。
    */
   public getLastSpeed(): number {
     return this.lastSpeedPxPerSec;

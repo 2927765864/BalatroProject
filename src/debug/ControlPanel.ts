@@ -1215,6 +1215,13 @@ export function setupControlPanel(
     // 组 1：归位 / 发牌
     bindNumber("inp-tweenOvershootPx", "val-tweenOvershootPx", "cardOvershoot.tweenOvershootPx", { digits: 1 });
     bindNumber("inp-tweenMinOvershootPx", "val-tweenMinOvershootPx", "cardOvershoot.tweenMinOvershootPx", { digits: 1 });
+    // v2：距离驱动的过冲幅度 + 目标平均速度自适应 rise 时长
+    bindNumber("inp-tweenMinOvershootDistancePx", "val-tweenMinOvershootDistancePx", "cardOvershoot.tweenMinOvershootDistancePx", { digits: 1 });
+    bindNumber("inp-tweenFullOvershootDistancePx", "val-tweenFullOvershootDistancePx", "cardOvershoot.tweenFullOvershootDistancePx", { digits: 1 });
+    bindNumber("inp-tweenReturnAvgSpeed", "val-tweenReturnAvgSpeed", "cardOvershoot.tweenReturnAvgSpeed", { digits: 0 });
+    bindNumber("inp-tweenReturnMinMS", "val-tweenReturnMinMS", "cardOvershoot.tweenReturnMinMS", { digits: 0 });
+    bindNumber("inp-tweenReturnMaxMS", "val-tweenReturnMaxMS", "cardOvershoot.tweenReturnMaxMS", { digits: 0 });
+    // 兼容字段：tweenSpeedRatioThreshold 仍被组 2 急停消费；tweenRiseRatio 已弃用（仅供旧 preset 加载，不再生效）
     bindNumber("inp-tweenSpeedRatioThreshold", "val-tweenSpeedRatioThreshold", "cardOvershoot.tweenSpeedRatioThreshold", { digits: 2 });
     bindNumber("inp-tweenRiseRatio", "val-tweenRiseRatio", "cardOvershoot.tweenRiseRatio", { digits: 2 });
     bindNumber("inp-tweenSpringStiffness", "val-tweenSpringStiffness", "cardOvershoot.tweenSpringStiffness", { digits: 1 });

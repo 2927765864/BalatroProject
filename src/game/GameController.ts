@@ -219,18 +219,20 @@ export class GameController {
         return;
       }
 
-      // 判定是否启用过冲反弹：
-      //   1. 显式 forceOvershoot（发牌瞬间）—— 一次性标志，用后即清。
-      //   2. 否则按 view.getLastSpeed() 映射过冲幅度；低于最小速度比例时退化为普通 moveTo。
+      // 过冲反弹判定（v2：距离驱动）：
+      //   过冲幅度与 rise 段时长完全由 CardFx.moveToWithOvershoot 内部按
+      //   "起点 → 终点"距离自适应计算，调用方无需提供速度信息。
+      //   forceOvershoot=true 仍可强制满额过冲（保留给发牌场景作为语义兼容；
+      //   实际不再必要，因为发牌的瞬移距离远大于 tweenFullOvershootDistancePx，
+      //   自然就会得到满额过冲）。
       const force = view.forceOvershootOnce === true;
       if (force) view.forceOvershootOnce = false;
-      const speed = view.getLastSpeed();
       CardFx.moveToWithOvershoot(
         this.tween,
         view,
         slot,
         GameConfig.animation.moveDurationMS,
-        speed,
+        0,
         force,
       );
     });
