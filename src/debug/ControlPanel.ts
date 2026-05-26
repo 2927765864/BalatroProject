@@ -1326,6 +1326,17 @@ export function setupControlPanel(
   void bindColor;
   void bindCycleButton;
 
+  // === 基础参数 / 切换模式 ===
+  // 该按钮不绑定任何 CONFIG 字段，而是通过 onChange 上报一个动作型 key
+  // ("action:toggleMode")，由外部（main.ts）派发到 GameController.toggleMode。
+  document.getElementById("btn-toggle-mode")?.addEventListener("click", () => {
+    try {
+      onChange("action:toggleMode", null, CONFIG);
+    } catch (err) {
+      console.error("[ControlPanel] toggle mode 派发失败：", err);
+    }
+  });
+
   setupTabs();
   setupHiddenTrigger();
   setupPanelDrag();

@@ -9,7 +9,7 @@ import { calculateScore } from "@domain/Scoring";
 import type { CardData, ScoreResult, HandTypeName } from "@domain/types";
 import { CardView, CardState } from "@render/CardView";
 import { computeHandLayout } from "@render/HandLayout";
-import { HUD } from "@ui/HUD";
+import { HUD, type HUDMode } from "@ui/HUD";
 import { uiHierarchy } from "@ui/hierarchy";
 import { CardFx } from "@fx/CardFx";
 import { GameConfig } from "./config";
@@ -498,6 +498,30 @@ export class GameController {
   }
 
   // --- 外部刷新钩子 ------------------------------------------------
+
+  /**
+   * 当前 HUD 模式。仅作只读访问；切换走 switchMode / setMode。
+   */
+  get mode(): HUDMode {
+    return this.hud ? this.hud.mode : "normal";
+  }
+
+  /**
+   * 设置 HUD 模式（normal / minimal）。变更时同步重排手牌（force 跳过 swap 豁免）。
+   * ControlPanel 的"切换模式"按钮调用 toggleMode() 间接走到这里。
+   */
+  setMode(mode: HUDMode): void {
+    if (!this.hud) return;
+    if (this.hud.mode === mode) return;
+    this.hud.setMode(mode);
+    // 模式切换后：手牌可用区域 / 基准 Y 变了，必须强制重排。
+    this.layoutHand({ force: true });
+  }
+
+  /** 在 normal / minimal 之间切换。 */
+  toggleMode(): void {
+    this.setMode(this.mode === "normal" ? "minimal" : "normal");
+  }
 
   /**
    * 让牌堆按当前 CONFIG.cardArt 重新渲染。

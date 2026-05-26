@@ -52,6 +52,12 @@ async function bootstrap(): Promise<void> {
       // 大部分参数（手牌数、动画时长、hoverLift...）都是业务每次执行时
       // 直接读 CONFIG.xxx，改完即生效。这里只处理少数需要主动通知引擎的：
 
+      // 动作型 key（不绑定 CONFIG 字段，仅作为 UI 触发的命令派发）：
+      if (key === "action:toggleMode") {
+        game.toggleMode();
+        return;
+      }
+
       // preset 整体载入：CONFIG.uiNodes 整张表被换了，需要把 hierarchy 也同步回灌。
       if (key === "*") {
         uiHierarchy.hydrateFromConfig(app.worldRoot);
