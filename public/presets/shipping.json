@@ -95,11 +95,11 @@
     },
     "cardOvershoot": {
       "enabled": true,
-      "tweenOvershootPx": 40,
+      "tweenOvershootPx": 70,
       "tweenMinOvershootPx": 10,
-      "tweenMinOvershootDistancePx": 30,
+      "tweenMinOvershootDistancePx": 124,
       "tweenFullOvershootDistancePx": 1000,
-      "tweenReturnAvgSpeed": 2500,
+      "tweenReturnAvgSpeed": 3000,
       "tweenReturnMinMS": 140,
       "tweenReturnMaxMS": 420,
       "tweenSpeedRatioThreshold": 0.1,
@@ -133,9 +133,9 @@
       },
       "dragInertiaEnabled": true,
       "dragOvershootPx": 50,
-      "dragMinOvershootPx": 20,
-      "dragOvershootMinSpeedRatio": 0.2,
-      "dragRiseDurationMS": 40,
+      "dragMinOvershootPx": 0,
+      "dragOvershootMinSpeedRatio": 0.1,
+      "dragRiseDurationMS": 20,
       "dragSpringDurationMS": 80,
       "dragRiseCurve": {
         "enabled": true,
@@ -174,6 +174,12 @@
       "dragMaxOvershootPx": 36,
       "dragConvergenceEpsilon": 5
     },
+    "handSwap": {
+      "enabled": true,
+      "riseDurationMS": 110,
+      "springDurationMS": 110,
+      "overshootPx": 12
+    },
     "cardMoveRotation": {
       "enabled": true,
       "showPivot": false,
@@ -203,8 +209,9 @@
         "hoverHit": false,
         "selectMove": false,
         "cardOps": false,
-        "cardMoveRotation": true,
-        "cardOvershoot": true,
+        "cardMoveRotation": false,
+        "cardOvershoot": false,
+        "handSwap": true,
         "mouseOffset": true
       },
       "selectMoveEnabled": true,
@@ -404,6 +411,43 @@
             "data": {
               "text": "至少得分"
             }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.5,
+              "angle": 45,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 470,
+              "cycle": 2000,
+              "loopGap": 900,
+              "amplitudeMin": 0,
+              "amplitudeMax": -6,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 0.58,
+                  "y": 1
+                }
+              }
+            }
           }
         ]
       },
@@ -425,6 +469,43 @@
             "type": "textStyle",
             "data": {
               "text": "450"
+            }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.4,
+              "angle": 45,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 80,
+              "cycle": 700,
+              "loopGap": 750,
+              "amplitudeMin": 0,
+              "amplitudeMax": -8,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 0.58,
+                  "y": 1
+                }
+              }
             }
           }
         ]
@@ -501,6 +582,43 @@
             "type": "textStyle",
             "data": {
               "text": "0"
+            }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.4,
+              "angle": 45,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 80,
+              "cycle": 700,
+              "loopGap": 200,
+              "amplitudeMin": 0,
+              "amplitudeMax": -4,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 0.58,
+                  "y": 1
+                }
+              }
             }
           }
         ]
@@ -579,14 +697,51 @@
               "x": 77.5,
               "y": 260,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 1.4,
+              "scaleY": 1.4
             }
           },
           {
             "type": "textStyle",
             "data": {
               "text": "5"
+            }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.4,
+              "angle": 45,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 580,
+              "cycle": 4000,
+              "loopGap": 0,
+              "amplitudeMin": 2,
+              "amplitudeMax": -2,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 0.58,
+                  "y": 1
+                }
+              }
             }
           }
         ]
@@ -623,14 +778,51 @@
               "x": 202.5,
               "y": 260,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 1.4,
+              "scaleY": 1.4
             }
           },
           {
             "type": "textStyle",
             "data": {
               "text": "1"
+            }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.4,
+              "angle": 45,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 580,
+              "cycle": 4000,
+              "loopGap": 0,
+              "amplitudeMin": 2,
+              "amplitudeMax": -2,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 0.58,
+                  "y": 1
+                }
+              }
             }
           }
         ]
@@ -674,7 +866,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "本次预期: 13"
+              "text": "本次预期: 16"
             }
           }
         ]
@@ -750,7 +942,20 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "4"
+              "text": "2"
+            }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.5,
+              "angle": 45,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
             }
           }
         ]
@@ -794,7 +999,20 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "3"
+              "text": "1"
+            }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.5,
+              "angle": 45,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
             }
           }
         ]
@@ -866,6 +1084,19 @@
               "scaleX": 1,
               "scaleY": 1
             }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.5,
+              "angle": 90,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
           }
         ]
       },
@@ -919,6 +1150,19 @@
               "rotation": 0,
               "scaleX": 1,
               "scaleY": 1
+            }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.5,
+              "angle": 90,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
             }
           }
         ]

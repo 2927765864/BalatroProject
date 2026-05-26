@@ -273,19 +273,24 @@ export class GameController {
   }
 
   /**
-   * 拖拽中手动理牌：当拖拽牌的中心 x 越过左/右邻牌的当前槽位中线时，
+   * 拖拽中手动理牌：当拖拽牌的「实际渲染中线 view.x」穿过左/右邻牌的「槽位中线 layoutX」时，
    * 立即与该邻牌在 hand 数组中互换位置，并触发 layoutHand 让让位牌平滑移动到新槽位。
    *
    * 设计要点：
-   *   1. 判定基准用「相邻牌的 layoutX」而非「相邻牌的实时 view.x」。
+   *   1. 拖拽牌一侧用 `view.x`（已 lerp 平滑的实际渲染位置），而非 dragTargetX。
+   *      这让"换位时机"严格对应卡片视觉中线真正滑过邻牌中线那一刻，手感明确不模糊。
+   *
+   *   2. 邻牌一侧用 `layoutX` 而非 `view.x`：
    *      layoutX 是 layoutHand 写入的、与 hand 数组顺序一一对应的目标槽位 x；
    *      用它做基准等价于"按数组当前顺序计算的稳定槽位中线"，不会因相邻牌
    *      还在动画途中其 view.x 漂移而出现"反复 swap 抖动"。
+   *      换位后邻牌的新 layoutX 立刻就位（其 view.x 还在动画途中），离当前 view.x
+   *      已是一整个 cardSpacing 的距离，天然形成滞回——不会立即反向 swap。
    *
-   *   2. 每次 onDragging 用 while 循环允许「一次性跳多格」——快速划过 2~3 张牌
+   *   3. 每次 onDragging 用 while 循环允许「一次性跳多格」——快速划过 2~3 张牌
    *      时也能跟手，不会因为单帧只换一格而残留视觉错位。
    *
-   *   3. swap 之后立即调用 layoutHand：
+   *   4. swap 之后立即调用 layoutHand：
    *      - 拖拽牌本身：layoutHand 会更新它的 zIndex / handIndex / layoutX/Y/Rotation
    *        元数据，但因 isDragging=true 会跳过 TweenManager 写位置（鼠标仍主导）。
    *        新的 layoutX 即"松手回弹的目标点"。
@@ -293,26 +298,30 @@ export class GameController {
    *        相邻槽位距离正好 = cardSpacing（远小于 tweenFullOvershootDistancePx），
    *        会走"小距离单段补间"路径，节奏顺滑。
    *
-   *   4. 只看 x 不看 y：手牌区域是横向一字排开（带轻微弧形），换位仅由水平位置决定。
+   *   5. 只看 x 不看 y：手牌区域是横向一字排开（带轻微弧形），换位仅由水平位置决定。
+   *
+   *   注：参数 _dragX 保留是为了不改 onDragging 调用方签名，便于日后切回"跟手目标位置"
+   *   作为判定基准。当前实现不使用它。
    */
-  private reorderHandWhileDragging(view: CardView, dragX: number): void {
+  private reorderHandWhileDragging(view: CardView, _dragX: number): void {
     const hand = this.store.getState().hand;
     const i = hand.indexOf(view);
     if (i < 0) return;
+
+    // 拖拽牌中线 = 实际渲染位置 view.x（已 lerp 平滑）。
+    // 含义："卡片真正滑过邻牌中线"才换位，手感清晰、不模糊。
+    const dragCenter = view.x;
 
     let newIndex = i;
     // 本次手势中被「跨过 / 让位」的相邻牌——它们将走 CardFx.swapMove 走利落的过冲动画，
     // 而不是默认的 moveToWithOvershoot（短距离会被距离阈值短路为无过冲）。
     const swapFor = new Set<CardView>();
 
-    // 向左检查：拖拽牌中心 x 是否越过左邻牌槽位中线 = (left.layoutX + view.layoutX)/2。
+    // 向左检查：拖拽牌中线 view.x 穿过左邻牌槽位中线 left.layoutX 时换位。
     // 越过则交换，并继续向左追问新左邻；while 支持单次手势跨多格。
     while (newIndex > 0) {
       const left = hand[newIndex - 1]!;
-      // 当前牌的 layoutX 在数组顺序变化前不会同步刷新，所以这里用「左邻 layoutX + spacing/2」
-      // 作为中线——等价于左邻槽位与当前槽位的几何中点（spacing 恒定）。
-      const midLine = left.layoutX + GameConfig.handLayout.cardSpacing / 2;
-      if (dragX < midLine) {
+      if (dragCenter < left.layoutX) {
         swapFor.add(left);
         newIndex -= 1;
       } else {
@@ -323,8 +332,7 @@ export class GameController {
     // 向右检查：对称逻辑。
     while (newIndex < hand.length - 1) {
       const right = hand[newIndex + 1]!;
-      const midLine = right.layoutX - GameConfig.handLayout.cardSpacing / 2;
-      if (dragX > midLine) {
+      if (dragCenter > right.layoutX) {
         swapFor.add(right);
         newIndex += 1;
       } else {
