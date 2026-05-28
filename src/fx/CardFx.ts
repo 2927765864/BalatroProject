@@ -82,6 +82,7 @@ export const CardFx = {
           .to(target, durationMS)
           .easing(Easing.cubicOut)
           .onComplete(resolve)
+          .onStop(resolve)
       );
     });
   },
@@ -195,6 +196,7 @@ export const CardFx = {
             .to({ x: target.x, y: target.y, rotation: target.rotation }, riseMS)
             .easing(fallbackRiseEase)
             .onComplete(resolve)
+            .onStop(resolve)
         );
       });
     }
@@ -206,6 +208,7 @@ export const CardFx = {
           .create(card)
           .to({ x: overX, y: overY, rotation: target.rotation }, riseMS)
           .easing(riseEase)
+          .onStop(resolve)
           .onComplete(() => {
             // 防御：第一段播放期间用户可能又抓住卡牌再次拖拽——
             // 此时 onDragStart 已经 killOf(view)，第一段会被 stop 而不触发 onComplete。
@@ -221,6 +224,7 @@ export const CardFx = {
                 .to({ x: target.x, y: target.y }, springMS)
                 .easing(springEase)
                 .onComplete(resolve)
+                .onStop(resolve)
             );
           })
       );
