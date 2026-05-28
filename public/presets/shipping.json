@@ -176,9 +176,9 @@
     },
     "handSwap": {
       "enabled": true,
-      "riseDurationMS": 70,
+      "riseDurationMS": 60,
       "springDurationMS": 50,
-      "overshootPx": 27
+      "overshootPx": 28
     },
     "cardMoveRotation": {
       "enabled": true,
