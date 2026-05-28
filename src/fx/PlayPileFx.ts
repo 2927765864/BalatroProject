@@ -1,6 +1,7 @@
 import type { CardView } from "@render/CardView";
 import type { TweenManager } from "@tween/TweenManager";
 import { Easing } from "@tween/Easing";
+import { CONFIG } from "@game/config";
 import { CardFx } from "./CardFx";
 
 /**
@@ -43,8 +44,76 @@ export const PlayPileFx = {
     overshootPx: number,
     durationMS: number
   ): Promise<void> {
-    void overshootPx; // 占位标记：未来视效会用
-    return CardFx.moveTo(tm, card, slot, durationMS);
+    void overshootPx;
+    const playCfg = CONFIG.playCardMove;
+    if (!playCfg || !playCfg.enabled) {
+      return CardFx.moveTo(tm, card, slot, durationMS);
+    }
+
+    const dx = slot.x - card.x;
+    const dy = slot.y - card.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist < 1e-3) {
+      card.x = slot.x;
+      card.y = slot.y;
+      card.rotation = slot.rotation;
+      return Promise.resolve();
+    }
+
+    const nx = dx / dist;
+    const ny = dy / dist;
+
+    const { overshoot1Px, overshoot2Px, stiffness } = playCfg;
+
+    const p1x = slot.x + nx * overshoot1Px;
+    const p1y = slot.y + ny * overshoot1Px;
+
+    const p2x = slot.x - nx * overshoot2Px;
+    const p2y = slot.y - ny * overshoot2Px;
+
+    const p3x = slot.x;
+    const p3y = slot.y;
+
+    const rebound1MS = Math.max(1, Math.round(1000 / stiffness));
+    const rebound2MS = Math.max(1, Math.round(1000 / stiffness));
+
+    return new Promise<void>((resolve) => {
+      tm.add(
+        tm
+          .create(card)
+          .to({ x: p1x, y: p1y, rotation: slot.rotation }, durationMS)
+          .easing(Easing.cubicOut)
+          .onStop(resolve)
+          .onComplete(() => {
+            if (card.isDragging) {
+              resolve();
+              return;
+            }
+            tm.add(
+              tm
+                .create(card)
+                .to({ x: p2x, y: p2y }, rebound1MS)
+                .easing(Easing.quadInOut)
+                .onStop(resolve)
+                .onComplete(() => {
+                  if (card.isDragging) {
+                    resolve();
+                    return;
+                  }
+                  tm.add(
+                    tm
+                      .create(card)
+                      .to({ x: p3x, y: p3y }, rebound2MS)
+                      .easing(Easing.cubicOut)
+                      .onStop(resolve)
+                      .onComplete(resolve)
+                  );
+                })
+            );
+          })
+      );
+    });
   },
 
   /**

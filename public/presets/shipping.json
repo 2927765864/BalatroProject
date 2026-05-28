@@ -180,6 +180,12 @@
       "springDurationMS": 50,
       "overshootPx": 28
     },
+    "playCardMove": {
+      "enabled": true,
+      "overshoot1Px": 40,
+      "overshoot2Px": 12,
+      "stiffness": 12
+    },
     "cardMoveRotation": {
       "enabled": true,
       "showPivot": false,
@@ -212,7 +218,8 @@
         "cardMoveRotation": false,
         "cardOvershoot": false,
         "handSwap": true,
-        "mouseOffset": true
+        "mouseOffset": true,
+        "playCardMove": true
       },
       "selectMoveEnabled": true,
       "selectRiseY": 26,

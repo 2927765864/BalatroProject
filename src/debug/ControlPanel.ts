@@ -1191,6 +1191,13 @@ export function setupControlPanel(
     bindNumber("inp-playPileDisplacementIntervalReductionMS", "val-playPileDisplacementIntervalReductionMS", "playPileDisplacement.intervalReductionMS", { integer: true });
     bindNumber("inp-playPileDisplacementLastIntervalMS", "val-playPileDisplacementLastIntervalMS", "playPileDisplacement.lastIntervalMS", { integer: true });
 
+    // === 【出牌】出牌移动控制 ===
+    bindSectionExpand("inp-expandPlayCardMove", "val-expandPlayCardMove", "cardVisuals.expandedSections.playCardMove", "sect-playCardMove-params");
+    bindToggle("inp-playCardMoveEnabled", "val-playCardMoveEnabled", "playCardMove.enabled");
+    bindNumber("inp-playCardMoveOvershoot1Px", "val-playCardMoveOvershoot1Px", "playCardMove.overshoot1Px", { digits: 1 });
+    bindNumber("inp-playCardMoveOvershoot2Px", "val-playCardMoveOvershoot2Px", "playCardMove.overshoot2Px", { digits: 1 });
+    bindNumber("inp-playCardMoveStiffness", "val-playCardMoveStiffness", "playCardMove.stiffness", { digits: 1 });
+
     // 卡牌移动旋转（velocity-based tilt）：与 dragHandCard 同属"卡牌逻辑"专区。
     bindSectionExpand("inp-expandCardMoveRotation", "val-expandCardMoveRotation", "cardVisuals.expandedSections.cardMoveRotation", "sect-cardMoveRotation-params");
     bindToggle("inp-cardMoveRotationEnabled", "val-cardMoveRotationEnabled", "cardMoveRotation.enabled");
