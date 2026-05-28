@@ -102,6 +102,12 @@ async function bootstrap(): Promise<void> {
         game.layoutHand({ force: true });
       }
 
+      // 无限出牌/弃牌开关：剩余次数为 0 时按钮处于 disable，
+      // 切到开启后需要立刻刷新按钮使其可用（反向亦然）。
+      if (key === "*" || key === "rules.unlimitedActions") {
+        game.refreshActionButtons();
+      }
+
       // 选中弹起像素改值：当前已选中牌的 y 是上次 layoutHand 写好的旧值，
       // 需要重新摆位让它们以新高度对齐（普通 moveTo 平滑过渡）。
       // 其余 selectMove 参数（时长/曲线/过弹/刚度）只影响下次触发的动画，

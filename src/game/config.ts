@@ -51,6 +51,8 @@ export interface RuntimeConfig {
     discards: number;
     /** 目标分（盲注） */
     targetScore: number;
+    /** 无限出牌/弃牌次数：开启后出牌、弃牌都不扣减计数，按钮也不会因次数耗尽而禁用 */
+    unlimitedActions: boolean;
   };
   animation: {
     /** 摆位 / 选中升降动画时长（毫秒） */
@@ -727,6 +729,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     plays: 4,
     discards: 3,
     targetScore: 450,
+    unlimitedActions: false,
   }),
   animation: Object.freeze({
     moveDurationMS: 280,

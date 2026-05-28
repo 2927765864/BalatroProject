@@ -532,15 +532,19 @@ export class GameController {
     const hasSelection = selected.length > 0;
     // 出牌期间所有按钮均 disable，避免在流程播放中再次触发出牌/弃牌。
     const allowAction = !this.isPlaying;
-    this.hud.playBtn.setEnabled(allowAction && hasSelection && plays > 0);
-    this.hud.discardBtn.setEnabled(allowAction && hasSelection && discards > 0);
+    // 无限模式：忽略剩余次数限制。
+    const unlimited = GameConfig.rules.unlimitedActions;
+    this.hud.playBtn.setEnabled(allowAction && hasSelection && (unlimited || plays > 0));
+    this.hud.discardBtn.setEnabled(allowAction && hasSelection && (unlimited || discards > 0));
   }
 
   // --- 出牌 / 弃牌 -------------------------------------------------
 
   private async playSelected(): Promise<void> {
     const state = this.store.getState();
-    if (state.selected.length === 0 || state.plays <= 0) return;
+    const unlimited = GameConfig.rules.unlimitedActions;
+    if (state.selected.length === 0) return;
+    if (!unlimited && state.plays <= 0) return;
     if (this.isPlaying) return;
 
     const result = state.currentResult;
@@ -549,12 +553,16 @@ export class GameController {
     // 进入"出牌锁"：按钮 disable、toggleSelection 跳过。
     // 注意：hover / 拖拽 / 换位仍然有效（需求要求）。
     this.isPlaying = true;
-    // 立刻清空当前选中（HUD 上不再保留高亮），并扣出牌次数。
+    // 立刻清空当前选中（HUD 上不再保留高亮）。
+    // 无限模式下不扣减出牌次数，也不刷新 HUD 数字。
+    const nextPlays = unlimited ? state.plays : state.plays - 1;
     this.store.setState({
-      plays: state.plays - 1,
+      plays: nextPlays,
       selected: [],
     });
-    this.hud.scorePanel.setPlays(state.plays - 1);
+    if (!unlimited) {
+      this.hud.scorePanel.setPlays(nextPlays);
+    }
     this.bus.emit("card:selectionChanged", { selected: [] });
     // 兼容旧事件：round:play 在流程开始时一次性 emit（视觉细节请订阅 play:* 系列）。
     this.bus.emit("round:play", {
@@ -591,10 +599,15 @@ export class GameController {
   private discardSelected(): void {
     if (this.isPlaying) return;
     const state = this.store.getState();
-    if (state.selected.length === 0 || state.discards <= 0) return;
+    const unlimited = GameConfig.rules.unlimitedActions;
+    if (state.selected.length === 0) return;
+    if (!unlimited && state.discards <= 0) return;
 
-    this.store.setState({ discards: state.discards - 1 });
-    this.hud.scorePanel.setDiscards(state.discards - 1);
+    // 无限模式下不扣减弃牌次数，也不刷新 HUD 数字。
+    if (!unlimited) {
+      this.store.setState({ discards: state.discards - 1 });
+      this.hud.scorePanel.setDiscards(state.discards - 1);
+    }
 
     this.bus.emit("round:discard", {
       cards: state.selected.map((v) => v.data),
@@ -635,6 +648,15 @@ export class GameController {
    */
   refreshDeckArt(): void {
     if (this.hud) this.hud.deckView.refresh();
+  }
+
+  /**
+   * 让出/弃牌按钮立即按当前配置重新计算可用状态。
+   * 主要给"无限出牌/弃牌"开关在剩余次数为 0 后切换时使用，
+   * 否则按钮要等下一次选牌变化才会更新。
+   */
+  refreshActionButtons(): void {
+    this.updateButtons();
   }
 
   /**

@@ -986,6 +986,9 @@ export function setupControlPanel(
     //   bindCycleButton("btn-quality", "val-quality", "debug.quality", [...]);
     applyPanelOpacity();
 
+    // === 基础参数 ===
+    bindToggle("inp-unlimitedActions", "val-unlimitedActions", "rules.unlimitedActions");
+
     // === 牌的绘制 / 单牌样式 ===
     bindToggle("inp-useSprites", "val-useSprites", "cardArt.useSprites");
     bindNumber("inp-cardCornerRadius", "val-cardCornerRadius", "cardArt.cornerRadius", { digits: 1 });
