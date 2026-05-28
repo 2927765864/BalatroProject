@@ -171,12 +171,23 @@ export class GameController {
           view.zIndex = 9999;
           view.isReturning = false;
         },
-        onDragging: (view, x, _y) => {
-          this.reorderHandWhileDragging(view, x);
+        onDragging: (view, _x, _y) => {
+          // 拖拽过程中：用 view.x（lerp 平滑后的实际渲染中线）做换位判定。
+          // 这样"换位时机"严格对应卡片视觉中线穿过邻牌中线那一刻，手感清晰不模糊。
+          this.reorderHandWhileDragging(view, view.x);
         },
         onDragEnd: (view) => {
           // 选中状态完全由 toggleSelection 翻转，慢点击/拖拽松手不会改动 view.selected，
           // 因此这里不再需要"兜底同步 store.selected"的逻辑。只负责回弹与重排即可。
+          //
+          // 松手瞬间——按「鼠标光标的逻辑位置」(dragLogicalX = 鼠标位置 - 抓握偏移)
+          // 再做一次最终换位判定。这是为了解决「快速甩动鼠标后立刻松手」的场景：
+          // 由于卡牌位置受 lerp/maxSpeed 限制会滞后于鼠标，如果只用拖拽过程中累积的
+          // 换位结果（基于 view.x 计算），最终落位会停留在「卡牌已滑过」而非「鼠标
+          // 到达」的位置——不符合玩家意图。在这里用 dragLogicalX 兜底覆盖一次，
+          // 让最终顺序与玩家鼠标松手时所在的位置一致。
+          this.reorderHandWhileDragging(view, view.dragLogicalX);
+
           view.isReturning = true;
           this.layoutHand();
         }
@@ -291,44 +302,45 @@ export class GameController {
   }
 
   /**
-   * 拖拽中手动理牌：当拖拽牌的「实际渲染中线 view.x」穿过左/右邻牌的「槽位中线 layoutX」时，
+   * 拖拽中手动理牌：当「拖拽牌中线 dragCenter」穿过左/右邻牌的「槽位中线 layoutX」时，
    * 立即与该邻牌在 hand 数组中互换位置，并触发 layoutHand 让让位牌平滑移动到新槽位。
    *
-   * 设计要点：
-   *   1. 拖拽牌一侧用 `view.x`（已 lerp 平滑的实际渲染位置），而非 dragTargetX。
-   *      这让"换位时机"严格对应卡片视觉中线真正滑过邻牌中线那一刻，手感明确不模糊。
+   * 双重调用机制：
+   *   - 拖拽过程中（onDragging 每帧）：传入 `view.x`（已 lerp 平滑的实际渲染中线）。
+   *     这样"换位时机"严格对应卡片视觉中线真正滑过邻牌中线那一刻，手感明确不模糊。
+   *   - 松手瞬间（onDragEnd）：传入 `view.dragLogicalX`（= 鼠标位置 - 抓握偏移）。
+   *     这是为了解决「快速甩动鼠标后立刻松手」时——由于 lerp/maxSpeed 限速，卡牌
+   *     还没追上鼠标——基于 view.x 算出的最终落位会停留在「卡牌已滑过」而非「鼠标
+   *     到达」的位置，不符合玩家意图。松手时用鼠标逻辑位置做一次最终判定，确保
+   *     落位与玩家鼠标光标位置一致。
    *
-   *   2. 邻牌一侧用 `layoutX` 而非 `view.x`：
+   * 设计要点：
+   *   1. 邻牌一侧用 `layoutX` 而非 `view.x`：
    *      layoutX 是 layoutHand 写入的、与 hand 数组顺序一一对应的目标槽位 x；
    *      用它做基准等价于"按数组当前顺序计算的稳定槽位中线"，不会因相邻牌
    *      还在动画途中其 view.x 漂移而出现"反复 swap 抖动"。
-   *      换位后邻牌的新 layoutX 立刻就位（其 view.x 还在动画途中），离当前 view.x
-   *      已是一整个 cardSpacing 的距离，天然形成滞回——不会立即反向 swap。
+   *      换位后邻牌的新 layoutX 立刻就位（其 view.x 还在动画途中），离当前
+   *      dragCenter 已是一整个 cardSpacing 的距离，天然形成滞回——不会立即反向 swap。
    *
-   *   3. 每次 onDragging 用 while 循环允许「一次性跳多格」——快速划过 2~3 张牌
-   *      时也能跟手，不会因为单帧只换一格而残留视觉错位。
+   *   2. 用 while 循环允许「一次性跳多格」——快速划过 2~3 张牌时也能跟手，不会因
+   *      为单帧只换一格而残留视觉错位。松手分支同样依赖这一点：鼠标可能远在 view.x
+   *      右侧好几格，需要一次性补齐。
    *
-   *   4. swap 之后立即调用 layoutHand：
+   *   3. swap 之后立即调用 layoutHand：
    *      - 拖拽牌本身：layoutHand 会更新它的 zIndex / handIndex / layoutX/Y/Rotation
-   *        元数据，但因 isDragging=true 会跳过 TweenManager 写位置（鼠标仍主导）。
-   *        新的 layoutX 即"松手回弹的目标点"。
-   *      - 被让位的相邻牌：layoutHand 会用 moveToWithOvershoot 自然带它过去。
-   *        相邻槽位距离正好 = cardSpacing（远小于 tweenFullOvershootDistancePx），
-   *        会走"小距离单段补间"路径，节奏顺滑。
+   *        元数据。
+   *        · onDragging 路径：isDragging=true，跳过 TweenManager 写位置（鼠标主导）；
+   *          新的 layoutX 即"松手回弹的目标点"。
+   *        · onDragEnd 路径：调用方在本函数返回后立刻置 view.isReturning=true 并再调
+   *          一次 layoutHand()，那时才让 TweenManager 把拖拽牌平滑送到新槽位。
+   *      - 被让位的相邻牌：layoutHand 会用 CardFx.swapMove 带它过去（rise + spring 弹性）。
    *
-   *   5. 只看 x 不看 y：手牌区域是横向一字排开（带轻微弧形），换位仅由水平位置决定。
-   *
-   *   注：参数 _dragX 保留是为了不改 onDragging 调用方签名，便于日后切回"跟手目标位置"
-   *   作为判定基准。当前实现不使用它。
+   *   4. 只看 x 不看 y：手牌区域是横向一字排开（带轻微弧形），换位仅由水平位置决定。
    */
-  private reorderHandWhileDragging(view: CardView, _dragX: number): void {
+  private reorderHandWhileDragging(view: CardView, dragCenter: number): void {
     const hand = this.store.getState().hand;
     const i = hand.indexOf(view);
     if (i < 0) return;
-
-    // 拖拽牌中线 = 实际渲染位置 view.x（已 lerp 平滑）。
-    // 含义："卡片真正滑过邻牌中线"才换位，手感清晰、不模糊。
-    const dragCenter = view.x;
 
     let newIndex = i;
     // 本次手势中被「跨过 / 让位」的相邻牌——它们将走 CardFx.swapMove 走利落的过冲动画，

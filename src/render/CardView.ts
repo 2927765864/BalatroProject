@@ -78,8 +78,12 @@ export interface CardViewCallbacks {
    *
    * 参数 (x, y) 是拖拽中卡牌在父容器坐标系下的"逻辑目标位置"（即 dragTargetX/Y，
    * 等价于鼠标当前位置 - 抓握偏移）。
-   * 之所以不用 view.x / view.y：那是经 lerp 平滑后、滞后于鼠标的值，
-   * 用它会让换位判定延迟一帧，并在卡牌还在追赶鼠标时反复抖动触发。
+   *
+   * 实际用哪个值做换位判定由上层（GameController）决定：当前实现拖拽过程中用
+   * `view.x`（lerp 平滑后的实际渲染中线），让"换位时机"严格对应卡片视觉中线穿过
+   * 邻牌中线那一刻，手感清晰不模糊；而松手瞬间（onDragEnd）则改用 dragLogicalX/Y
+   * （= 鼠标逻辑位置）做一次最终换位，避免"快速甩动后立刻松手时卡牌没追上鼠标
+   * 导致落位偏差"。详见 GameController.reorderHandWhileDragging 的注释。
    */
   onDragging?: (view: CardView, x: number, y: number) => void;
   onDragEnd?: (view: CardView) => void;
@@ -208,6 +212,26 @@ export class CardView extends Container {
   private shadowGraphics: Graphics | null = null;
   private dragTargetX = 0;
   private dragTargetY = 0;
+
+  /**
+   * 拖拽中卡牌在父容器坐标系下的「逻辑目标位置」——等价于鼠标当前位置 - 抓握偏移。
+   * 与 `view.x/y`（经 lerp 平滑后滞后于鼠标的实际渲染位置）相对。
+   *
+   * 暴露为只读 getter，主要供 GameController 在 `onDragEnd` 回调中读取：
+   * 当玩家「快速甩动鼠标后立刻松手」时，由于 lerp/速度上限的存在，卡牌还没追上
+   * 鼠标——此时基于 `view.x` 计算最终换位会让卡牌落在「鼠标已经到了，卡牌还没
+   * 到」的中间位置，不符合玩家操作意图。松手瞬间用此值（= 鼠标逻辑位置）做
+   * 一次最终换位计算，可让落位与玩家鼠标光标位置一致。
+   *
+   * 拖拽过程中的换位判定仍用 `view.x`（见 GameController.reorderHandWhileDragging
+   * 的注释），保证视觉中线穿过邻牌中线的"严格手感"。
+   */
+  get dragLogicalX(): number {
+    return this.dragTargetX;
+  }
+  get dragLogicalY(): number {
+    return this.dragTargetY;
+  }
 
   // 卡牌移动旋转（velocity-based tilt）的内部状态：
   //   prevX/prevY 在 updateMoveRotation 速度采样紧后保存"本帧入口位置"，
