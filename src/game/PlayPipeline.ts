@@ -138,18 +138,15 @@ export class PlayPipeline {
         );
         landingPromises.push(landPromise);
 
-        // 必须等当前新发车的牌到达出牌堆后
-        await landPromise;
-
-        // 间隔一定时间才触发下一张手牌的启动 / 上移效果
-        // 第一张牌到达后间隔 firstIntervalMS
-        // 之后间隔越来越短，每次减少 intervalReductionMS，但不能小于最后一张牌的间隔 lastIntervalMS
-        // 如果是最后一张牌，则间隔时间固定为 lastIntervalMS
+        // 间隔时间指从位移开始的一瞬间起的发车间隔（若设为0则所有牌一起启动），不需要等当前牌完全 landing 才 sleep。
+        // 第一张牌发出后，间隔 interval 时间再启动下一张。
         const interval = (i === total - 1)
           ? dispCfg.lastIntervalMS
           : Math.max(dispCfg.lastIntervalMS, dispCfg.firstIntervalMS - i * dispCfg.intervalReductionMS);
 
-        await sleep(interval);
+        if (i < total - 1) {
+          await sleep(interval);
+        }
       }
     } else {
       // 先算出整堆的目标槽位（按"最终张数"= total 来算，不会因发车节奏变化）。
@@ -210,6 +207,11 @@ export class PlayPipeline {
 
     // 等所有牌都完全落定到出牌堆。
     await Promise.all(landingPromises);
+
+    if (isDisplacementEnabled) {
+      // 最后一张牌落定后，再等待最后一张牌的间隔时间（lastIntervalMS）才触发出牌堆牌的上移效果。
+      await sleep(dispCfg.lastIntervalMS);
+    }
     bus.emit("play:pileFormed", { views: selected });
 
     // ── 阶段 3：整堆上抬 ──────────────────────────────────────
