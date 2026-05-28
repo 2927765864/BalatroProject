@@ -337,8 +337,30 @@ export class GameController {
 
     // 向左检查：拖拽牌中线 view.x 穿过左邻牌槽位中线 left.layoutX 时换位。
     // 越过则交换，并继续向左追问新左邻；while 支持单次手势跨多格。
+    //
+    // 「正在 swap 动画中的邻牌视为不可跨越的墙」——与原版 Balatro 一致：换位
+    // 动画不可被打断。一张牌一旦开始让位，必须播完 rise→spring 才能再次参与
+    // 换位判定。这从根本上避免了"反复打断 → 牌停留在 rise 早段 → 视觉速度变慢
+    // 并与其它牌产生速度差"的 bug，同时也是更符合原版手感的设计。
+    //
+    // 注：只看 isSwapAnimating 而不看其它动画（如归位 moveToWithOvershoot、选中
+    // selectMove），避免把无关动画也变成"挡路墙"。
+    // 注：拖拽牌自己不需要这个保护（它不会进 swap 动画——它的位置由鼠标主导）。
+    // 注：此处读 isSwapAnimating 是安全的——onStop 提前清零的时序坑只在新一轮
+    // swapMove 调用 tm.add 触发字段互斥的瞬间出现；此处尚未启动任何新 tween，
+    // 标志反映的是当前真实状态。
+    // 「该牌仍在 swap 动画中」的判定带自愈：标志为 true 但 TweenManager 里实际
+    // 已无该牌的活跃 tween，视为残留标志，立即清零，不再当成"挡路墙"。
+    const isStillSwapping = (v: CardView): boolean => {
+      if (!v.isSwapAnimating) return false;
+      if (this.tween.hasTweenFor(v)) return true;
+      v.isSwapAnimating = false;
+      return false;
+    };
+
     while (newIndex > 0) {
       const left = hand[newIndex - 1]!;
+      if (isStillSwapping(left)) break;
       if (dragCenter < left.layoutX) {
         swapFor.add(left);
         newIndex -= 1;
@@ -350,6 +372,7 @@ export class GameController {
     // 向右检查：对称逻辑。
     while (newIndex < hand.length - 1) {
       const right = hand[newIndex + 1]!;
+      if (isStillSwapping(right)) break;
       if (dragCenter > right.layoutX) {
         swapFor.add(right);
         newIndex += 1;
