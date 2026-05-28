@@ -313,9 +313,10 @@ export const CardFx = {
   swapMove(
     tm: TweenManager,
     card: CardView,
-    target: { x: number; y: number; rotation: number }
+    target: { x: number; y: number; rotation: number },
+    customCfg?: { enabled: boolean; riseDurationMS: number; springDurationMS: number; overshootPx: number }
   ): Promise<void> {
-    const cfg = CONFIG.handSwap;
+    const cfg = customCfg || CONFIG.handSwap;
     const overshootCfg = CONFIG.cardOvershoot;
     const riseMS = Math.max(1, cfg?.riseDurationMS ?? 110);
     const springMS = Math.max(1, cfg?.springDurationMS ?? 110);

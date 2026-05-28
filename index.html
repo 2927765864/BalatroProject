@@ -419,6 +419,49 @@
             </div>
 
             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>【出牌】手牌换位</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandPlayHandSwap" style="color: var(--accent);">开</span>
+                <input id="inp-expandPlayHandSwap" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+
+            <div id="sect-playHandSwap-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用换位过冲</span>
+                  <span id="val-playHandSwapEnabled">开</span>
+                </div>
+                <input id="inp-playHandSwapEnabled" type="checkbox" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>rise 段时长 (ms)</span>
+                  <span id="val-playHandSwapRiseDurationMS">60</span>
+                </div>
+                <input id="inp-playHandSwapRiseDurationMS" type="number" step="10" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>spring 段时长 (ms)</span>
+                  <span id="val-playHandSwapSpringDurationMS">50</span>
+                </div>
+                <input id="inp-playHandSwapSpringDurationMS" type="number" step="10" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>过冲幅度 (px)</span>
+                  <span id="val-playHandSwapOvershootPx">12.0</span>
+                </div>
+                <input id="inp-playHandSwapOvershootPx" type="number" step="1" min="0" max="100" />
+              </div>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>卡牌移动旋转</span>
               <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
                 <span>展开详情</span>

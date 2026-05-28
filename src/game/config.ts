@@ -165,6 +165,13 @@ export interface RuntimeConfig {
      */
     overshootPx: number;
   };
+  /** 【出牌】手牌换位 */
+  playHandSwap: {
+    enabled: boolean;
+    riseDurationMS: number;
+    springDurationMS: number;
+    overshootPx: number;
+  };
   /**
    * 卡牌移动旋转（velocity-based tilt）
    *
@@ -422,6 +429,7 @@ export interface RuntimeConfig {
       cardMoveRotation: boolean;
       cardOvershoot: boolean;
       handSwap: boolean;
+      playHandSwap: boolean;
     };
 
     /**
@@ -800,6 +808,12 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     springDurationMS: 110,
     overshootPx: 12,
   }),
+  playHandSwap: Object.freeze({
+    enabled: true,
+    riseDurationMS: 60,
+    springDurationMS: 50,
+    overshootPx: 12,
+  }),
   cardOvershoot: Object.freeze({
     enabled: true,
     // 归位/发牌（Tween 路径，距离驱动）：
@@ -899,6 +913,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       cardMoveRotation: true,
       cardOvershoot: true,
       handSwap: true,
+      playHandSwap: true,
     }),
     selectMoveEnabled: true,
     selectRiseY: 30,
@@ -1076,6 +1091,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
       } : undefined as any,
     },
     handSwap: { ...src.handSwap },
+    playHandSwap: { ...src.playHandSwap },
     cardMoveRotation: { ...src.cardMoveRotation },
     cardVisuals: {
       ...src.cardVisuals,
@@ -1245,6 +1261,12 @@ export function applyConfig(source: unknown): void {
       ...incoming.handSwap,
     };
   }
+  if (incoming.playHandSwap) {
+    merged.playHandSwap = {
+      ...merged.playHandSwap,
+      ...incoming.playHandSwap,
+    };
+  }
   if (incoming.cardVisuals) {
     merged.cardVisuals = {
       ...merged.cardVisuals,
@@ -1304,6 +1326,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.cardMoveRotation = merged.cardMoveRotation;
   CONFIG.cardOvershoot = merged.cardOvershoot;
   CONFIG.handSwap = merged.handSwap;
+  CONFIG.playHandSwap = merged.playHandSwap;
   CONFIG.cardVisuals = merged.cardVisuals;
   CONFIG.playPile = merged.playPile;
   CONFIG.scoreCurve = merged.scoreCurve;
@@ -1423,6 +1446,12 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.handSwap = {
       ...activeDefaultConfig.handSwap,
       ...incoming.handSwap,
+    };
+  }
+  if (incoming.playHandSwap) {
+    activeDefaultConfig.playHandSwap = {
+      ...activeDefaultConfig.playHandSwap,
+      ...incoming.playHandSwap,
     };
   }
   if (incoming.cardVisuals) {

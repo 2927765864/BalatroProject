@@ -320,6 +320,12 @@ export class GameController {
         // 落入下面的 moveToWithOvershoot 常规分支。
       }
 
+      // 「【出牌】手牌换位」分支：出牌时，手牌的其他牌向中位移位
+      if (this.isPlaying) {
+        CardFx.swapMove(this.tween, view, slot, GameConfig.playHandSwap);
+        return;
+      }
+
       // 过冲反弹判定（v2：距离驱动）：
       //   过冲幅度与 rise 段时长完全由 CardFx.moveToWithOvershoot 内部按
       //   "起点 → 终点"距离自适应计算，调用方无需提供速度信息。

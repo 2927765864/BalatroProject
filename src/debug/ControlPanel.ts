@@ -1173,6 +1173,13 @@ export function setupControlPanel(
     bindNumber("inp-handSwapSpringDurationMS", "val-handSwapSpringDurationMS", "handSwap.springDurationMS", { integer: true });
     bindNumber("inp-handSwapOvershootPx", "val-handSwapOvershootPx", "handSwap.overshootPx", { digits: 1 });
 
+    // === 【出牌】手牌换位 ===
+    bindSectionExpand("inp-expandPlayHandSwap", "val-expandPlayHandSwap", "cardVisuals.expandedSections.playHandSwap", "sect-playHandSwap-params");
+    bindToggle("inp-playHandSwapEnabled", "val-playHandSwapEnabled", "playHandSwap.enabled");
+    bindNumber("inp-playHandSwapRiseDurationMS", "val-playHandSwapRiseDurationMS", "playHandSwap.riseDurationMS", { integer: true });
+    bindNumber("inp-playHandSwapSpringDurationMS", "val-playHandSwapSpringDurationMS", "playHandSwap.springDurationMS", { integer: true });
+    bindNumber("inp-playHandSwapOvershootPx", "val-playHandSwapOvershootPx", "playHandSwap.overshootPx", { digits: 1 });
+
     // 卡牌移动旋转（velocity-based tilt）：与 dragHandCard 同属"卡牌逻辑"专区。
     bindSectionExpand("inp-expandCardMoveRotation", "val-expandCardMoveRotation", "cardVisuals.expandedSections.cardMoveRotation", "sect-cardMoveRotation-params");
     bindToggle("inp-cardMoveRotationEnabled", "val-cardMoveRotationEnabled", "cardMoveRotation.enabled");
