@@ -177,8 +177,8 @@
     "handSwap": {
       "enabled": true,
       "riseDurationMS": 70,
-      "springDurationMS": 170,
-      "overshootPx": 28
+      "springDurationMS": 50,
+      "overshootPx": 27
     },
     "cardMoveRotation": {
       "enabled": true,
@@ -704,7 +704,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "5"
+              "text": "0"
             }
           },
           {
@@ -785,7 +785,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "1"
+              "text": "0"
             }
           },
           {
@@ -844,7 +844,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "牌型: 高牌"
+              "text": "牌型: 无"
             }
           }
         ]
@@ -866,7 +866,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "本次预期: 9"
+              "text": "本次预期: 0"
             }
           }
         ]
