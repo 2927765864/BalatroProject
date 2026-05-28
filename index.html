@@ -418,7 +418,7 @@
               </div>
             </div>
 
-            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>【出牌】手牌换位</span>
               <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
                 <span>展开详情</span>
@@ -458,6 +458,81 @@
                   <span id="val-playHandSwapOvershootPx">12.0</span>
                 </div>
                 <input id="inp-playHandSwapOvershootPx" type="number" step="1" min="0" max="100" />
+              </div>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>【出牌】出牌堆的位移</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandPlayPileDisplacement" style="color: var(--accent);">开</span>
+                <input id="inp-expandPlayPileDisplacement" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+
+            <div id="sect-playPileDisplacement-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用出牌堆位移</span>
+                  <span id="val-playPileDisplacementEnabled">开</span>
+                </div>
+                <input id="inp-playPileDisplacementEnabled" type="checkbox" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>每张牌的间隔距离 (px)</span>
+                  <span id="val-playPileDisplacementCardSpacing">70</span>
+                </div>
+                <input id="inp-playPileDisplacementCardSpacing" type="number" step="5" min="0" max="300" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>rise 段时长 (ms)</span>
+                  <span id="val-playPileDisplacementRiseDurationMS">60</span>
+                </div>
+                <input id="inp-playPileDisplacementRiseDurationMS" type="number" step="10" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>spring 段时长 (ms)</span>
+                  <span id="val-playPileDisplacementSpringDurationMS">50</span>
+                </div>
+                <input id="inp-playPileDisplacementSpringDurationMS" type="number" step="10" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>过冲幅度 (px)</span>
+                  <span id="val-playPileDisplacementOvershootPx">12.0</span>
+                </div>
+                <input id="inp-playPileDisplacementOvershootPx" type="number" step="1" min="0" max="100" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>第一张牌的间隔时间 (ms)</span>
+                  <span id="val-playPileDisplacementFirstIntervalMS">400</span>
+                </div>
+                <input id="inp-playPileDisplacementFirstIntervalMS" type="number" step="10" min="0" max="5000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>每张牌减少的间隔时间 (ms)</span>
+                  <span id="val-playPileDisplacementIntervalReductionMS">80</span>
+                </div>
+                <input id="inp-playPileDisplacementIntervalReductionMS" type="number" step="5" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>最后一张牌的间隔时间 (ms)</span>
+                  <span id="val-playPileDisplacementLastIntervalMS">160</span>
+                </div>
+                <input id="inp-playPileDisplacementLastIntervalMS" type="number" step="10" min="0" max="5000" />
               </div>
             </div>
 

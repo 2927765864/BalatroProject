@@ -1180,6 +1180,17 @@ export function setupControlPanel(
     bindNumber("inp-playHandSwapSpringDurationMS", "val-playHandSwapSpringDurationMS", "playHandSwap.springDurationMS", { integer: true });
     bindNumber("inp-playHandSwapOvershootPx", "val-playHandSwapOvershootPx", "playHandSwap.overshootPx", { digits: 1 });
 
+    // === 【出牌】出牌堆的位移 ===
+    bindSectionExpand("inp-expandPlayPileDisplacement", "val-expandPlayPileDisplacement", "cardVisuals.expandedSections.playPileDisplacement", "sect-playPileDisplacement-params");
+    bindToggle("inp-playPileDisplacementEnabled", "val-playPileDisplacementEnabled", "playPileDisplacement.enabled");
+    bindNumber("inp-playPileDisplacementCardSpacing", "val-playPileDisplacementCardSpacing", "playPileDisplacement.cardSpacing", { integer: true });
+    bindNumber("inp-playPileDisplacementRiseDurationMS", "val-playPileDisplacementRiseDurationMS", "playPileDisplacement.riseDurationMS", { integer: true });
+    bindNumber("inp-playPileDisplacementSpringDurationMS", "val-playPileDisplacementSpringDurationMS", "playPileDisplacement.springDurationMS", { integer: true });
+    bindNumber("inp-playPileDisplacementOvershootPx", "val-playPileDisplacementOvershootPx", "playPileDisplacement.overshootPx", { digits: 1 });
+    bindNumber("inp-playPileDisplacementFirstIntervalMS", "val-playPileDisplacementFirstIntervalMS", "playPileDisplacement.firstIntervalMS", { integer: true });
+    bindNumber("inp-playPileDisplacementIntervalReductionMS", "val-playPileDisplacementIntervalReductionMS", "playPileDisplacement.intervalReductionMS", { integer: true });
+    bindNumber("inp-playPileDisplacementLastIntervalMS", "val-playPileDisplacementLastIntervalMS", "playPileDisplacement.lastIntervalMS", { integer: true });
+
     // 卡牌移动旋转（velocity-based tilt）：与 dragHandCard 同属"卡牌逻辑"专区。
     bindSectionExpand("inp-expandCardMoveRotation", "val-expandCardMoveRotation", "cardVisuals.expandedSections.cardMoveRotation", "sect-cardMoveRotation-params");
     bindToggle("inp-cardMoveRotationEnabled", "val-cardMoveRotationEnabled", "cardMoveRotation.enabled");

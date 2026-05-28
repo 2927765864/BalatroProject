@@ -7,6 +7,7 @@ import {
   computeLandingOvershoot,
 } from "@render/PlayPileLayout";
 import { PlayPileFx, sleep } from "@fx/PlayPileFx";
+import { CardFx } from "@fx/CardFx";
 import { CONFIG } from "./config";
 import type { GameEvents } from "./events";
 
@@ -74,59 +75,136 @@ export class PlayPipeline {
     });
 
     // ── 阶段 1 + 2：逐张出牌 / 出牌堆排布 ────────────────────────
-    // 先算出整堆的目标槽位（按"最终张数"= total 来算，不会因发车节奏变化）。
-    const handArea = this.deps.getHandArea();
-    const slots = computePlayPileLayout({
-      count: total,
-      handAreaLeft: handArea.left,
-      handAreaRight: handArea.right,
-      handBaseY: handArea.baseY,
-      baseYOffset: cfg.baseYOffset,
-      centerAlignsHand: cfg.centerAlignsHand,
-      worldWidth: this.deps.worldWidth,
-      cardSpacing: cfg.cardSpacing,
-    });
-
-    // 错开发车：第 i 张在 ejectIntervalMS * i 时发出。
-    const ejectIntervalMS = cfg.flyDurationMS * cfg.ejectIntervalRatio;
+    const dispCfg = CONFIG.playPileDisplacement;
+    const isDisplacementEnabled = dispCfg && dispCfg.enabled;
     const landingPromises: Promise<void>[] = [];
 
-    for (let i = 0; i < total; i++) {
-      const view = selected[i]!;
-      const slot = slots[i]!;
-      const overshoot = computeLandingOvershoot(
-        i,
-        total,
-        cfg.overshootFirstPx,
-        cfg.overshootMidPx,
-        cfg.overshootLastPx
-      );
+    if (isDisplacementEnabled) {
+      const playPileCardSpacing = dispCfg.cardSpacing;
+      const handArea = this.deps.getHandArea();
+      const centerX = cfg.centerAlignsHand
+        ? (handArea.left + handArea.right) / 2
+        : this.deps.worldWidth / 2;
+      const handBaseY = handArea.baseY;
+      const baseYOffset = cfg.baseYOffset;
 
-      // 把这张牌从手牌数组里摘掉 → 剩余手牌立即挤位（layoutHand 在 removeFromHand 内部触发）。
-      // 之所以"先摘再发车"：摘掉后该牌不再被 layoutHand 触碰，不会与 PlayPipeline 自己的飞行 tween 冲突。
-      this.deps.removeFromHand(view);
-      // 把 zIndex 抬到极高，确保飞行/落定过程中盖住其他卡牌。
-      // 后到的牌 zIndex 更高，自然就会盖在先到的牌上（堆叠从左到右）。
-      view.zIndex = 100000 + i;
-      view.selected = false;
+      for (let i = 0; i < total; i++) {
+        const view = selected[i]!;
 
-      bus.emit("play:cardEjected", { view, index: i, total });
+        // 计算当前这堆（共 i+1 张）的目标槽位偏移量
+        const startOffset = (i / 2) * playPileCardSpacing;
 
-      // 发车——landOnPile 返回的 Promise 标记"该牌完全落定"。
-      landingPromises.push(
-        PlayPileFx.landOnPile(
+        // 此时，出牌堆中已存在的 0 ... i-1 张卡牌，向左移动到它们在 size i+1 状态下的新目标槽位。
+        // 其向左换位的时机和新牌 i 发车时机相同。
+        for (let j = 0; j < i; j++) {
+          const existingView = selected[j]!;
+          const targetX = centerX - startOffset + j * playPileCardSpacing;
+          const targetY = handBaseY + baseYOffset;
+
+          CardFx.swapMove(
+            this.deps.tween,
+            existingView,
+            { x: targetX, y: targetY, rotation: 0 },
+            dispCfg
+          );
+        }
+
+        // 新发车的卡牌 i，飞向它在 size i+1 状态下的目标槽位
+        const targetX_i = centerX - startOffset + i * playPileCardSpacing;
+        const targetY_i = handBaseY + baseYOffset;
+        const targetSlot_i = { x: targetX_i, y: targetY_i, rotation: 0 };
+
+        this.deps.removeFromHand(view);
+        view.zIndex = 100000 + i;
+        view.selected = false;
+
+        bus.emit("play:cardEjected", { view, index: i, total });
+
+        // 使用原本的落位过冲逻辑
+        const overshoot = computeLandingOvershoot(
+          i,
+          total,
+          cfg.overshootFirstPx,
+          cfg.overshootMidPx,
+          cfg.overshootLastPx
+        );
+
+        const landPromise = PlayPileFx.landOnPile(
           this.deps.tween,
           view,
-          slot,
+          targetSlot_i,
           overshoot,
           cfg.flyDurationMS
-        )
-      );
+        );
+        landingPromises.push(landPromise);
 
-      // 错开下一张：等 ejectIntervalMS 后再进入下一轮循环。
-      // 最后一张发车后不再等待（直接走出循环 await 所有 landing 完成）。
-      if (i < total - 1) {
-        await sleep(ejectIntervalMS);
+        // 必须等当前新发车的牌到达出牌堆后
+        await landPromise;
+
+        // 间隔一定时间才触发下一张手牌的启动 / 上移效果
+        // 第一张牌到达后间隔 firstIntervalMS
+        // 之后间隔越来越短，每次减少 intervalReductionMS，但不能小于最后一张牌的间隔 lastIntervalMS
+        // 如果是最后一张牌，则间隔时间固定为 lastIntervalMS
+        const interval = (i === total - 1)
+          ? dispCfg.lastIntervalMS
+          : Math.max(dispCfg.lastIntervalMS, dispCfg.firstIntervalMS - i * dispCfg.intervalReductionMS);
+
+        await sleep(interval);
+      }
+    } else {
+      // 先算出整堆的目标槽位（按"最终张数"= total 来算，不会因发车节奏变化）。
+      const handArea = this.deps.getHandArea();
+      const slots = computePlayPileLayout({
+        count: total,
+        handAreaLeft: handArea.left,
+        handAreaRight: handArea.right,
+        handBaseY: handArea.baseY,
+        baseYOffset: cfg.baseYOffset,
+        centerAlignsHand: cfg.centerAlignsHand,
+        worldWidth: this.deps.worldWidth,
+        cardSpacing: cfg.cardSpacing,
+      });
+
+      // 错开发车：第 i 张在 ejectIntervalMS * i 时发出。
+      const ejectIntervalMS = cfg.flyDurationMS * cfg.ejectIntervalRatio;
+
+      for (let i = 0; i < total; i++) {
+        const view = selected[i]!;
+        const slot = slots[i]!;
+        const overshoot = computeLandingOvershoot(
+          i,
+          total,
+          cfg.overshootFirstPx,
+          cfg.overshootMidPx,
+          cfg.overshootLastPx
+        );
+
+        // 把这张牌从手牌数组里摘掉 → 剩余手牌立即挤位（layoutHand 在 removeFromHand 内部触发）。
+        // 之所以"先摘再发车"：摘掉后该牌不再被 layoutHand 触碰，不会与 PlayPipeline 自己的飞行 tween 冲突。
+        this.deps.removeFromHand(view);
+        // 把 zIndex 抬到极高，确保飞行/落定过程中盖住其他卡牌。
+        // 后到的牌 zIndex 更高，自然就会盖在先到的牌上（堆叠从左到右）。
+        view.zIndex = 100000 + i;
+        view.selected = false;
+
+        bus.emit("play:cardEjected", { view, index: i, total });
+
+        // 发车——landOnPile 返回的 Promise 标记"该牌完全落定"。
+        landingPromises.push(
+          PlayPileFx.landOnPile(
+            this.deps.tween,
+            view,
+            slot,
+            overshoot,
+            cfg.flyDurationMS
+          )
+        );
+
+        // 错开下一张：等 ejectIntervalMS 后再进入下一轮循环。
+        // 最后一张发车后不再等待（直接走出循环 await 所有 landing 完成）。
+        if (i < total - 1) {
+          await sleep(ejectIntervalMS);
+        }
       }
     }
 
