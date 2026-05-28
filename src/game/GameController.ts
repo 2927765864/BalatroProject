@@ -14,6 +14,7 @@ import { uiHierarchy } from "@ui/hierarchy";
 import { CardFx } from "@fx/CardFx";
 import { GameConfig } from "./config";
 import type { GameEvents } from "./events";
+import { PlayPipeline } from "./PlayPipeline";
 
 /**
  * 游戏总控
@@ -54,6 +55,15 @@ export class GameController {
   private readonly cardLayer = new Container();
   private readonly shadowLayer = new Container();
   private hud!: HUD;
+  private playPipeline!: PlayPipeline;
+
+  /**
+   * 出牌流程进行中：
+   *   - 按钮（包括"出牌/弃牌"）会通过 updateButtons 自动 disable；
+   *   - toggleSelection 直接 return（点击无法改变选中态）；
+   *   - 卡牌的 hover / 拖拽 / 换位等"非选中"交互仍可正常工作（来自需求）。
+   */
+  private isPlaying = false;
 
   /** id -> CardView 缓存，复用同一份 view（牌只是回到牌堆，不销毁）。 */
   private readonly viewByCardId = new Map<string, CardView>();
@@ -88,7 +98,7 @@ export class GameController {
       targetScore: GameConfig.rules.targetScore,
       plays: GameConfig.rules.plays,
       discards: GameConfig.rules.discards,
-      onPlay: () => this.playSelected(),
+      onPlay: () => { void this.playSelected(); },
       onDiscard: () => this.discardSelected(),
     });
     this.hud.zIndex = Layers.UI;
@@ -113,6 +123,34 @@ export class GameController {
     // 准备牌堆
     this.deck.reset();
     this.hud.deckView.setCount(this.deck.size);
+
+    // 创建出牌流程控制器（依赖注入：所有交互都走回调，pipeline 不直接读 store）。
+    this.playPipeline = new PlayPipeline({
+      tween: this.tween,
+      bus: this.bus,
+      worldWidth: GameConfig.world.width,
+      getHandArea: () => ({
+        left: this.hud.handAreaLeft,
+        right: this.hud.handAreaRight,
+        baseY: this.hud.handBaseY,
+      }),
+      layoutHand: (opts) => this.layoutHand(opts),
+      applyScore: (result) => {
+        const state = this.store.getState();
+        const totalScore = state.totalScore + result.score;
+        this.store.setState({ totalScore });
+        this.hud.scorePanel.setTotalScore(totalScore);
+        this.bus.emit("round:scoreChanged", { totalScore });
+        return totalScore;
+      },
+      removeFromHand: (view) => {
+        const hand = this.store.getState().hand;
+        const newHand = hand.filter((v) => v !== view);
+        this.store.setState({ hand: newHand });
+        // 剩余手牌立即挤位（force：跳过 swap 弹性豁免，保证整齐对齐）。
+        this.layoutHand({ force: true });
+      },
+    });
 
     // 首抽 8 张
     this.drawToFull();
@@ -409,6 +447,9 @@ export class GameController {
   // --- 交互 --------------------------------------------------------
 
   private toggleSelection(view: CardView): void {
+    // 出牌期间：点击不改变选中态（hover / 拖拽 / 换位仍由 CardView 自身处理）。
+    if (this.isPlaying) return;
+
     const state = this.store.getState();
     const selected = [...state.selected];
 
@@ -489,36 +530,66 @@ export class GameController {
   private updateButtons(): void {
     const { selected, plays, discards } = this.store.getState();
     const hasSelection = selected.length > 0;
-    this.hud.playBtn.setEnabled(hasSelection && plays > 0);
-    this.hud.discardBtn.setEnabled(hasSelection && discards > 0);
+    // 出牌期间所有按钮均 disable，避免在流程播放中再次触发出牌/弃牌。
+    const allowAction = !this.isPlaying;
+    this.hud.playBtn.setEnabled(allowAction && hasSelection && plays > 0);
+    this.hud.discardBtn.setEnabled(allowAction && hasSelection && discards > 0);
   }
 
   // --- 出牌 / 弃牌 -------------------------------------------------
 
-  private playSelected(): void {
+  private async playSelected(): Promise<void> {
     const state = this.store.getState();
     if (state.selected.length === 0 || state.plays <= 0) return;
+    if (this.isPlaying) return;
 
     const result = state.currentResult;
-    const totalScore = state.totalScore + result.score;
+    const selectedSnapshot = [...state.selected];
 
+    // 进入"出牌锁"：按钮 disable、toggleSelection 跳过。
+    // 注意：hover / 拖拽 / 换位仍然有效（需求要求）。
+    this.isPlaying = true;
+    // 立刻清空当前选中（HUD 上不再保留高亮），并扣出牌次数。
     this.store.setState({
       plays: state.plays - 1,
-      totalScore,
+      selected: [],
     });
     this.hud.scorePanel.setPlays(state.plays - 1);
-    this.hud.scorePanel.setTotalScore(totalScore);
-
+    this.bus.emit("card:selectionChanged", { selected: [] });
+    // 兼容旧事件：round:play 在流程开始时一次性 emit（视觉细节请订阅 play:* 系列）。
     this.bus.emit("round:play", {
-      cards: state.selected.map((v) => v.data),
+      cards: selectedSnapshot.map((v) => v.data),
       result,
     });
-    this.bus.emit("round:scoreChanged", { totalScore });
+    this.updateButtons();
 
-    this.recycleSelected();
+    try {
+      const { views } = await this.playPipeline.run(selectedSnapshot, result);
+
+      // ── 流程结束：数据回收 + 补牌 ───────────────────────
+      // 视图层面：所有牌已飞出屏幕，无需 flyOut；但需要把 view 状态复位以便复用。
+      for (const v of views) {
+        v.selected = false;
+        v.cardState = CardState.Normal;
+      }
+
+      // 数据：放回牌堆并洗牌。
+      this.deck.recycle(views.map((v) => v.data));
+      this.deck.shuffle();
+      this.hud.deckView.setCount(this.deck.size);
+      this.bus.emit("deck:changed", { size: this.deck.size });
+
+      // 补牌（hand 已经在阶段 1 内被 removeFromHand 逐张清空）。
+      this.drawToFull();
+      this.evaluateAndUpdate();
+    } finally {
+      this.isPlaying = false;
+      this.updateButtons();
+    }
   }
 
   private discardSelected(): void {
+    if (this.isPlaying) return;
     const state = this.store.getState();
     if (state.selected.length === 0 || state.discards <= 0) return;
 

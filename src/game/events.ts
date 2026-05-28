@@ -20,4 +20,21 @@ export type GameEvents = {
   "round:scoreChanged": { totalScore: number };
 
   "deck:changed": { size: number };
+
+  // ── 出牌流程（PlayPipeline）的 5 阶段事件 ────────────────────────
+  // 这些事件让未来的视效/音效/分析模块"挂载"在流程节点上，无需改 PlayPipeline。
+  //
+  // 流程：play:start
+  //   → 阶段 1+2：play:cardEjected（每张牌出发）× N → play:pileFormed（全部落定）
+  //   → 阶段 3：play:lifted
+  //   → 阶段 4：play:settled（此时 totalScore 已经更新）
+  //   → 阶段 5：play:discarded
+  //   → play:end
+  "play:start": { cards: readonly CardData[]; result: ScoreResult };
+  "play:cardEjected": { view: CardView; index: number; total: number };
+  "play:pileFormed": { views: readonly CardView[] };
+  "play:lifted": { views: readonly CardView[] };
+  "play:settled": { result: ScoreResult; totalScore: number };
+  "play:discarded": { cards: readonly CardData[] };
+  "play:end": { result: ScoreResult; totalScore: number };
 };

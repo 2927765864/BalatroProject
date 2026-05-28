@@ -636,6 +636,71 @@ export interface RuntimeConfig {
     hoverHitEnterScale: number;
     hoverHitLeaveScale: number;
   };
+  /**
+   * 出牌堆（PlayPile）参数
+   *
+   * 出牌流程分 5 阶段，每个阶段都用最简 tween 占位实现"位移正确"，
+   * 复杂视效（过冲曲线/阴影抬起/内缩双弹/爆字等）作为未来 TODO 钩子。
+   *
+   * 阶段说明：
+   *   1. 逐张出牌：选中牌按 handIndex 从左到右依次飞往出牌堆，每张错开
+   *      = flyDurationMS * ejectIntervalRatio；同时 layoutHand 让剩余手牌挤位。
+   *   2. 出牌堆排布：第一张居中，之后每张沿 +x 偏移 cardSpacing；
+   *      过冲幅度按位置插值（首尾大、中间小，留 TODO）。
+   *      整堆"中位"对齐手牌堆中位。
+   *   3. 上抬：整堆 y -= liftPx 做一次过冲（钩子：未来加阴影抬起）。
+   *   4. 结算：内缩 → 过大弹两次（钩子：每次弹出"+"号、爆字）。
+   *   5. 下移 + 丢牌：整堆下移收阴影 → 从左到右逐张 flyOut。
+   */
+  playPile: {
+    /** 出牌堆基准 Y 相对手牌堆 baseY 的偏移（负值在手牌堆上方）。 */
+    baseYOffset: number;
+    /** 是否让出牌堆中位对齐手牌堆中位。false 时使用世界 X 中线。 */
+    centerAlignsHand: boolean;
+    /** 出牌堆相邻牌中心点 X 间距（像素）。 */
+    cardSpacing: number;
+    // —— 阶段 1：发车节奏 ——
+    /** 单张牌从手牌位置飞到出牌堆槽位的时长（ms）。 */
+    flyDurationMS: number;
+    /**
+     * 错开比例：下一张牌在上一张飞行进度达到此比例时出发。
+     * 0.0 = 完全同时；1.0 = 上一张完全落定才出发。
+     * 你描述的"位移完全结束的前一瞬间"≈ 0.7~0.85。
+     */
+    ejectIntervalRatio: number;
+    // —— 阶段 2：每张牌的落位过冲（钩子位，先用简单参数占位） ——
+    /** 第一张牌的过冲幅度（像素）。 */
+    overshootFirstPx: number;
+    /** 中间张牌的过冲幅度（像素）。 */
+    overshootMidPx: number;
+    /** 最后一张牌的过冲幅度（像素）。 */
+    overshootLastPx: number;
+    // —— 阶段 3：整堆上抬 ——
+    /** 上抬距离（像素，向上为正）。 */
+    liftPx: number;
+    /** 上抬时长（ms）。 */
+    liftDurationMS: number;
+    /** 上抬过冲幅度（像素，先占位）。 */
+    liftOvershootPx: number;
+    // —— 阶段 4：结算（内缩 → 过大弹两次） ——
+    /** 内缩 scale 目标。 */
+    squashScale: number;
+    /** 内缩时长（ms）。 */
+    squashDurationMS: number;
+    /** 过大弹峰值 scale。 */
+    bouncePeakScale: number;
+    /** 过大弹次数（先实现 1~2 次）。 */
+    bounceCount: number;
+    /** 单次过大弹时长（ms）。 */
+    bounceDurationMS: number;
+    // —— 阶段 5：下移 + 丢牌 ——
+    /** 整堆下移时长（ms）。 */
+    dropDurationMS: number;
+    /** 丢牌发车间隔（ms，从左到右逐张）。 */
+    discardIntervalMS: number;
+    /** 单张丢牌飞出时长（ms）。 */
+    discardFlyDurationMS: number;
+  };
   /** 可选：示例语义曲线，留作扩展（如未来按 combo 数缩放某个倍率） */
   scoreCurve: BezierCurveConfig;
   /**
@@ -903,6 +968,27 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     hoverHitEnterScale: 0.9,
     hoverHitLeaveScale: 1.0,
   }),
+  playPile: Object.freeze({
+    baseYOffset: -220,
+    centerAlignsHand: true,
+    cardSpacing: 70,
+    flyDurationMS: 260,
+    ejectIntervalRatio: 0.75,
+    overshootFirstPx: 18,
+    overshootMidPx: 8,
+    overshootLastPx: 18,
+    liftPx: 30,
+    liftDurationMS: 220,
+    liftOvershootPx: 10,
+    squashScale: 0.9,
+    squashDurationMS: 140,
+    bouncePeakScale: 1.12,
+    bounceCount: 2,
+    bounceDurationMS: 160,
+    dropDurationMS: 220,
+    discardIntervalMS: 80,
+    discardFlyDurationMS: 320,
+  }),
   scoreCurve: Object.freeze({
     enabled: false,
     startScale: 1,
@@ -1004,6 +1090,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
         p2: { ...src.cardVisuals.selectMoveCurve.p2 },
       } : undefined as any,
     },
+    playPile: { ...src.playPile },
     scoreCurve: {
       ...src.scoreCurve,
       p1: { ...src.scoreCurve.p1 },
@@ -1183,6 +1270,12 @@ export function applyConfig(source: unknown): void {
         : merged.cardVisuals.selectMoveCurve,
     };
   }
+  if (incoming.playPile) {
+    merged.playPile = {
+      ...merged.playPile,
+      ...incoming.playPile,
+    };
+  }
   if (incoming.scoreCurve) {
     merged.scoreCurve = {
       ...merged.scoreCurve,
@@ -1207,7 +1300,9 @@ export function applyConfig(source: unknown): void {
   CONFIG.dragHandCard = merged.dragHandCard;
   CONFIG.cardMoveRotation = merged.cardMoveRotation;
   CONFIG.cardOvershoot = merged.cardOvershoot;
+  CONFIG.handSwap = merged.handSwap;
   CONFIG.cardVisuals = merged.cardVisuals;
+  CONFIG.playPile = merged.playPile;
   CONFIG.scoreCurve = merged.scoreCurve;
   CONFIG.uiNodes = merged.uiNodes;
 }
@@ -1353,6 +1448,12 @@ export function applyShippingDefaults(source: unknown): void {
             p2: { ...(activeDefaultConfig.cardVisuals.selectMoveCurve?.p2 ?? {}), ...(incoming.cardVisuals.selectMoveCurve.p2 ?? {}) },
           }
         : activeDefaultConfig.cardVisuals.selectMoveCurve,
+    };
+  }
+  if (incoming.playPile) {
+    activeDefaultConfig.playPile = {
+      ...activeDefaultConfig.playPile,
+      ...incoming.playPile,
     };
   }
   if (incoming.scoreCurve) {
