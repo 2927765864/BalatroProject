@@ -138,11 +138,10 @@ export class PlayPipeline {
         );
         landingPromises.push(landPromise);
 
-        // 间隔时间指从位移开始的一瞬间起的发车间隔（若设为0则所有牌一起启动），不需要等当前牌完全 landing 才 sleep。
+        // 前一张牌与后一张牌的发车间隔（若设为0则所有牌一起启动），不需要等当前牌完全 landing 才 sleep。
         // 第一张牌发出后，间隔 interval 时间再启动下一张。
-        const interval = (i === total - 1)
-          ? dispCfg.lastIntervalMS
-          : Math.max(dispCfg.lastIntervalMS, dispCfg.firstIntervalMS - i * dispCfg.intervalReductionMS);
+        // 每次发车间隔递减 intervalReductionMS，直到最后一对牌。发车间隔最小为 0。
+        const interval = Math.max(0, dispCfg.firstIntervalMS - i * dispCfg.intervalReductionMS);
 
         if (i < total - 1) {
           await sleep(interval);
