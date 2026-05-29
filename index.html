@@ -1846,9 +1846,218 @@
 
           </details>
 
-          <!-- 6. 文字视效专项（占位） -->
+          <!-- 6. 文字视效专项 -->
           <details class="panel-group">
             <summary>文字视效</summary>
+            
+            <div class="panel-section">
+              <h4>【出牌】出牌堆的结算数字效果</h4>
+              
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用效果</span>
+                  <span id="val-playPileSettleTextEffectEnabled">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-playPileSettleTextEffectEnabled" type="checkbox" />
+                </label>
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>文字字号</span>
+                  <span id="val-playPileSettleTextEffectFontSize">36</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectFontSize" type="number" step="1" min="10" max="100" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>单字间距</span>
+                  <span id="val-playPileSettleTextEffectLetterSpacing">2.0</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectLetterSpacing" type="number" step="0.5" min="-10" max="50" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>文字颜色</span>
+                  <span id="val-playPileSettleTextEffectColor">#ffd700</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectColor" type="color" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>Y轴偏移 (相对中心)</span>
+                  <span id="val-playPileSettleTextEffectOffsetY">-110.0</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectOffsetY" type="number" step="5" min="-300" max="100" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>第一个字延迟 (ms)</span>
+                  <span id="val-playPileSettleTextEffectFirstCharDelayMS">0</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectFirstCharDelayMS" type="number" step="10" min="0" max="1000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>字间隔时间 (ms)</span>
+                  <span id="val-playPileSettleTextEffectCharIntervalMS">120</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectCharIntervalMS" type="number" step="10" min="0" max="1000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>后续字间隔减少 (ms)</span>
+                  <span id="val-playPileSettleTextEffectCharIntervalReductionMS">20</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectCharIntervalReductionMS" type="number" step="5" min="0" max="200" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>单字变大时长 (ms)</span>
+                  <span id="val-playPileSettleTextEffectCharScaleDurationMS">240</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectCharScaleDurationMS" type="number" step="10" min="0" max="1000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>单字最大缩放</span>
+                  <span id="val-playPileSettleTextEffectCharMaxScale">1.10</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectCharMaxScale" type="number" step="0.05" min="0.5" max="3" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>单字稳定缩放</span>
+                  <span id="val-playPileSettleTextEffectCharStableScale">1.00</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectCharStableScale" type="number" step="0.05" min="0.5" max="2" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>不倒翁圆心Y偏移</span>
+                  <span id="val-playPileSettleTextEffectSwingPivotY">100.0</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectSwingPivotY" type="number" step="10" min="10" max="300" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>不倒翁最大角度 (度)</span>
+                  <span id="val-playPileSettleTextEffectSwingMaxAngleDeg">20.0</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectSwingMaxAngleDeg" type="number" step="1" min="0" max="90" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>不倒翁摆动频率</span>
+                  <span id="val-playPileSettleTextEffectSwingFrequency">3.00</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectSwingFrequency" type="number" step="0.1" min="0.5" max="10" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>不倒翁摆动阻尼</span>
+                  <span id="val-playPileSettleTextEffectSwingDamping">3.50</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectSwingDamping" type="number" step="0.1" min="0" max="10" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>不倒翁摆动时间 (ms)</span>
+                  <span id="val-playPileSettleTextEffectSwingDurationMS">1200</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectSwingDurationMS" type="number" step="50" min="100" max="5000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>摆平停留时间 (ms)</span>
+                  <span id="val-playPileSettleTextEffectStayDurationMS">500</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectStayDurationMS" type="number" step="50" min="0" max="3000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>消失渐变时间 (ms)</span>
+                  <span id="val-playPileSettleTextEffectFadeDurationMS">300</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectFadeDurationMS" type="number" step="50" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>变小锚点Y比例</span>
+                  <span id="val-playPileSettleTextEffectShrinkAnchorY">0.20</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectShrinkAnchorY" type="number" step="0.05" min="-0.5" max="1.5" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用阴影</span>
+                  <span id="val-playPileSettleTextEffectShadowEnabled">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-playPileSettleTextEffectShadowEnabled" type="checkbox" />
+                </label>
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影颜色</span>
+                  <span id="val-playPileSettleTextEffectShadowColor">#000000</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectShadowColor" type="color" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影不透明度</span>
+                  <span id="val-playPileSettleTextEffectShadowAlpha">0.40</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectShadowAlpha" type="number" step="0.05" min="0" max="1" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影距离</span>
+                  <span id="val-playPileSettleTextEffectShadowDistance">4.0</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectShadowDistance" type="number" step="0.5" min="0" max="50" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影方向角度 (度)</span>
+                  <span id="val-playPileSettleTextEffectShadowAngleDeg">45.0</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectShadowAngleDeg" type="number" step="5" min="0" max="360" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影模糊半径</span>
+                  <span id="val-playPileSettleTextEffectShadowBlur">2.0</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectShadowBlur" type="number" step="0.5" min="0" max="20" />
+              </div>
+
+            </div>
           </details>
         </div>
       </div>

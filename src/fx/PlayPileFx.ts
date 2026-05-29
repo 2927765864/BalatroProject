@@ -392,7 +392,8 @@ export const PlayPileFx = {
       t1: number; t2: number; t3: number; t4: number; t5: number;
       s1: number; s2: number; s3: number; s4: number; s5: number;
       r1: number; r2: number; r3: number; r4: number;
-    }
+    },
+    onStage2?: () => void
   ): Promise<void> {
     const toRad = (deg: number) => (deg * Math.PI) / 180;
 
@@ -414,6 +415,7 @@ export const PlayPileFx = {
           .easing(Easing.cubicOut)
           .onStop(stopCleanup)
           .onComplete(() => {
+            onStage2?.();
             tm.add(
               tm.create(card)
                 .to({ scoringScaleMul: cfg.s2, scoringRotOffset: r2Rad }, cfg.t2)

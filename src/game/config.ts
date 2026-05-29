@@ -238,6 +238,34 @@ export interface RuntimeConfig {
     s5: number; t5: number;
     r1: number; r2: number; r3: number; r4: number;
   };
+  /** 【出牌】出牌堆的结算数字效果 */
+  playPileSettleTextEffect: {
+    enabled: boolean;
+    fontSize: number;
+    letterSpacing: number;
+    color: number;
+    offsetY: number;
+    firstCharDelayMS: number;
+    charIntervalMS: number;
+    charIntervalReductionMS: number;
+    charScaleDurationMS: number;
+    charMaxScale: number;
+    charStableScale: number;
+    swingPivotY: number;
+    swingMaxAngleDeg: number;
+    swingFrequency: number;
+    swingDamping: number;
+    swingDurationMS: number;
+    stayDurationMS: number;
+    fadeDurationMS: number;
+    shrinkAnchorY: number;
+    shadowEnabled: boolean;
+    shadowColor: number;
+    shadowAlpha: number;
+    shadowDistance: number;
+    shadowAngleDeg: number;
+    shadowBlur: number;
+  };
   /**
    * 卡牌移动旋转（velocity-based tilt）
    *
@@ -937,6 +965,33 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     r3: 0.8,
     r4: -1.5,
   }),
+  playPileSettleTextEffect: Object.freeze({
+    enabled: true,
+    fontSize: 36,
+    letterSpacing: 2,
+    color: 0xffd700, // gold / orange-yellow
+    offsetY: -110,
+    firstCharDelayMS: 0,
+    charIntervalMS: 120,
+    charIntervalReductionMS: 20,
+    charScaleDurationMS: 240,
+    charMaxScale: 1.1,
+    charStableScale: 1.0,
+    swingPivotY: 100,
+    swingMaxAngleDeg: 20,
+    swingFrequency: 3,
+    swingDamping: 3.5,
+    swingDurationMS: 1200,
+    stayDurationMS: 500,
+    fadeDurationMS: 300,
+    shrinkAnchorY: 0.2,
+    shadowEnabled: true,
+    shadowColor: 0x000000,
+    shadowAlpha: 0.4,
+    shadowDistance: 4,
+    shadowAngleDeg: 45,
+    shadowBlur: 2,
+  }),
   cardOvershoot: Object.freeze({
     enabled: true,
     // 归位/发牌（Tween 路径，距离驱动）：
@@ -1223,6 +1278,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     playCardMove: { ...src.playCardMove },
     playPileLiftEffect: { ...src.playPileLiftEffect },
     playPileSettleEffect: { ...src.playPileSettleEffect },
+    playPileSettleTextEffect: { ...src.playPileSettleTextEffect },
     cardMoveRotation: { ...src.cardMoveRotation },
     cardVisuals: {
       ...src.cardVisuals,
@@ -1422,6 +1478,12 @@ export function applyConfig(source: unknown): void {
       ...incoming.playPileSettleEffect,
     };
   }
+  if (incoming.playPileSettleTextEffect) {
+    merged.playPileSettleTextEffect = {
+      ...merged.playPileSettleTextEffect,
+      ...incoming.playPileSettleTextEffect,
+    };
+  }
   if (incoming.cardVisuals) {
     merged.cardVisuals = {
       ...merged.cardVisuals,
@@ -1486,6 +1548,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.playCardMove = merged.playCardMove;
   CONFIG.playPileLiftEffect = merged.playPileLiftEffect;
   CONFIG.playPileSettleEffect = merged.playPileSettleEffect;
+  CONFIG.playPileSettleTextEffect = merged.playPileSettleTextEffect;
   CONFIG.cardVisuals = merged.cardVisuals;
   CONFIG.playPile = merged.playPile;
   CONFIG.scoreCurve = merged.scoreCurve;

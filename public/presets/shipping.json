@@ -334,6 +334,33 @@
         "y": 1
       }
     },
+    "playPileSettleTextEffect": {
+      "enabled": true,
+      "fontSize": 36,
+      "letterSpacing": 2,
+      "color": 16768256,
+      "offsetY": -110,
+      "firstCharDelayMS": 0,
+      "charIntervalMS": 120,
+      "charIntervalReductionMS": 20,
+      "charScaleDurationMS": 240,
+      "charMaxScale": 1.1,
+      "charStableScale": 1.0,
+      "swingPivotY": 100,
+      "swingMaxAngleDeg": 20,
+      "swingFrequency": 3,
+      "swingDamping": 3.5,
+      "swingDurationMS": 1200,
+      "stayDurationMS": 500,
+      "fadeDurationMS": 300,
+      "shrinkAnchorY": 0.2,
+      "shadowEnabled": true,
+      "shadowColor": 0,
+      "shadowAlpha": 0.4,
+      "shadowDistance": 4,
+      "shadowAngleDeg": 45,
+      "shadowBlur": 2
+    },
     "uiNodes": {
       "hud.leftPanel.background": {
         "parentId": "hud.leftPanel",

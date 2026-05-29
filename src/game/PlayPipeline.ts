@@ -8,6 +8,7 @@ import {
 } from "@render/PlayPileLayout";
 import { PlayPileFx, sleep } from "@fx/PlayPileFx";
 import { CardFx } from "@fx/CardFx";
+import { TextFx } from "@fx/TextFx";
 import { CONFIG } from "./config";
 import type { GameEvents } from "./events";
 
@@ -266,7 +267,13 @@ export class PlayPipeline {
           const card = scoringViews[i]!;
           
           // 执行每张卡牌的弹性震荡动画并等待其结束
-          await PlayPileFx.animateCardSettle(this.deps.tween, card, settleEffectCfg);
+          await PlayPileFx.animateCardSettle(this.deps.tween, card, settleEffectCfg, () => {
+            const textCfg = CONFIG.playPileSettleTextEffect;
+            if (textCfg && textCfg.enabled && card.parent) {
+              const chips = card.data.chips;
+              TextFx.createSettleText(card.parent, this.deps.tween, card, chips, textCfg);
+            }
+          });
           
           // 第一张卡牌结束后的停留间隔，之后每张牌减少，最后一张使用 lastIntervalMS
           let interval = settleEffectCfg.firstIntervalMS - i * settleEffectCfg.intervalReductionMS;

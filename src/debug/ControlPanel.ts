@@ -1381,6 +1381,38 @@ export function setupControlPanel(
       });
     }
 
+    // === 6. 文字视效专项 ===
+    bindToggle("inp-playPileSettleTextEffectEnabled", "val-playPileSettleTextEffectEnabled", "playPileSettleTextEffect.enabled");
+    bindNumber("inp-playPileSettleTextEffectFontSize", "val-playPileSettleTextEffectFontSize", "playPileSettleTextEffect.fontSize", { integer: true });
+    bindNumber("inp-playPileSettleTextEffectLetterSpacing", "val-playPileSettleTextEffectLetterSpacing", "playPileSettleTextEffect.letterSpacing", { digits: 1 });
+    bindColor("inp-playPileSettleTextEffectColor", "val-playPileSettleTextEffectColor", "playPileSettleTextEffect.color");
+    bindNumber("inp-playPileSettleTextEffectOffsetY", "val-playPileSettleTextEffectOffsetY", "playPileSettleTextEffect.offsetY", { digits: 1 });
+    
+    bindNumber("inp-playPileSettleTextEffectFirstCharDelayMS", "val-playPileSettleTextEffectFirstCharDelayMS", "playPileSettleTextEffect.firstCharDelayMS", { integer: true });
+    bindNumber("inp-playPileSettleTextEffectCharIntervalMS", "val-playPileSettleTextEffectCharIntervalMS", "playPileSettleTextEffect.charIntervalMS", { integer: true });
+    bindNumber("inp-playPileSettleTextEffectCharIntervalReductionMS", "val-playPileSettleTextEffectCharIntervalReductionMS", "playPileSettleTextEffect.charIntervalReductionMS", { integer: true });
+    
+    bindNumber("inp-playPileSettleTextEffectCharScaleDurationMS", "val-playPileSettleTextEffectCharScaleDurationMS", "playPileSettleTextEffect.charScaleDurationMS", { integer: true });
+    bindNumber("inp-playPileSettleTextEffectCharMaxScale", "val-playPileSettleTextEffectCharMaxScale", "playPileSettleTextEffect.charMaxScale", { digits: 2 });
+    bindNumber("inp-playPileSettleTextEffectCharStableScale", "val-playPileSettleTextEffectCharStableScale", "playPileSettleTextEffect.charStableScale", { digits: 2 });
+    
+    bindNumber("inp-playPileSettleTextEffectSwingPivotY", "val-playPileSettleTextEffectSwingPivotY", "playPileSettleTextEffect.swingPivotY", { digits: 1 });
+    bindNumber("inp-playPileSettleTextEffectSwingMaxAngleDeg", "val-playPileSettleTextEffectSwingMaxAngleDeg", "playPileSettleTextEffect.swingMaxAngleDeg", { digits: 1 });
+    bindNumber("inp-playPileSettleTextEffectSwingFrequency", "val-playPileSettleTextEffectSwingFrequency", "playPileSettleTextEffect.swingFrequency", { digits: 2 });
+    bindNumber("inp-playPileSettleTextEffectSwingDamping", "val-playPileSettleTextEffectSwingDamping", "playPileSettleTextEffect.swingDamping", { digits: 2 });
+    bindNumber("inp-playPileSettleTextEffectSwingDurationMS", "val-playPileSettleTextEffectSwingDurationMS", "playPileSettleTextEffect.swingDurationMS", { integer: true });
+    
+    bindNumber("inp-playPileSettleTextEffectStayDurationMS", "val-playPileSettleTextEffectStayDurationMS", "playPileSettleTextEffect.stayDurationMS", { integer: true });
+    bindNumber("inp-playPileSettleTextEffectFadeDurationMS", "val-playPileSettleTextEffectFadeDurationMS", "playPileSettleTextEffect.fadeDurationMS", { integer: true });
+    bindNumber("inp-playPileSettleTextEffectShrinkAnchorY", "val-playPileSettleTextEffectShrinkAnchorY", "playPileSettleTextEffect.shrinkAnchorY", { digits: 2 });
+    
+    bindToggle("inp-playPileSettleTextEffectShadowEnabled", "val-playPileSettleTextEffectShadowEnabled", "playPileSettleTextEffect.shadowEnabled");
+    bindColor("inp-playPileSettleTextEffectShadowColor", "val-playPileSettleTextEffectShadowColor", "playPileSettleTextEffect.shadowColor");
+    bindNumber("inp-playPileSettleTextEffectShadowAlpha", "val-playPileSettleTextEffectShadowAlpha", "playPileSettleTextEffect.shadowAlpha", { digits: 2 });
+    bindNumber("inp-playPileSettleTextEffectShadowDistance", "val-playPileSettleTextEffectShadowDistance", "playPileSettleTextEffect.shadowDistance", { digits: 1 });
+    bindNumber("inp-playPileSettleTextEffectShadowAngleDeg", "val-playPileSettleTextEffectShadowAngleDeg", "playPileSettleTextEffect.shadowAngleDeg", { digits: 1 });
+    bindNumber("inp-playPileSettleTextEffectShadowBlur", "val-playPileSettleTextEffectShadowBlur", "playPileSettleTextEffect.shadowBlur", { digits: 1 });
+
     // 已经绑定过的控件只重跑 sync，避免重复挂监听
     syncers.forEach((fn) => fn());
   }

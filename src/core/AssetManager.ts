@@ -34,6 +34,11 @@ const NUMBER_FONT_URL = new URL(
   import.meta.url,
 ).href;
 
+const TEXT_FX_FONT_URL = new URL(
+  "../../resources/fonts/NotoSans-Bold.ttf",
+  import.meta.url,
+).href;
+
 export interface BackKey {
   row: number;
   col: number;
@@ -54,7 +59,7 @@ export class AssetManager {
     if (this.loaded) return;
 
     try {
-      await this.loadNumberFont();
+      await this.loadFonts();
 
       // 加载时直接指明 scaleMode=nearest，PIXI 会在创建 source 阶段就用最近邻
       // 采样上传到 GPU。再加 autoGenerateMipmaps:false 防止缩小时被 mipmap 糊掉。
@@ -131,20 +136,31 @@ export class AssetManager {
     source.style.update();
   }
 
-  private async loadNumberFont(): Promise<void> {
+  private async loadFonts(): Promise<void> {
     if (typeof FontFace === "undefined" || typeof document === "undefined") return;
 
     try {
-      const alreadyLoaded = Array.from(document.fonts).some(
+      // 加载数字字体
+      const numAlreadyLoaded = Array.from(document.fonts).some(
         (font) => font.family === GameFonts.numberFamily && font.status === "loaded",
       );
-      if (alreadyLoaded) return;
+      if (!numAlreadyLoaded) {
+        const face = new FontFace(GameFonts.numberFamily, `url(${NUMBER_FONT_URL})`);
+        const loadedFace = await face.load();
+        document.fonts.add(loadedFace);
+      }
 
-      const face = new FontFace(GameFonts.numberFamily, `url(${NUMBER_FONT_URL})`);
-      const loadedFace = await face.load();
-      document.fonts.add(loadedFace);
+      // 加载文字视效字体
+      const textFxAlreadyLoaded = Array.from(document.fonts).some(
+        (font) => font.family === GameFonts.textFxFamily && font.status === "loaded",
+      );
+      if (!textFxAlreadyLoaded) {
+        const face = new FontFace(GameFonts.textFxFamily, `url(${TEXT_FX_FONT_URL})`);
+        const loadedFace = await face.load();
+        document.fonts.add(loadedFace);
+      }
     } catch (err) {
-      console.warn("[AssetManager] 加载数字字体失败：", err);
+      console.warn("[AssetManager] 加载字体失败：", err);
     }
   }
 
