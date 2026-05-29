@@ -121,6 +121,11 @@ export class CardView extends Container {
    * 开启后阴影会切换成拖拽阴影效果。
    */
   isScoringLifted = false;
+  /**
+   * 结算筹码计算时的缩放乘数与旋转偏移（独立通道）
+   */
+  scoringScaleMul = 1.0;
+  scoringRotOffset = 0.0;
 
   // 当前卡牌在手牌数组中的索引（0 = 最左）。由 GameController.layoutHand() 每次重排时写入。
   // 用于"鼠标悬停伪3D倾斜"按位置插值卡牌强度（最左 vs 最右）。未参与布局时默认 0。
@@ -2185,7 +2190,7 @@ export class CardView extends Container {
       // 包含 IDLE/ARMED 的跟随、INERTIA 的惯性过冲、SPRING 的弹簧回弹三阶段
       // 全部合并在一个变量里——所以无需再叠加其他过冲通道。
       const vRot = this.velocityRotation;
-      const totalRot = wobbleTotal + vRot;
+      const totalRot = wobbleTotal + vRot + this.scoringRotOffset;
 
       // 仅为 velocityRotation 计算绕轴点的位置补偿。
       // 当 vRot ≈ 0 或轴点恰在中心时补偿为 0，自动退化为原行为。
@@ -2214,8 +2219,8 @@ export class CardView extends Container {
 
       this.displayWrapper.position.set(W / 2 + pivotCompX, H / 2 + totalY + pivotCompY);
       this.displayWrapper.rotation = totalRot;
-      // 最终缩放 = hover/常态 currentScale × 拖拽缩放乘数（独立通道、可与 hover 复合）
-      const finalScale = this.currentScale * this.dragScaleMul;
+      // 最终缩放 = hover/常态 currentScale × 拖拽缩放乘数 × 结算缩放乘数（独立通道、可与 hover 复合）
+      const finalScale = this.currentScale * this.dragScaleMul * this.scoringScaleMul;
       this.displayWrapper.scale.set(finalScale, finalScale);
     }
 

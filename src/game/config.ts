@@ -222,6 +222,22 @@ export interface RuntimeConfig {
     /** 上移阴影大小比例 */
     shadowScaleRatio: number;
   };
+  /** 【出牌】出牌堆的结算效果 */
+  playPileSettleEffect: {
+    enabled: boolean;
+    /** 第一张要进行筹码数值计算的卡牌动画结束后的停留的时间间隔 */
+    firstIntervalMS: number;
+    /** 之后每张牌减少的时间间隔 */
+    intervalReductionMS: number;
+    /** 最后一张牌动画结束后的停留时间间隔 */
+    lastIntervalMS: number;
+    s1: number; t1: number;
+    s2: number; t2: number;
+    s3: number; t3: number;
+    s4: number; t4: number;
+    s5: number; t5: number;
+    r1: number; r2: number; r3: number; r4: number;
+  };
   /**
    * 卡牌移动旋转（velocity-based tilt）
    *
@@ -483,6 +499,7 @@ export interface RuntimeConfig {
       playPileDisplacement: boolean;
       playCardMove: boolean;
       playPileLiftEffect: boolean;
+      playPileSettleEffect: boolean;
     };
 
     /**
@@ -900,6 +917,26 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     shadowDistanceRatio: 0.08,
     shadowScaleRatio: 0.92,
   }),
+  playPileSettleEffect: Object.freeze({
+    enabled: true,
+    firstIntervalMS: 300,
+    intervalReductionMS: 60,
+    lastIntervalMS: 150,
+    s1: 0.92,
+    t1: 120,
+    s2: 1.20,
+    t2: 160,
+    s3: 0.95,
+    t3: 140,
+    s4: 1.10,
+    t4: 120,
+    s5: 1.00,
+    t5: 100,
+    r1: 0.5,
+    r2: -4.0,
+    r3: 0.8,
+    r4: -1.5,
+  }),
   cardOvershoot: Object.freeze({
     enabled: true,
     // 归位/发牌（Tween 路径，距离驱动）：
@@ -1003,6 +1040,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       playPileDisplacement: true,
       playCardMove: true,
       playPileLiftEffect: true,
+      playPileSettleEffect: true,
     }),
     selectMoveEnabled: true,
     selectRiseY: 30,
@@ -1184,6 +1222,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     playPileDisplacement: { ...src.playPileDisplacement },
     playCardMove: { ...src.playCardMove },
     playPileLiftEffect: { ...src.playPileLiftEffect },
+    playPileSettleEffect: { ...src.playPileSettleEffect },
     cardMoveRotation: { ...src.cardMoveRotation },
     cardVisuals: {
       ...src.cardVisuals,
@@ -1377,6 +1416,12 @@ export function applyConfig(source: unknown): void {
       ...incoming.playPileLiftEffect,
     };
   }
+  if (incoming.playPileSettleEffect) {
+    merged.playPileSettleEffect = {
+      ...merged.playPileSettleEffect,
+      ...incoming.playPileSettleEffect,
+    };
+  }
   if (incoming.cardVisuals) {
     merged.cardVisuals = {
       ...merged.cardVisuals,
@@ -1440,6 +1485,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.playPileDisplacement = merged.playPileDisplacement;
   CONFIG.playCardMove = merged.playCardMove;
   CONFIG.playPileLiftEffect = merged.playPileLiftEffect;
+  CONFIG.playPileSettleEffect = merged.playPileSettleEffect;
   CONFIG.cardVisuals = merged.cardVisuals;
   CONFIG.playPile = merged.playPile;
   CONFIG.scoreCurve = merged.scoreCurve;
@@ -1583,6 +1629,12 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.playPileLiftEffect = {
       ...activeDefaultConfig.playPileLiftEffect,
       ...incoming.playPileLiftEffect,
+    };
+  }
+  if (incoming.playPileSettleEffect) {
+    activeDefaultConfig.playPileSettleEffect = {
+      ...activeDefaultConfig.playPileSettleEffect,
+      ...incoming.playPileSettleEffect,
     };
   }
   if (incoming.cardVisuals) {

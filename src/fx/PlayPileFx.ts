@@ -381,4 +381,72 @@ export const PlayPileFx = {
       );
     });
   },
+
+  /**
+   * 计分卡牌单张从左到右结算时的弹性往复震荡动画（大小 + 旋转）
+   */
+  animateCardSettle(
+    tm: TweenManager,
+    card: CardView,
+    cfg: {
+      t1: number; t2: number; t3: number; t4: number; t5: number;
+      s1: number; s2: number; s3: number; s4: number; s5: number;
+      r1: number; r2: number; r3: number; r4: number;
+    }
+  ): Promise<void> {
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+
+    const r1Rad = toRad(cfg.r1);
+    const r2Rad = toRad(cfg.r2);
+    const r3Rad = toRad(cfg.r3);
+    const r4Rad = toRad(cfg.r4);
+
+    return new Promise<void>((resolve) => {
+      const stopCleanup = () => {
+        card.scoringScaleMul = 1.0;
+        card.scoringRotOffset = 0.0;
+        resolve();
+      };
+
+      tm.add(
+        tm.create(card)
+          .to({ scoringScaleMul: cfg.s1, scoringRotOffset: r1Rad }, cfg.t1)
+          .easing(Easing.cubicOut)
+          .onStop(stopCleanup)
+          .onComplete(() => {
+            tm.add(
+              tm.create(card)
+                .to({ scoringScaleMul: cfg.s2, scoringRotOffset: r2Rad }, cfg.t2)
+                .easing(Easing.quadInOut)
+                .onStop(stopCleanup)
+                .onComplete(() => {
+                  tm.add(
+                    tm.create(card)
+                      .to({ scoringScaleMul: cfg.s3, scoringRotOffset: r3Rad }, cfg.t3)
+                      .easing(Easing.quadInOut)
+                      .onStop(stopCleanup)
+                      .onComplete(() => {
+                        tm.add(
+                          tm.create(card)
+                            .to({ scoringScaleMul: cfg.s4, scoringRotOffset: r4Rad }, cfg.t4)
+                            .easing(Easing.quadInOut)
+                            .onStop(stopCleanup)
+                            .onComplete(() => {
+                              tm.add(
+                                tm.create(card)
+                                  .to({ scoringScaleMul: cfg.s5, scoringRotOffset: 0.0 }, cfg.t5)
+                                  .easing(Easing.cubicOut)
+                                  .onStop(stopCleanup)
+                                  .onComplete(resolve)
+                              );
+                            })
+                        );
+                      })
+                  );
+                })
+            );
+          })
+      );
+    });
+  },
 };

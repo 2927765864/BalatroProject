@@ -1216,6 +1216,27 @@ export function setupControlPanel(
     bindNumber("inp-playPileLiftEffectShadowDistanceRatio", "val-playPileLiftEffectShadowDistanceRatio", "playPileLiftEffect.shadowDistanceRatio", { digits: 5 });
     bindNumber("inp-playPileLiftEffectShadowScaleRatio", "val-playPileLiftEffectShadowScaleRatio", "playPileLiftEffect.shadowScaleRatio", { digits: 2 });
 
+    // === 【出牌】出牌堆的结算效果 ===
+    bindSectionExpand("inp-expandPlayPileSettleEffect", "val-expandPlayPileSettleEffect", "cardVisuals.expandedSections.playPileSettleEffect", "sect-playPileSettleEffect-params");
+    bindToggle("inp-playPileSettleEffectEnabled", "val-playPileSettleEffectEnabled", "playPileSettleEffect.enabled");
+    bindNumber("inp-playPileSettleEffectFirstIntervalMS", "val-playPileSettleEffectFirstIntervalMS", "playPileSettleEffect.firstIntervalMS", { integer: true });
+    bindNumber("inp-playPileSettleEffectIntervalReductionMS", "val-playPileSettleEffectIntervalReductionMS", "playPileSettleEffect.intervalReductionMS", { integer: true });
+    bindNumber("inp-playPileSettleEffectLastIntervalMS", "val-playPileSettleEffectLastIntervalMS", "playPileSettleEffect.lastIntervalMS", { integer: true });
+    bindNumber("inp-playPileSettleEffectS1", "val-playPileSettleEffectS1", "playPileSettleEffect.s1", { digits: 2 });
+    bindNumber("inp-playPileSettleEffectT1", "val-playPileSettleEffectT1", "playPileSettleEffect.t1", { integer: true });
+    bindNumber("inp-playPileSettleEffectS2", "val-playPileSettleEffectS2", "playPileSettleEffect.s2", { digits: 2 });
+    bindNumber("inp-playPileSettleEffectT2", "val-playPileSettleEffectT2", "playPileSettleEffect.t2", { integer: true });
+    bindNumber("inp-playPileSettleEffectS3", "val-playPileSettleEffectS3", "playPileSettleEffect.s3", { digits: 2 });
+    bindNumber("inp-playPileSettleEffectT3", "val-playPileSettleEffectT3", "playPileSettleEffect.t3", { integer: true });
+    bindNumber("inp-playPileSettleEffectS4", "val-playPileSettleEffectS4", "playPileSettleEffect.s4", { digits: 2 });
+    bindNumber("inp-playPileSettleEffectT4", "val-playPileSettleEffectT4", "playPileSettleEffect.t4", { integer: true });
+    bindNumber("inp-playPileSettleEffectS5", "val-playPileSettleEffectS5", "playPileSettleEffect.s5", { digits: 2 });
+    bindNumber("inp-playPileSettleEffectT5", "val-playPileSettleEffectT5", "playPileSettleEffect.t5", { integer: true });
+    bindNumber("inp-playPileSettleEffectR1", "val-playPileSettleEffectR1", "playPileSettleEffect.r1", { digits: 2 });
+    bindNumber("inp-playPileSettleEffectR2", "val-playPileSettleEffectR2", "playPileSettleEffect.r2", { digits: 2 });
+    bindNumber("inp-playPileSettleEffectR3", "val-playPileSettleEffectR3", "playPileSettleEffect.r3", { digits: 2 });
+    bindNumber("inp-playPileSettleEffectR4", "val-playPileSettleEffectR4", "playPileSettleEffect.r4", { digits: 2 });
+
     // 卡牌移动旋转（velocity-based tilt）：与 dragHandCard 同属"卡牌逻辑"专区。
     bindSectionExpand("inp-expandCardMoveRotation", "val-expandCardMoveRotation", "cardVisuals.expandedSections.cardMoveRotation", "sect-cardMoveRotation-params");
     bindToggle("inp-cardMoveRotationEnabled", "val-cardMoveRotationEnabled", "cardMoveRotation.enabled");

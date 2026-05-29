@@ -256,13 +256,39 @@ export class PlayPipeline {
     // 实际加分发生在结算"开始"时——视觉过程中分数已经在 HUD 上变化，
     // 配合未来的"逐牌爆字"会更顺：开始算 → 一张张爆 → 总分跳完。
     const totalScore = this.deps.applyScore(result);
-    await PlayPileFx.settleSquash(this.deps.tween, selected, {
-      squashScale: cfg.squashScale,
-      bouncePeakScale: cfg.bouncePeakScale,
-      bounceCount: cfg.bounceCount,
-      squashDurationMS: cfg.squashDurationMS,
-      bounceDurationMS: cfg.bounceDurationMS,
-    });
+    
+    const settleEffectCfg = CONFIG.playPileSettleEffect;
+    if (settleEffectCfg && settleEffectCfg.enabled) {
+      const scoringCards = result.scoringCards ?? [];
+      const scoringViews = selected.filter((v) => scoringCards.some((sc) => sc.id === v.data.id));
+      if (scoringViews.length > 0) {
+        for (let i = 0; i < scoringViews.length; i++) {
+          const card = scoringViews[i]!;
+          
+          // 执行每张卡牌的弹性震荡动画并等待其结束
+          await PlayPileFx.animateCardSettle(this.deps.tween, card, settleEffectCfg);
+          
+          // 第一张卡牌结束后的停留间隔，之后每张牌减少，最后一张使用 lastIntervalMS
+          let interval = settleEffectCfg.firstIntervalMS - i * settleEffectCfg.intervalReductionMS;
+          interval = Math.max(0, interval);
+          if (i === scoringViews.length - 1) {
+            interval = settleEffectCfg.lastIntervalMS;
+          }
+          
+          if (interval > 0) {
+            await sleep(interval);
+          }
+        }
+      }
+    } else {
+      await PlayPileFx.settleSquash(this.deps.tween, selected, {
+        squashScale: cfg.squashScale,
+        bouncePeakScale: cfg.bouncePeakScale,
+        bounceCount: cfg.bounceCount,
+        squashDurationMS: cfg.squashDurationMS,
+        bounceDurationMS: cfg.bounceDurationMS,
+      });
+    }
     bus.emit("play:settled", { result, totalScore });
 
     // ── 阶段 5：下移 + 丢牌 ──────────────────────────────────
