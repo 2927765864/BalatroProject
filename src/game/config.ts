@@ -265,6 +265,15 @@ export interface RuntimeConfig {
     shadowDistance: number;
     shadowAngleDeg: number;
     shadowBlur: number;
+    bgBlockEnabled: boolean;
+    bgBlockColor: number;
+    bgBlockInitAngleDeg: number;
+    bgBlockEndAngleDeg: number;
+    bgBlockDurationMS: number;
+    /** 蓝色方块透明度变化曲线（横轴=时间进度 0→1，纵轴=透明度从 1→0 的进度映射）。 */
+    bgBlockFadeCurve: BezierCurveConfig;
+    /** 蓝色方块大小缩放变化曲线（横轴=时间进度 0→1，纵轴=缩放大小从 startScale→endScale 映射）。 */
+    bgBlockScaleCurve: BezierCurveConfig;
   };
   /**
    * 卡牌移动旋转（velocity-based tilt）
@@ -528,6 +537,8 @@ export interface RuntimeConfig {
       playCardMove: boolean;
       playPileLiftEffect: boolean;
       playPileSettleEffect: boolean;
+      playPileSettleText: boolean;
+      playPileSettleBgBlock: boolean;
     };
 
     /**
@@ -991,6 +1002,27 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     shadowDistance: 4,
     shadowAngleDeg: 45,
     shadowBlur: 2,
+    bgBlockEnabled: true,
+    bgBlockColor: 0x00a2ff,
+    bgBlockInitAngleDeg: -15,
+    bgBlockEndAngleDeg: 15,
+    bgBlockDurationMS: 600,
+    bgBlockFadeCurve: Object.freeze({
+      enabled: true,
+      startScale: 0,
+      endScale: 1,
+      // 默认：开头透明度保持得久一些，末尾快速消失（ease-in 风格）。
+      p1: { x: 0.4, y: 0.05 },
+      p2: { x: 0.8, y: 0.4 },
+    }) as BezierCurveConfig,
+    bgBlockScaleCurve: Object.freeze({
+      enabled: true,
+      startScale: 0,
+      endScale: 1.5,
+      // 默认：快起、平缓收尾（cubicOut 风格）。
+      p1: { x: 0.1, y: 0.85 },
+      p2: { x: 0.25, y: 1.0 },
+    }) as BezierCurveConfig,
   }),
   cardOvershoot: Object.freeze({
     enabled: true,
@@ -1096,6 +1128,8 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       playCardMove: true,
       playPileLiftEffect: true,
       playPileSettleEffect: true,
+      playPileSettleText: true,
+      playPileSettleBgBlock: true,
     }),
     selectMoveEnabled: true,
     selectRiseY: 30,
@@ -1278,7 +1312,19 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     playCardMove: { ...src.playCardMove },
     playPileLiftEffect: { ...src.playPileLiftEffect },
     playPileSettleEffect: { ...src.playPileSettleEffect },
-    playPileSettleTextEffect: { ...src.playPileSettleTextEffect },
+    playPileSettleTextEffect: {
+      ...src.playPileSettleTextEffect,
+      bgBlockFadeCurve: src.playPileSettleTextEffect.bgBlockFadeCurve ? {
+        ...src.playPileSettleTextEffect.bgBlockFadeCurve,
+        p1: { ...src.playPileSettleTextEffect.bgBlockFadeCurve.p1 },
+        p2: { ...src.playPileSettleTextEffect.bgBlockFadeCurve.p2 },
+      } : undefined as any,
+      bgBlockScaleCurve: src.playPileSettleTextEffect.bgBlockScaleCurve ? {
+        ...src.playPileSettleTextEffect.bgBlockScaleCurve,
+        p1: { ...src.playPileSettleTextEffect.bgBlockScaleCurve.p1 },
+        p2: { ...src.playPileSettleTextEffect.bgBlockScaleCurve.p2 },
+      } : undefined as any,
+    },
     cardMoveRotation: { ...src.cardMoveRotation },
     cardVisuals: {
       ...src.cardVisuals,
@@ -1482,6 +1528,22 @@ export function applyConfig(source: unknown): void {
     merged.playPileSettleTextEffect = {
       ...merged.playPileSettleTextEffect,
       ...incoming.playPileSettleTextEffect,
+      bgBlockFadeCurve: incoming.playPileSettleTextEffect.bgBlockFadeCurve
+        ? {
+            ...merged.playPileSettleTextEffect.bgBlockFadeCurve,
+            ...incoming.playPileSettleTextEffect.bgBlockFadeCurve,
+            p1: { ...(merged.playPileSettleTextEffect.bgBlockFadeCurve?.p1 ?? {}), ...(incoming.playPileSettleTextEffect.bgBlockFadeCurve.p1 ?? {}) },
+            p2: { ...(merged.playPileSettleTextEffect.bgBlockFadeCurve?.p2 ?? {}), ...(incoming.playPileSettleTextEffect.bgBlockFadeCurve.p2 ?? {}) },
+          }
+        : merged.playPileSettleTextEffect.bgBlockFadeCurve,
+      bgBlockScaleCurve: incoming.playPileSettleTextEffect.bgBlockScaleCurve
+        ? {
+            ...merged.playPileSettleTextEffect.bgBlockScaleCurve,
+            ...incoming.playPileSettleTextEffect.bgBlockScaleCurve,
+            p1: { ...(merged.playPileSettleTextEffect.bgBlockScaleCurve?.p1 ?? {}), ...(incoming.playPileSettleTextEffect.bgBlockScaleCurve.p1 ?? {}) },
+            p2: { ...(merged.playPileSettleTextEffect.bgBlockScaleCurve?.p2 ?? {}), ...(incoming.playPileSettleTextEffect.bgBlockScaleCurve.p2 ?? {}) },
+          }
+        : merged.playPileSettleTextEffect.bgBlockScaleCurve,
     };
   }
   if (incoming.cardVisuals) {

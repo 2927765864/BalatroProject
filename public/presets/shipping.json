@@ -13,7 +13,8 @@
       "maxSelected": 5,
       "plays": 4,
       "discards": 3,
-      "targetScore": 450
+      "targetScore": 450,
+      "unlimitedActions": true
     },
     "animation": {
       "moveDurationMS": 280,
@@ -180,11 +181,123 @@
       "springDurationMS": 50,
       "overshootPx": 28
     },
+    "playHandSwap": {
+      "enabled": true,
+      "riseDurationMS": 60,
+      "springDurationMS": 50,
+      "overshootPx": 28
+    },
+    "playPileDisplacement": {
+      "enabled": true,
+      "cardSpacing": 110,
+      "riseDurationMS": 60,
+      "springDurationMS": 50,
+      "overshootPx": 28,
+      "firstIntervalMS": 350,
+      "intervalReductionMS": 40,
+      "lastIntervalMS": 170
+    },
     "playCardMove": {
       "enabled": true,
-      "overshoot1Px": 40,
-      "overshoot2Px": 12,
-      "stiffness": 12
+      "overshoot1Px": 34,
+      "overshoot2Px": 21,
+      "stiffness": 18
+    },
+    "playPileLiftEffect": {
+      "enabled": true,
+      "startSpeed": 600,
+      "decelerateTime": 0.1,
+      "overshoot": 15,
+      "springStiffness": 10.5,
+      "interval": 400,
+      "dropOvershoot": 16,
+      "dropSpringStiffness": 12,
+      "dropStartSpeed": 500,
+      "shadowColor": 0,
+      "shadowAlpha": 0.35,
+      "shadowLightX": 720,
+      "shadowLightY": 565,
+      "shadowDistanceRatio": 0.08,
+      "shadowScaleRatio": 0.92
+    },
+    "playPileSettleEffect": {
+      "enabled": true,
+      "firstIntervalMS": 300,
+      "intervalReductionMS": 60,
+      "lastIntervalMS": 800,
+      "s1": 0.92,
+      "t1": 80,
+      "s2": 1.25,
+      "t2": 80,
+      "s3": 0.95,
+      "t3": 70,
+      "s4": 1.1,
+      "t4": 60,
+      "s5": 1,
+      "t5": 50,
+      "r1": 2,
+      "r2": -7,
+      "r3": 4.2,
+      "r4": -1.5
+    },
+    "playPileSettleTextEffect": {
+      "enabled": true,
+      "fontSize": 36,
+      "letterSpacing": -3.5,
+      "color": 16777215,
+      "offsetY": -100,
+      "firstCharDelayMS": 0,
+      "charIntervalMS": 100,
+      "charIntervalReductionMS": 20,
+      "charScaleDurationMS": 120,
+      "charMaxScale": 1.15,
+      "charStableScale": 1,
+      "swingPivotY": 100,
+      "swingMaxAngleDeg": 20,
+      "swingFrequency": 2,
+      "swingDamping": 3.5,
+      "swingDurationMS": 350,
+      "stayDurationMS": 550,
+      "fadeDurationMS": 350,
+      "shrinkAnchorY": 0.2,
+      "shadowEnabled": true,
+      "shadowColor": 0,
+      "shadowAlpha": 0.4,
+      "shadowDistance": 4,
+      "shadowAngleDeg": 90,
+      "shadowBlur": 0,
+      "bgBlockEnabled": true,
+      "bgBlockColor": 41727,
+      "bgBlockInitAngleDeg": 34,
+      "bgBlockEndAngleDeg": 28,
+      "bgBlockDurationMS": 1200,
+      "bgBlockFadeCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 1,
+        "p1": {
+          "x": 0,
+          "y": 0
+        },
+        "p2": {
+          "x": 1,
+          "y": 0.2725089651639344
+        }
+      },
+      "bgBlockScaleCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 0.45,
+        "p1": {
+          "x": 0,
+          "y": 0.7538101946721312
+        },
+        "p2": {
+          "x": 0.58,
+          "y": 1
+        }
+      },
+      "bgBlockEndScale": 0.45
     },
     "cardMoveRotation": {
       "enabled": true,
@@ -217,9 +330,15 @@
         "cardOps": false,
         "cardMoveRotation": false,
         "cardOvershoot": false,
-        "handSwap": true,
-        "mouseOffset": true,
-        "playCardMove": true
+        "handSwap": false,
+        "playHandSwap": false,
+        "playPileDisplacement": false,
+        "playCardMove": false,
+        "playPileLiftEffect": false,
+        "playPileSettleEffect": false,
+        "playPileSettleText": true,
+        "playPileSettleBgBlock": true,
+        "mouseOffset": true
       },
       "selectMoveEnabled": true,
       "selectRiseY": 26,
@@ -321,6 +440,27 @@
         }
       }
     },
+    "playPile": {
+      "baseYOffset": -220,
+      "centerAlignsHand": true,
+      "cardSpacing": 70,
+      "flyDurationMS": 260,
+      "ejectIntervalRatio": 0.75,
+      "overshootFirstPx": 18,
+      "overshootMidPx": 8,
+      "overshootLastPx": 18,
+      "liftPx": 30,
+      "liftDurationMS": 220,
+      "liftOvershootPx": 10,
+      "squashScale": 0.9,
+      "squashDurationMS": 140,
+      "bouncePeakScale": 1.12,
+      "bounceCount": 2,
+      "bounceDurationMS": 160,
+      "dropDurationMS": 220,
+      "discardIntervalMS": 80,
+      "discardFlyDurationMS": 320
+    },
     "scoreCurve": {
       "enabled": false,
       "startScale": 1,
@@ -333,33 +473,6 @@
         "x": 0.58,
         "y": 1
       }
-    },
-    "playPileSettleTextEffect": {
-      "enabled": true,
-      "fontSize": 36,
-      "letterSpacing": 2,
-      "color": 16768256,
-      "offsetY": -110,
-      "firstCharDelayMS": 0,
-      "charIntervalMS": 120,
-      "charIntervalReductionMS": 20,
-      "charScaleDurationMS": 240,
-      "charMaxScale": 1.1,
-      "charStableScale": 1.0,
-      "swingPivotY": 100,
-      "swingMaxAngleDeg": 20,
-      "swingFrequency": 3,
-      "swingDamping": 3.5,
-      "swingDurationMS": 1200,
-      "stayDurationMS": 500,
-      "fadeDurationMS": 300,
-      "shrinkAnchorY": 0.2,
-      "shadowEnabled": true,
-      "shadowColor": 0,
-      "shadowAlpha": 0.4,
-      "shadowDistance": 4,
-      "shadowAngleDeg": 45,
-      "shadowBlur": 2
     },
     "uiNodes": {
       "hud.leftPanel.background": {
@@ -615,7 +728,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "15"
+              "text": "816"
             }
           },
           {

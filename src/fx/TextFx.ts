@@ -1,8 +1,10 @@
-import { Container, Text } from "pixi.js";
+import { Container, Text, Graphics } from "pixi.js";
 import type { TweenManager } from "@tween/TweenManager";
 import { Easing } from "@tween/Easing";
 import type { CardView } from "@render/CardView";
 import { GameFonts } from "@ui/fonts";
+import { sampleCurve } from "../debug/BezierCurveEditor";
+import type { BezierCurveConfig } from "@game/config";
 
 /**
  * 文字视效（占位起步）
@@ -94,6 +96,13 @@ export const TextFx = {
       shadowDistance: number;
       shadowAngleDeg: number;
       shadowBlur: number;
+      bgBlockEnabled: boolean;
+      bgBlockColor: number;
+      bgBlockInitAngleDeg: number;
+      bgBlockEndAngleDeg: number;
+      bgBlockDurationMS: number;
+      bgBlockFadeCurve: BezierCurveConfig;
+      bgBlockScaleCurve: BezierCurveConfig;
     }
   ): void {
     const textStr = "+" + chips;
@@ -180,6 +189,74 @@ export const TextFx = {
         currentDelay += stepDelay;
       }
     }
+
+    // 1.5 在完整数字全部从小变大后，生成背景蓝色小方块衬托效果
+    const spawnBgBlock = async () => {
+      if (!cfg.bgBlockEnabled) return;
+      const totalScaleDelay = currentDelay + cfg.charScaleDurationMS;
+      if (totalScaleDelay > 0) {
+        await sleep(totalScaleDelay);
+      }
+      if (container.destroyed) return;
+
+      // 背景容器定位到“数字整体的中心”——即 targetX / targetY（数字单字几何中心所在的世界坐标）。
+      // 关键点：pivot 必须保持 (0,0)，让缩放与旋转都围绕方块自身中心进行，
+      // 而不是沿用文字摆动用的 swingPivotY（否则 scale=0 时方块会塌缩到卡牌附近）。
+      const bgContainer = new Container();
+      bgContainer.position.set(targetX, targetY);
+      bgContainer.rotation = (cfg.bgBlockInitAngleDeg * Math.PI) / 180;
+      bgContainer.alpha = 1.0;
+      bgContainer.scale.set(cfg.bgBlockScaleCurve.startScale);
+
+      const bgBlock = new Graphics();
+      // 蓝色小方块的大小比文本宽度和高度稍大，让它作为一个很好的背景（直角方块，无圆角）
+      const bgSize = Math.max(totalWidth + 24, cfg.fontSize * 1.6);
+      bgBlock.rect(-bgSize / 2, -bgSize / 2, bgSize, bgSize);
+      bgBlock.fill({ color: cfg.bgBlockColor });
+
+      // bgBlock 放在 bgContainer 的中心 (0, 0) 处
+      bgContainer.addChild(bgBlock);
+
+      // 插入到 parent 的底层，刚好在 container 的下方，避免受 container 的生命周期、淡出和销毁限制
+      const idx = parent.children.indexOf(container);
+      if (idx >= 0) {
+        parent.addChildAt(bgContainer, idx);
+      } else {
+        parent.addChild(bgContainer);
+      }
+
+      const targetRotation = (cfg.bgBlockEndAngleDeg * Math.PI) / 180;
+      const duration = cfg.bgBlockDurationMS;
+
+      // 旋转仍使用传统的 Easing 运动
+      tm.add(
+        tm.create(bgContainer)
+          .to({ rotation: targetRotation }, duration)
+          .easing(Easing.cubicOut)
+      );
+
+      // 通过 progressDummy 同时驱动“大小曲线缩放”与“透明度曲线淡出”
+      const progressDummy = { t: 0 };
+      tm.add(
+        tm.create(progressDummy)
+          .to({ t: 1 }, duration)
+          .easing(Easing.linear)
+          .onUpdate(() => {
+            // 1. 缩放变化曲线
+            const currentScale = sampleCurve(cfg.bgBlockScaleCurve, progressDummy.t);
+            bgContainer.scale.set(currentScale);
+
+            // 2. 透明度淡出曲线
+            const fadeProgress = sampleCurve(cfg.bgBlockFadeCurve, progressDummy.t);
+            bgContainer.alpha = Math.max(0, Math.min(1, 1 - fadeProgress));
+          })
+          .onComplete(() => {
+            bgContainer.parent?.removeChild(bgContainer);
+            bgContainer.destroy({ children: true });
+          })
+      );
+    };
+    void spawnBgBlock();
 
     // 2. 整个文本不倒翁往复摆动效果（阻尼简谐振动模型，与 "+" 出现一瞬间同步启动）
     const dummy = { progress: 0 };

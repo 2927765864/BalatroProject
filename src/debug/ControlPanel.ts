@@ -159,6 +159,8 @@ export function setupControlPanel(
   let tweenSpringCurvePanel: BezierCurvePanel | null = null;
   let dragRiseCurvePanel: BezierCurvePanel | null = null;
   let dragSpringCurvePanel: BezierCurvePanel | null = null;
+  let bgBlockFadeCurvePanel: BezierCurvePanel | null = null;
+  let bgBlockScaleCurvePanel: BezierCurvePanel | null = null;
 
   // 收集所有"按 CONFIG 当前值刷新自身"的回调，preset 加载后批量重跑。
   const syncers: Array<() => void> = [];
@@ -1382,6 +1384,9 @@ export function setupControlPanel(
     }
 
     // === 6. 文字视效专项 ===
+    bindSectionExpand("inp-expandPlayPileSettleText", "val-expandPlayPileSettleText", "cardVisuals.expandedSections.playPileSettleText", "sect-playPileSettleText-params");
+    bindSectionExpand("inp-expandPlayPileSettleBgBlock", "val-expandPlayPileSettleBgBlock", "cardVisuals.expandedSections.playPileSettleBgBlock", "sect-playPileSettleBgBlock-params");
+
     bindToggle("inp-playPileSettleTextEffectEnabled", "val-playPileSettleTextEffectEnabled", "playPileSettleTextEffect.enabled");
     bindNumber("inp-playPileSettleTextEffectFontSize", "val-playPileSettleTextEffectFontSize", "playPileSettleTextEffect.fontSize", { integer: true });
     bindNumber("inp-playPileSettleTextEffectLetterSpacing", "val-playPileSettleTextEffectLetterSpacing", "playPileSettleTextEffect.letterSpacing", { digits: 1 });
@@ -1412,6 +1417,44 @@ export function setupControlPanel(
     bindNumber("inp-playPileSettleTextEffectShadowDistance", "val-playPileSettleTextEffectShadowDistance", "playPileSettleTextEffect.shadowDistance", { digits: 1 });
     bindNumber("inp-playPileSettleTextEffectShadowAngleDeg", "val-playPileSettleTextEffectShadowAngleDeg", "playPileSettleTextEffect.shadowAngleDeg", { digits: 1 });
     bindNumber("inp-playPileSettleTextEffectShadowBlur", "val-playPileSettleTextEffectShadowBlur", "playPileSettleTextEffect.shadowBlur", { digits: 1 });
+
+    bindToggle("inp-playPileSettleTextEffectBgBlockEnabled", "val-playPileSettleTextEffectBgBlockEnabled", "playPileSettleTextEffect.bgBlockEnabled");
+    bindColor("inp-playPileSettleTextEffectBgBlockColor", "val-playPileSettleTextEffectBgBlockColor", "playPileSettleTextEffect.bgBlockColor");
+    bindNumber("inp-playPileSettleTextEffectBgBlockInitAngleDeg", "val-playPileSettleTextEffectBgBlockInitAngleDeg", "playPileSettleTextEffect.bgBlockInitAngleDeg", { digits: 1 });
+    bindNumber("inp-playPileSettleTextEffectBgBlockEndAngleDeg", "val-playPileSettleTextEffectBgBlockEndAngleDeg", "playPileSettleTextEffect.bgBlockEndAngleDeg", { digits: 1 });
+    bindNumber("inp-playPileSettleTextEffectBgBlockDurationMS", "val-playPileSettleTextEffectBgBlockDurationMS", "playPileSettleTextEffect.bgBlockDurationMS", { integer: true });
+
+    const bgBlockScaleCurveMount = document.getElementById("mount-bgBlockScaleCurve");
+    if (bgBlockScaleCurveMount && !bgBlockScaleCurvePanel) {
+      bgBlockScaleCurvePanel = buildCurvePanel(bgBlockScaleCurveMount, CONFIG.playPileSettleTextEffect.bgBlockScaleCurve, {
+        label: "蓝色方块大小缩放曲线",
+        onChange: () => {
+          notify("playPileSettleTextEffect.bgBlockScaleCurve", CONFIG.playPileSettleTextEffect.bgBlockScaleCurve);
+        }
+      });
+
+      syncers.push(() => {
+        if (bgBlockScaleCurvePanel) {
+          bgBlockScaleCurvePanel.setCurve(CONFIG.playPileSettleTextEffect.bgBlockScaleCurve);
+        }
+      });
+    }
+
+    const bgBlockFadeCurveMount = document.getElementById("mount-bgBlockFadeCurve");
+    if (bgBlockFadeCurveMount && !bgBlockFadeCurvePanel) {
+      bgBlockFadeCurvePanel = buildCurvePanel(bgBlockFadeCurveMount, CONFIG.playPileSettleTextEffect.bgBlockFadeCurve, {
+        label: "蓝色方块透明度淡出曲线",
+        onChange: () => {
+          notify("playPileSettleTextEffect.bgBlockFadeCurve", CONFIG.playPileSettleTextEffect.bgBlockFadeCurve);
+        }
+      });
+
+      syncers.push(() => {
+        if (bgBlockFadeCurvePanel) {
+          bgBlockFadeCurvePanel.setCurve(CONFIG.playPileSettleTextEffect.bgBlockFadeCurve);
+        }
+      });
+    }
 
     // 已经绑定过的控件只重跑 sync，避免重复挂监听
     syncers.forEach((fn) => fn());
@@ -1468,6 +1511,8 @@ export function setupControlPanel(
       tweenSpringCurvePanel?.destroy();
       dragRiseCurvePanel?.destroy();
       dragSpringCurvePanel?.destroy();
+      bgBlockFadeCurvePanel?.destroy();
+      bgBlockScaleCurvePanel?.destroy();
       removeHistoryShortcuts();
       removeHierarchyHistory();
       for (const name of eventsToStop) {
