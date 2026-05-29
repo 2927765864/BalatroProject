@@ -116,6 +116,11 @@ export class CardView extends Container {
    * 当 layoutHand 的 opts.force = true 时（手牌数量变化等强制对齐场景）会无视此标志。
    */
   isSwapAnimating = false;
+  /**
+   * 当前是否处于出牌堆上移（计分抬起）效果中。
+   * 开启后阴影会切换成拖拽阴影效果。
+   */
+  isScoringLifted = false;
 
   // 当前卡牌在手牌数组中的索引（0 = 最左）。由 GameController.layoutHand() 每次重排时写入。
   // 用于"鼠标悬停伪3D倾斜"按位置插值卡牌强度（最左 vs 最右）。未参与布局时默认 0。
@@ -524,8 +529,30 @@ export class CardView extends Container {
     const height = CardSkin.height;
     const cornerRadius = CONFIG.cardArt.cornerRadius;
 
-    // 拖动状态与常态使用两套完全独立的阴影配置，可在拖动时产生“卡牌升起”的精美视效
-    const shadowConf = this.isDragging ? CONFIG.dragShadow : CONFIG.cardShadow;
+    let shadowConf: {
+      color: number;
+      alpha: number;
+      lightX: number;
+      lightY: number;
+      distanceRatio: number;
+      scaleRatio: number;
+    };
+
+    if (this.isDragging) {
+      shadowConf = CONFIG.dragShadow;
+    } else if (this.isScoringLifted) {
+      const effect = CONFIG.playPileLiftEffect;
+      shadowConf = {
+        color: effect.shadowColor,
+        alpha: effect.shadowAlpha,
+        lightX: effect.shadowLightX,
+        lightY: effect.shadowLightY,
+        distanceRatio: effect.shadowDistanceRatio,
+        scaleRatio: effect.shadowScaleRatio,
+      };
+    } else {
+      shadowConf = CONFIG.cardShadow;
+    }
 
     this.shadowGraphics.clear();
     this.shadowGraphics.roundRect(0, 0, width, height, cornerRadius);
@@ -578,7 +605,7 @@ export class CardView extends Container {
     // 同步可见性
     this.shadowGraphics.visible = this.visible;
 
-    if (this.isDragging || !this.shadowContainer) {
+    if (this.isDragging || this.isScoringLifted || !this.shadowContainer) {
       // 确保它挂在当前 CardView 下
       if (this.shadowGraphics.parent !== this) {
         if (this.shadowGraphics.parent) {

@@ -25,5 +25,6 @@ export function calculateScore(cards: readonly CardData[]): ScoreResult {
     totalChips,
     mult: info.mult,
     score: totalChips * info.mult,
+    scoringCards: info.scoringCards,
   };
 }

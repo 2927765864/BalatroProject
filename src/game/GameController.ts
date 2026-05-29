@@ -43,6 +43,7 @@ const EMPTY_RESULT: ScoreResult = {
   totalChips: 0,
   mult: 0,
   score: 0,
+  scoringCards: [],
 };
 
 export class GameController {

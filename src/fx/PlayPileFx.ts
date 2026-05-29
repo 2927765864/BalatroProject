@@ -272,4 +272,113 @@ export const PlayPileFx = {
   ): Promise<void> {
     return CardFx.flyOut(tm, card, worldWidth, durationMS);
   },
+
+  /**
+   * 计分卡牌单张从左到右逐一上移过冲与回弹。
+   */
+  liftCardScoring(
+    tm: TweenManager,
+    card: CardView,
+    cfg: {
+      startSpeed: number;
+      decelerateTime: number;
+      overshoot: number;
+      springStiffness: number;
+    }
+  ): Promise<void> {
+    const decelMS = Math.max(0, Math.round(cfg.decelerateTime * 1000));
+    const peakDist = (cfg.startSpeed * cfg.decelerateTime) / 2;
+    const overshoot = Math.max(0, cfg.overshoot);
+    const stiffness = Math.max(0.001, cfg.springStiffness);
+    const reboundMS = Math.min(2000, Math.round(1000 / stiffness));
+
+    const baseY = card.y;
+    const overshootY = baseY - peakDist;
+    const stableY = overshootY + overshoot;
+
+    return new Promise<void>((resolve) => {
+      // 1. 切换成“卡牌拖拽阴影效果”
+      card.isScoringLifted = true;
+      card.updateShadow();
+
+      // 2. 第一阶段：向上移动，快速减速到 0（Easing.quadOut）
+      tm.add(
+        tm
+          .create(card)
+          .to({ y: overshootY }, decelMS)
+          .easing(Easing.quadOut)
+          .onComplete(() => {
+            // 3. 第二阶段：反向弹回到稳定位置（Easing.cubicOut）
+            if (overshoot <= 0 || reboundMS <= 0) {
+              card.y = stableY;
+              resolve();
+              return;
+            }
+            tm.add(
+              tm
+                .create(card)
+                .to({ y: stableY }, reboundMS)
+                .easing(Easing.cubicOut)
+                .onComplete(resolve)
+            );
+          })
+      );
+    });
+  },
+
+  /**
+   * 将被计分抬升的单个卡牌落回到出牌前的基准位置，带过冲与回弹，且开始下移瞬间立即恢复常态阴影。
+   * 下移第一段的时间将根据设定的下移启动速度和实际位移距离动态计算。
+   */
+  dropCardScoring(
+    tm: TweenManager,
+    card: CardView,
+    targetY: number,
+    cfg: {
+      dropOvershoot: number;
+      dropSpringStiffness: number;
+      dropStartSpeed: number;
+    }
+  ): Promise<void> {
+    const overshoot = Math.max(0, cfg.dropOvershoot);
+    const stiffness = Math.max(0.001, cfg.dropSpringStiffness);
+    const reboundMS = Math.min(2000, Math.round(1000 / stiffness));
+
+    const overshootY = targetY + overshoot;
+    const totalDropDist = Math.abs(card.y - overshootY);
+
+    // 下移第一段时长：基于物理减速模型（从启动速度 dropStartSpeed 减速到 0）
+    // 运动学公式：D = (v0 * T) / 2 -> T = 2 * D / v0
+    const startSpeed = Math.max(1, cfg.dropStartSpeed);
+    const dropDurationMS = Math.min(2000, Math.max(10, Math.round((2 * totalDropDist / startSpeed) * 1000)));
+
+    return new Promise<void>((resolve) => {
+      // 1. 开始下移的一瞬间，恢复常态阴影
+      card.isScoringLifted = false;
+      card.updateShadow();
+
+      // 2. 第一阶段：向下移动至过冲点（目标 Y 之下）
+      tm.add(
+        tm
+          .create(card)
+          .to({ y: overshootY }, dropDurationMS)
+          .easing(Easing.quadOut) // quadOut 完美契合从初始速度 startSpeed 恒定减速到 0 的物理模型
+          .onComplete(() => {
+            // 3. 第二阶段：反向弹回到稳定基准位置
+            if (overshoot <= 0 || reboundMS <= 0) {
+              card.y = targetY;
+              resolve();
+              return;
+            }
+            tm.add(
+              tm
+                .create(card)
+                .to({ y: targetY }, reboundMS)
+                .easing(Easing.cubicOut)
+                .onComplete(resolve)
+            );
+          })
+      );
+    });
+  },
 };

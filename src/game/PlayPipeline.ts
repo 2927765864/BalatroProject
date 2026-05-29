@@ -213,14 +213,43 @@ export class PlayPipeline {
     }
     bus.emit("play:pileFormed", { views: selected });
 
-    // ── 阶段 3：整堆上抬 ──────────────────────────────────────
-    await PlayPileFx.liftPile(
-      this.deps.tween,
-      selected,
-      cfg.liftPx,
-      cfg.liftDurationMS,
-      cfg.liftOvershootPx
-    );
+    // 记录出牌完成后每张牌的基准 Y 坐标，供后续下移复位使用
+    const cardBaselines = new Map<CardView, number>();
+    for (const card of selected) {
+      cardBaselines.set(card, card.y);
+    }
+
+    const liftEffectCfg = CONFIG.playPileLiftEffect;
+    const isLiftEffectEnabled = liftEffectCfg && liftEffectCfg.enabled;
+
+    // ── 阶段 3：出牌堆上抬 ──────────────────────────────────────
+    if (isLiftEffectEnabled) {
+      const scoringCards = result.scoringCards ?? [];
+      const scoringViews = selected.filter((v) => scoringCards.some((sc) => sc.id === v.data.id));
+      if (scoringViews.length > 0) {
+        const liftPromises: Promise<void>[] = [];
+        for (let i = 0; i < scoringViews.length; i++) {
+          const card = scoringViews[i]!;
+          const delay = i * liftEffectCfg.interval;
+          const promise = (async () => {
+            if (delay > 0) {
+              await sleep(delay);
+            }
+            await PlayPileFx.liftCardScoring(this.deps.tween, card, liftEffectCfg);
+          })();
+          liftPromises.push(promise);
+        }
+        await Promise.all(liftPromises);
+      }
+    } else {
+      await PlayPileFx.liftPile(
+        this.deps.tween,
+        selected,
+        cfg.liftPx,
+        cfg.liftDurationMS,
+        cfg.liftOvershootPx
+      );
+    }
     bus.emit("play:lifted", { views: selected });
 
     // ── 阶段 4：结算（内缩 + 过大弹） ─────────────────────────
@@ -238,12 +267,38 @@ export class PlayPipeline {
 
     // ── 阶段 5：下移 + 丢牌 ──────────────────────────────────
     // 5a: 整堆下移（与阶段 3 对称，回到出牌堆基线 y）。
-    await PlayPileFx.dropPile(
-      this.deps.tween,
-      selected,
-      cfg.liftPx, // 与 lift 同距离
-      cfg.dropDurationMS
-    );
+    if (isLiftEffectEnabled) {
+      const scoringCards = result.scoringCards ?? [];
+      const scoringViews = selected.filter((v) => scoringCards.some((sc) => sc.id === v.data.id));
+      if (scoringViews.length > 0) {
+        const dropPromises: Promise<void>[] = [];
+        for (let i = 0; i < scoringViews.length; i++) {
+          const card = scoringViews[i]!;
+          const delay = i * liftEffectCfg.interval;
+          const targetY = cardBaselines.get(card) ?? card.y;
+          const promise = (async () => {
+            if (delay > 0) {
+              await sleep(delay);
+            }
+            await PlayPileFx.dropCardScoring(
+              this.deps.tween,
+              card,
+              targetY,
+              liftEffectCfg
+            );
+          })();
+          dropPromises.push(promise);
+        }
+        await Promise.all(dropPromises);
+      }
+    } else {
+      await PlayPileFx.dropPile(
+        this.deps.tween,
+        selected,
+        cfg.liftPx, // 与 lift 同距离
+        cfg.dropDurationMS
+      );
+    }
 
     // 5b: 从左到右逐张飞出。每张错开 discardIntervalMS。
     for (let i = 0; i < total; i++) {

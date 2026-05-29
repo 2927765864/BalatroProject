@@ -80,4 +80,6 @@ export interface ScoreResult {
   totalChips: number; // baseChips + cardChips
   mult: number;
   score: number; // totalChips * mult
+  /** 参与该牌型计分的卡牌 */
+  scoringCards: readonly CardData[];
 }

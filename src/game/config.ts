@@ -190,6 +190,38 @@ export interface RuntimeConfig {
     overshoot2Px: number;
     stiffness: number;
   };
+  /** 【出牌】出牌堆上移效果 */
+  playPileLiftEffect: {
+    enabled: boolean;
+    /** 卡牌向上移动的启动速度 */
+    startSpeed: number;
+    /** 减速为0所需时间（1以内，精确到小数点后两位） */
+    decelerateTime: number;
+    /** 过冲幅度 */
+    overshoot: number;
+    /** 回弹刚度（越大回弹力度越强，速度越快） */
+    springStiffness: number;
+    /** 每张要抬起的牌之间的时间间隔 */
+    interval: number;
+    /** 下移的过冲幅度 */
+    dropOvershoot: number;
+    /** 下移回弹刚度 */
+    dropSpringStiffness: number;
+    /** 下移的启动速度 */
+    dropStartSpeed: number;
+    /** 上移阴影颜色 */
+    shadowColor: number;
+    /** 上移阴影透明度 */
+    shadowAlpha: number;
+    /** 上移阴影光源 X */
+    shadowLightX: number;
+    /** 上移阴影光源 Y */
+    shadowLightY: number;
+    /** 上移阴影距离比例 */
+    shadowDistanceRatio: number;
+    /** 上移阴影大小比例 */
+    shadowScaleRatio: number;
+  };
   /**
    * 卡牌移动旋转（velocity-based tilt）
    *
@@ -450,6 +482,7 @@ export interface RuntimeConfig {
       playHandSwap: boolean;
       playPileDisplacement: boolean;
       playCardMove: boolean;
+      playPileLiftEffect: boolean;
     };
 
     /**
@@ -850,6 +883,23 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     overshoot2Px: 12,
     stiffness: 12,
   }),
+  playPileLiftEffect: Object.freeze({
+    enabled: true,
+    startSpeed: 400,
+    decelerateTime: 0.35,
+    overshoot: 15,
+    springStiffness: 15,
+    interval: 150,
+    dropOvershoot: 10,
+    dropSpringStiffness: 12,
+    dropStartSpeed: 300,
+    shadowColor: 0x000000,
+    shadowAlpha: 0.35,
+    shadowLightX: 720,
+    shadowLightY: 800,
+    shadowDistanceRatio: 0.08,
+    shadowScaleRatio: 0.92,
+  }),
   cardOvershoot: Object.freeze({
     enabled: true,
     // 归位/发牌（Tween 路径，距离驱动）：
@@ -952,6 +1002,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       playHandSwap: true,
       playPileDisplacement: true,
       playCardMove: true,
+      playPileLiftEffect: true,
     }),
     selectMoveEnabled: true,
     selectRiseY: 30,
@@ -1132,6 +1183,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     playHandSwap: { ...src.playHandSwap },
     playPileDisplacement: { ...src.playPileDisplacement },
     playCardMove: { ...src.playCardMove },
+    playPileLiftEffect: { ...src.playPileLiftEffect },
     cardMoveRotation: { ...src.cardMoveRotation },
     cardVisuals: {
       ...src.cardVisuals,
@@ -1319,6 +1371,12 @@ export function applyConfig(source: unknown): void {
       ...incoming.playCardMove,
     };
   }
+  if (incoming.playPileLiftEffect) {
+    merged.playPileLiftEffect = {
+      ...merged.playPileLiftEffect,
+      ...incoming.playPileLiftEffect,
+    };
+  }
   if (incoming.cardVisuals) {
     merged.cardVisuals = {
       ...merged.cardVisuals,
@@ -1381,6 +1439,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.playHandSwap = merged.playHandSwap;
   CONFIG.playPileDisplacement = merged.playPileDisplacement;
   CONFIG.playCardMove = merged.playCardMove;
+  CONFIG.playPileLiftEffect = merged.playPileLiftEffect;
   CONFIG.cardVisuals = merged.cardVisuals;
   CONFIG.playPile = merged.playPile;
   CONFIG.scoreCurve = merged.scoreCurve;
@@ -1518,6 +1577,12 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.playCardMove = {
       ...activeDefaultConfig.playCardMove,
       ...incoming.playCardMove,
+    };
+  }
+  if (incoming.playPileLiftEffect) {
+    activeDefaultConfig.playPileLiftEffect = {
+      ...activeDefaultConfig.playPileLiftEffect,
+      ...incoming.playPileLiftEffect,
     };
   }
   if (incoming.cardVisuals) {
