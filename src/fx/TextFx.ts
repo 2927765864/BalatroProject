@@ -34,6 +34,7 @@ export const TextFx = {
         fill: opts.color ?? 0xffffff,
         fontWeight: "bold",
       },
+      resolution: Math.max(3, (window.devicePixelRatio || 1) * 2),
     });
     t.anchor.set(0.5);
     t.position.set(opts.x, opts.y);
@@ -131,7 +132,11 @@ export const TextFx = {
     };
 
     // 实例化单字以便测量宽度并进行精确排版
-    const charTexts = chars.map((char) => new Text({ text: char, style: textStyle }));
+    const charTexts = chars.map((char) => new Text({
+      text: char,
+      style: textStyle,
+      resolution: Math.max(3, (window.devicePixelRatio || 1) * 2),
+    }));
 
     const letterSpacing = cfg.letterSpacing;
     const widths = charTexts.map((t) => t.width);

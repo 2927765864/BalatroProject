@@ -276,6 +276,8 @@ export class BreathingTextComponent extends UIComponent {
     // 把宿主里那份 Text 隐藏起来：保留它作为"几何模板"和未来恢复用。
     src.visible = false;
 
+    const resolution = src.resolution;
+
     // 先逐字生成 Text，量宽度。
     // 这里把 "\n" 视为换行，逐字加；逐字效果通常只用单行文字，但有人用换行也能工作。
     // 实际场景里"牌型: 三条"这种短串就够了。
@@ -285,7 +287,7 @@ export class BreathingTextComponent extends UIComponent {
 
     for (const ch of [...text]) {
       // 用 [...text] 是为了正确按字符（包括代理对）切分；中文 / emoji 都安全。
-      const t = new Text({ text: ch, style });
+      const t = new Text({ text: ch, style, resolution });
       t.anchor.set(0, anchorY);
       t.tint = tint;
       t.alpha = alpha;

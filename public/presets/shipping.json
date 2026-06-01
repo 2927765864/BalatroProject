@@ -991,7 +991,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "牌型: 无"
+              "text": ""
             }
           }
         ]
@@ -1013,7 +1013,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "本次预期: 0"
+              "text": "0"
             }
           }
         ]

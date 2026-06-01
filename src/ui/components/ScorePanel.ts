@@ -187,11 +187,11 @@ export class ScorePanel extends UINode {
     this.handNameText = new UIText({
       id: "hud.scorePanel.handNameText",
       displayName: "牌型文字",
-      text: "牌型: 无",
+      text: "",
       style: {
         fontFamily: Theme.fontFamily,
         fontSize: 18,
-        fill: Theme.colors.textSubtle,
+        fill: Theme.colors.textWhite,
         fontWeight: "bold",
       },
     });
@@ -201,11 +201,11 @@ export class ScorePanel extends UINode {
     this.evalScoreText = new UIText({
       id: "hud.scorePanel.evalScoreText",
       displayName: "预期得分文字",
-      text: "预计获得: 0",
+      text: "0",
       style: {
         fontFamily: Theme.fontFamily,
         fontSize: Theme.fontSize.label,
-        fill: Theme.colors.textMuted,
+        fill: Theme.colors.textWhite,
         fontWeight: "bold",
       },
     });
@@ -291,11 +291,11 @@ export class ScorePanel extends UINode {
   }
 
   setHandName(name: string): void {
-    this.handNameText.setText(`牌型: ${name}`);
+    this.handNameText.setText(name === "无" ? "" : name);
   }
 
   setExpectScore(score: number): void {
-    this.evalScoreText.setText(`本次预期: ${score}`);
+    this.evalScoreText.setText(String(score));
   }
 
   setPlays(n: number): void {

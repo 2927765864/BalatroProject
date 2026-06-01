@@ -44,7 +44,11 @@ export class UIText extends UINode {
 
   constructor(opts: UITextOptions) {
     super({ id: opts.id, displayName: opts.displayName });
-    this.pixiText = new Text({ text: opts.text, style: opts.style });
+    this.pixiText = new Text({
+      text: opts.text,
+      style: opts.style,
+      resolution: Math.max(3, (window.devicePixelRatio || 1) * 2),
+    });
     this.addChild(this.pixiText);
 
     // 给节点挂上 TextStyleComponent。captureFromHost 在添加后立刻执行一次，
