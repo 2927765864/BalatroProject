@@ -80,6 +80,12 @@ export class TransformComponent extends UIComponent {
     uiHierarchy.notifyTransformChanged(this.host);
   }
 
+  setTransformDirect(x: number, y: number, rotation: number, scaleX: number, scaleY: number): void {
+    this.data = { x, y, rotation, scaleX, scaleY };
+    this.apply();
+    uiHierarchy.notifyTransformChanged(this.host);
+  }
+
   // ---- 序列化 ----------------------------------------------------
 
   serialize(): SerializedComponent {

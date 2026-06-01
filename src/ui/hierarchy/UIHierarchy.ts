@@ -170,7 +170,46 @@ class UIHierarchyImpl {
     const target = newParent ?? worldRoot;
     if (child.parent === target) return;
 
+    // 1) 计算在 target 下保持屏幕世界坐标不变的 local transform 参数
+    const W_child = child.getGlobalTransform();
+    const W_target = target.getGlobalTransform();
+
+    // 计算 W_target 的逆矩阵
+    const det = W_target.a * W_target.d - W_target.b * W_target.c;
+    let T_a = 1, T_b = 0, T_c = 0, T_d = 1, T_tx = 0, T_ty = 0;
+    if (Math.abs(det) > 1e-6) {
+      const inv_det = 1 / det;
+      T_a = W_target.d * inv_det;
+      T_b = -W_target.b * inv_det;
+      T_c = -W_target.c * inv_det;
+      T_d = W_target.a * inv_det;
+      T_tx = (W_target.c * W_target.ty - W_target.d * W_target.tx) * inv_det;
+      T_ty = (W_target.b * W_target.tx - W_target.a * W_target.ty) * inv_det;
+    }
+
+    // L = T_target_inv * W_child
+    const L_a = T_a * W_child.a + T_c * W_child.b;
+    const L_b = T_b * W_child.a + T_d * W_child.b;
+    const L_c = T_a * W_child.c + T_c * W_child.d;
+    const L_d = T_b * W_child.c + T_d * W_child.d;
+    const L_tx = T_a * W_child.tx + T_c * W_child.ty + T_tx;
+    const L_ty = T_b * W_child.tx + T_d * W_child.ty + T_ty;
+
+    // 分解 L 矩阵
+    const newX = L_tx;
+    const newY = L_ty;
+    const scaleX = Math.sqrt(L_a * L_a + L_b * L_b);
+    const scaleY = Math.sqrt(L_c * L_c + L_d * L_d);
+    const newRotation = Math.atan2(L_b, L_a);
+    const lDet = L_a * L_d - L_b * L_c;
+    const newScaleX = scaleX;
+    const newScaleY = lDet < 0 ? -scaleY : scaleY;
+
+    // 2) 真正改变 PIXI 父节点
     target.addChild(child);
+
+    // 3) 设置并应用新的 transform 参数，触发单次更新
+    child.transform.setTransformDirect(newX, newY, newRotation, newScaleX, newScaleY);
 
     // 立即排一次。新父节点是 UINode 时调它自己的 resort；
     // 是 worldRoot 时 UINode 子永远是 worldRoot 的子，不需要规范化。
