@@ -1,8 +1,29 @@
-import { Text } from "pixi.js";
+/**
+ * BounceTextComponent（弹弹动画）
+ * ---------------------------------------------------------------
+ * 从左到右逐字扫描的"弹弹"缩放效果：未扫到的字停在 initScale（偏大），
+ * 扫到时瞬间膨胀到 maxScale（二次平滑），随后用 e^(-scaleStrength·dt) 简谐
+ * 衰减回 stableScale。
+ *
+ * 重构要点（合并为单一逐字引擎后）：
+ *   - 本组件不再自己拆字、不再碰宿主 Text 的 visible，也不再自建逐字节点。
+ *   - 它实现 CharEffect 接口，向宿主的 CharLayer（逐字层）注册。逐字层每帧
+ *     对每个字调 contribute，本组件只把"缩放贡献"乘进累加器。
+ *   - 这样呼吸（写 y 偏移）和弹弹（写 scale）作用在同一组字符上，互不抢占，
+ *     弹弹播完缩放回 1，呼吸无缝继续。
+ *
+ * 触发：业务调 trigger() → 置 isAnimating + 记 startTime。逐字层每帧驱动
+ * contribute；衰减结束后 isAnimating 自动归 false，scale 贡献回到 1。
+ */
 import { UIComponent, type SerializedComponent } from "../UIComponent";
-import { uiHierarchy } from "../UIHierarchy";
 import type { UIText } from "@ui/components/UIText";
 import { CONFIG } from "@game/config";
+import {
+  ensureCharLayer,
+  type CharEffect,
+  type CharFrame,
+  type CharLayerComponent,
+} from "./CharLayerComponent";
 
 /** 判断宿主是不是 UIText（有 getPixiText 接口）。 */
 function isTextHost(host: unknown): host is UIText {
@@ -17,202 +38,87 @@ export function bounceTextCanAttach(host: import("../UINode").UINode): boolean {
   return isTextHost(host);
 }
 
-export class BounceTextComponent extends UIComponent {
+export class BounceTextComponent extends UIComponent implements CharEffect {
   readonly type = "bounceText";
   readonly displayName = "【弹弹动画】组件";
 
   private configKey: string = "chipsBounce";
   private isAnimating = false;
   private startTime = 0;
-  private chars: Text[] = [];
-  private lastText = "";
-  private lastStyleHash = "";
-  private unsubscribeTick: (() => void) | null = null;
-  private unsubscribeHierarchy: (() => void) | null = null;
+  /** 所属逐字层。 */
+  private charLayer: CharLayerComponent | null = null;
 
   constructor(configKey: string = "chipsBounce") {
     super();
     this.configKey = configKey;
   }
 
+  public getAnimating(): boolean {
+    return this.isAnimating;
+  }
+
+  // ---- 生命周期 -------------------------------------------------
+
   protected override onAttach(): void {
-    if (!isTextHost(this.host)) {
-      return;
-    }
-
-    // 监听别的组件 / 业务把宿主文本或样式改了 —— 如果正在动画，我们需要 rebuild 逐字 Text
-    this.unsubscribeHierarchy = uiHierarchy.subscribe((type, node) => {
-      if (node !== this.host) return;
-      if (type !== "componentsChanged") return;
-      if (this.isAnimating) {
-        this.rebuildIfNeeded();
-      }
-    });
-
-    // 每帧驱动 scale
-    const ticker = uiHierarchy.getTicker();
-    if (ticker) {
-      const onTick = (): void => this.tick();
-      ticker.add(onTick);
-      this.unsubscribeTick = (): void => {
-        ticker.remove(onTick);
-      };
-    }
+    if (!isTextHost(this.host)) return;
+    // 惰性确保宿主有逐字层（拆字 / 接管渲染的唯一者）。
+    // 弹弹是"一次性"效果：仅在 trigger() 后的播放窗口内注册为效果，播完注销。
+    // 注销时若逐字层已无其它效果（如呼吸），逐字层会自动回退显示原生 Text。
+    this.charLayer = ensureCharLayer(this.host);
   }
 
   protected override onDetach(): void {
-    if (this.unsubscribeTick) {
-      this.unsubscribeTick();
-      this.unsubscribeTick = null;
-    }
-    if (this.unsubscribeHierarchy) {
-      this.unsubscribeHierarchy();
-      this.unsubscribeHierarchy = null;
-    }
-    this.teardownChars();
-    if (isTextHost(this.host)) {
-      const pt = this.host.getPixiText();
-      pt.visible = true;
+    if (this.charLayer) {
+      this.charLayer.unregisterEffect(this);
+      this.charLayer = null;
     }
   }
 
   apply(): void {
-    // 主要是更新配置或重新构建
-    if (this.isAnimating) {
-      this.rebuildIfNeeded(true);
+    if (!isTextHost(this.host)) return;
+    if (!this.charLayer) {
+      this.charLayer = ensureCharLayer(this.host);
     }
   }
 
-  /** 触发弹弹动画 */
+  /** 触发弹弹动画。 */
   trigger(): void {
     if (!isTextHost(this.host)) return;
+    // 空文本无字可弹：直接忽略，避免常驻占用逐字层却永不结束。
+    if (this.host.getPixiText().text.length === 0) return;
+    if (!this.charLayer) {
+      this.charLayer = ensureCharLayer(this.host);
+    }
+    if (!this.charLayer) return;
     this.isAnimating = true;
     this.startTime = performance.now();
-    this.rebuildIfNeeded(true);
+    // 进入播放窗口：注册为效果，逐字层开始接管渲染并每帧调 contribute。
+    this.charLayer.registerEffect(this);
   }
 
-  /** 把宿主当前样式做个简易 hash，用来检测是否需要重建逐字 Text。 */
-  private computeStyleHash(t: Text): string {
-    const s = t.style;
-    return [
-      s.fontFamily,
-      s.fontSize,
-      s.fontWeight,
-      s.fontStyle,
-      JSON.stringify((s as unknown as { fill?: unknown }).fill ?? null),
-      s.stroke ? JSON.stringify(s.stroke) : "",
-      s.letterSpacing ?? 0,
-      t.anchor.x,
-      t.anchor.y,
-    ].join("|");
-  }
-
-  private rebuildIfNeeded(force = false): void {
-    if (!isTextHost(this.host)) return;
-    if (!this.isAnimating) {
-      this.teardownChars();
-      this.host.getPixiText().visible = true;
-      return;
-    }
-    const src = this.host.getPixiText();
-    const text = src.text;
-    const styleHash = this.computeStyleHash(src);
-    if (
-      !force &&
-      text === this.lastText &&
-      styleHash === this.lastStyleHash &&
-      this.chars.length > 0
-    ) {
-      return;
-    }
-    this.teardownChars();
-    this.buildChars(src, text);
-    this.lastText = text;
-    this.lastStyleHash = styleHash;
-  }
-
-  private buildChars(src: Text, text: string): void {
-    if (text.length === 0) return;
-
-    const style = src.style;
-    const anchorX = src.anchor.x;
-    const anchorY = src.anchor.y;
-    const tint = src.tint;
-    const alpha = src.alpha;
-
-    src.visible = false;
-
-    const resolution = src.resolution;
-    const chars: Text[] = [];
-    const widths: number[] = [];
-    let totalWidth = 0;
-
-    for (const ch of [...text]) {
-      const t = new Text({ text: ch, style, resolution });
-      t.tint = tint;
-      t.alpha = alpha;
-      t.eventMode = "none";
-      t.roundPixels = false;
-      chars.push(t);
-      widths.push(t.width);
-      totalWidth += t.width;
-    }
-
-    const firstLeftX = src.position.x - anchorX * totalWidth;
-    let cursorX = firstLeftX;
-
-    for (let i = 0; i < chars.length; i += 1) {
-      const ch = chars[i]!;
-      const w = widths[i]!;
-      // 设置锚点为水平 0.5 这样缩放能沿单字中轴线进行
-      ch.anchor.set(0.5, anchorY);
-      ch.position.set(cursorX + w / 2, src.position.y);
-      cursorX += w;
-      this.host.addChild(ch);
-    }
-
-    this.chars = chars;
-  }
-
-  private teardownChars(): void {
-    for (const ch of this.chars) {
-      if (ch.parent) ch.parent.removeChild(ch);
-      ch.destroy();
-    }
-    this.chars = [];
-  }
-
-  private stop(): void {
+  /** 结束弹弹：从逐字层注销。若无其它效果，逐字层回退原生 Text。 */
+  private finish(): void {
     this.isAnimating = false;
-    this.teardownChars();
-    if (isTextHost(this.host)) {
-      this.host.getPixiText().visible = true;
+    if (this.charLayer) {
+      this.charLayer.unregisterEffect(this);
     }
   }
 
-  private tick(): void {
+  // ---- CharEffect 实现 ------------------------------------------
+
+  isActive(): boolean {
+    return this.isAnimating;
+  }
+
+  /** 把第 i 个字的缩放贡献乘进累加器。未播放时贡献 1（不放大）。 */
+  contribute(i: number, _count: number, now: number, acc: CharFrame): void {
     if (!this.isAnimating) return;
-    if (!isTextHost(this.host)) return;
 
-    // 检查宿主文本是否在两次 tick 之间改变了
-    const src = this.host.getPixiText();
-    if (src.text !== this.lastText || this.computeStyleHash(src) !== this.lastStyleHash) {
-      this.rebuildIfNeeded();
-    }
-
-    if (this.chars.length === 0) {
-      this.stop();
-      return;
-    }
-
-    const config = (CONFIG as any)[this.configKey];
+    const config = (CONFIG as Record<string, any>)[this.configKey];
     if (!config) {
-      this.stop();
+      this.finish();
       return;
     }
-
-    const now = performance.now();
-    const elapsed = now - this.startTime;
 
     const scanSpeed = Math.max(1, config.scanSpeed);
     const scaleStrength = Math.max(0.1, config.scaleStrength);
@@ -220,41 +126,38 @@ export class BounceTextComponent extends UIComponent {
     const maxScale = config.maxScale;
     const stableScale = config.stableScale;
 
-    let allFinished = true;
+    const elapsed = now - this.startTime;
+    const delay = i * scanSpeed;
+    const dt = elapsed - delay;
 
-    for (let i = 0; i < this.chars.length; i++) {
-      const charSprite = this.chars[i]!;
-      const delay = i * scanSpeed;
-      const dt = elapsed - delay;
+    let scale = initScale;
+    let charFinished = false;
 
-      let scale = initScale;
-      if (dt < 0) {
-        scale = initScale;
-        allFinished = false;
+    if (dt < 0) {
+      // 还没扫到：停在 initScale。
+      scale = initScale;
+    } else {
+      const riseTime = 80; // 升起到最大比例的时间 (ms)
+      if (dt < riseTime) {
+        const ratio = dt / riseTime;
+        const easeRatio = 1 - Math.pow(1 - ratio, 2); // quadraticOut
+        scale = initScale + (maxScale - initScale) * easeRatio;
       } else {
-        const riseTime = 80; // 升起到最大比例的时间 (ms)
-        if (dt < riseTime) {
-          const ratio = dt / riseTime;
-          const easeRatio = 1 - Math.pow(1 - ratio, 2); // quadraticOut
-          scale = initScale + (maxScale - initScale) * easeRatio;
-          allFinished = false;
-        } else {
-          // 从最大比例衰减到目标稳定比例
-          const t_decay = (dt - riseTime) / 1000;
-          const decay = Math.exp(-scaleStrength * t_decay);
-          scale = stableScale + (maxScale - stableScale) * decay;
-
-          // 若衰减仍在进行，则未完成
-          if (decay > 0.01) {
-            allFinished = false;
-          }
-        }
+        // 从最大比例衰减到目标稳定比例。
+        const t_decay = (dt - riseTime) / 1000;
+        const decay = Math.exp(-scaleStrength * t_decay);
+        scale = stableScale + (maxScale - stableScale) * decay;
+        if (decay <= 0.01) charFinished = true;
       }
-      charSprite.scale.set(scale);
     }
 
-    if (allFinished) {
-      this.stop();
+    acc.scale *= scale;
+
+    // 收尾判定：最后一个字 delay 最大、最晚完成衰减，它一旦完成即全部完成。
+    // 此处调 finish() 只从逐字层注销（不立即 teardown），由逐字层在下一帧
+    // tick 开头统一处理"无效果回退原生 Text"或交还给呼吸继续。
+    if (i === _count - 1 && charFinished) {
+      this.finish();
     }
   }
 

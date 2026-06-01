@@ -34,13 +34,18 @@
  * y 拉到 1、两端拉到 0；BezierCurveEditor 的 startScale/endScale 暴露成
  * 0/0，就会精确得到首尾归 0 的波形。
  */
-import { Text } from "pixi.js";
 import { UIComponent, type SerializedComponent } from "../UIComponent";
 import { uiHierarchy } from "../UIHierarchy";
 import { attachDragScrub } from "@/debug/dragScrub";
 import { buildCurvePanel, cubic, type BezierCurvePanel } from "@/debug/BezierCurveEditor";
 import type { BezierCurveConfig } from "@game/config";
 import type { UIText } from "@ui/components/UIText";
+import {
+  ensureCharLayer,
+  type CharEffect,
+  type CharFrame,
+  type CharLayerComponent,
+} from "./CharLayerComponent";
 
 interface BreathingTextData {
   enabled: boolean;
@@ -136,27 +141,21 @@ export function breathingTextCanAttach(host: import("../UINode").UINode): boolea
   return isTextHost(host);
 }
 
-export class BreathingTextComponent extends UIComponent {
+export class BreathingTextComponent extends UIComponent implements CharEffect {
   readonly type = "breathingText";
   readonly displayName = "逐字呼吸";
+
+  public isEnabled(): boolean {
+    return this.data.enabled;
+  }
 
   private data: BreathingTextData = {
     ...DEFAULT_DATA,
     curve: cloneCurve(DEFAULT_DATA.curve),
   };
 
-  /** 当前生成出来的逐字 Text 节点（按字符顺序）。 */
-  private chars: Text[] = [];
-  /** 每个字的"基线 y"（不动状态下的 y 值；偏移叠在它上面）。 */
-  private baseY: number[] = [];
-  /** 上次成功 split 时宿主显示的文本，用于检测文本变化触发重建。 */
-  private lastText = "";
-  /** 上次成功 split 时使用的 style hash，用于检测样式变化（字号 / 颜色 / 字体等）。 */
-  private lastStyleHash = "";
-  /** App ticker 反注册函数（每帧 tick）。 */
-  private unsubscribeTick: (() => void) | null = null;
-  /** uiHierarchy 反注册（监听 textStyle 改变以重建逐字 Text）。 */
-  private unsubscribeHierarchy: (() => void) | null = null;
+  /** 所属逐字层（拆字 / 接管渲染的唯一者）。 */
+  private charLayer: CharLayerComponent | null = null;
   /** 组件挂载的时间戳（performance.now），用作相位起点。 */
   private startTime = 0;
 
@@ -167,192 +166,46 @@ export class BreathingTextComponent extends UIComponent {
       // 不是文字宿主 —— 直接 no-op。不要污染宿主的渲染。
       return;
     }
-
     this.startTime = performance.now();
-
-    // 监听别的组件 / 业务把宿主文本或样式改了 —— 我们要 rebuild 逐字 Text。
-    this.unsubscribeHierarchy = uiHierarchy.subscribe((type, node) => {
-      if (node !== this.host) return;
-      if (type !== "componentsChanged") return;
-      // 文字 / 样式可能变了，按需重建（rebuildIfNeeded 内部做 hash 判等）。
-      this.rebuildIfNeeded();
-    });
-
-    // 每帧驱动 y 偏移。
-    const ticker = uiHierarchy.getTicker();
-    if (ticker) {
-      const onTick = (): void => this.tick();
-      ticker.add(onTick);
-      this.unsubscribeTick = (): void => {
-        ticker.remove(onTick);
-      };
+    // 惰性确保宿主有逐字层，并把自己注册为效果。
+    this.charLayer = ensureCharLayer(this.host);
+    if (this.charLayer && this.data.enabled) {
+      this.charLayer.registerEffect(this);
     }
-
-    this.rebuildIfNeeded();
   }
 
   protected override onDetach(): void {
-    if (this.unsubscribeTick) {
-      this.unsubscribeTick();
-      this.unsubscribeTick = null;
-    }
-    if (this.unsubscribeHierarchy) {
-      this.unsubscribeHierarchy();
-      this.unsubscribeHierarchy = null;
-    }
-    this.teardownChars();
-    // 把原生 PIXI.Text 还回去
-    if (isTextHost(this.host)) {
-      const pt = this.host.getPixiText();
-      pt.visible = true;
+    if (this.charLayer) {
+      this.charLayer.unregisterEffect(this);
+      this.charLayer = null;
     }
   }
 
   apply(): void {
     if (!isTextHost(this.host)) return;
-    if (!this.data.enabled) {
-      // 关闭：拆掉逐字 Text，让原生 Text 显示
-      this.teardownChars();
-      this.host.getPixiText().visible = true;
-      return;
+    if (!this.charLayer) {
+      this.charLayer = ensureCharLayer(this.host);
     }
-    this.rebuildIfNeeded(true);
+    if (!this.charLayer) return;
+    // 启用 → 注册为效果；禁用 → 注销（逐字层会在无效果时回退原生 Text）。
+    if (this.data.enabled) {
+      this.charLayer.registerEffect(this);
+    } else {
+      this.charLayer.unregisterEffect(this);
+    }
   }
 
-  // ---- 拆分 & 重建 ----------------------------------------------
+  // ---- CharEffect 实现 ------------------------------------------
 
-  /** 把宿主当前样式做个简易 hash，用来检测是否需要重建逐字 Text。 */
-  private computeStyleHash(t: Text): string {
-    const s = t.style;
-    return [
-      s.fontFamily,
-      s.fontSize,
-      s.fontWeight,
-      s.fontStyle,
-      // fill 可能是 number / string / 数组，JSON 化最稳。
-      JSON.stringify((s as unknown as { fill?: unknown }).fill ?? null),
-      s.stroke ? JSON.stringify(s.stroke) : "",
-      s.letterSpacing ?? 0,
-      t.anchor.x,
-      t.anchor.y,
-    ].join("|");
+  /** 呼吸是常驻效果，始终活跃。 */
+  isActive(): boolean {
+    return this.data.enabled;
   }
 
-  private rebuildIfNeeded(force = false): void {
-    if (!isTextHost(this.host)) return;
-    if (!this.data.enabled) {
-      this.teardownChars();
-      this.host.getPixiText().visible = true;
-      return;
-    }
-    const src = this.host.getPixiText();
-    const text = src.text;
-    const styleHash = this.computeStyleHash(src);
-    if (
-      !force &&
-      text === this.lastText &&
-      styleHash === this.lastStyleHash &&
-      this.chars.length > 0
-    ) {
-      return;
-    }
-    this.teardownChars();
-    this.buildChars(src, text);
-    this.lastText = text;
-    this.lastStyleHash = styleHash;
-  }
-
-  private buildChars(src: Text, text: string): void {
-    // 没字符可拆 —— 仍然隐藏原 Text 没意义，直接退出，让原 Text 自己渲染（空串无视觉影响）。
-    if (text.length === 0) return;
-
-    // 利用原 Text 的位置 / 样式 / anchor / tint 做模板。
-    const style = src.style;
-    const anchorX = src.anchor.x;
-    const anchorY = src.anchor.y;
-    const tint = src.tint;
-    const alpha = src.alpha;
-
-    // 把宿主里那份 Text 隐藏起来：保留它作为"几何模板"和未来恢复用。
-    src.visible = false;
-
-    const resolution = src.resolution;
-
-    // 先逐字生成 Text，量宽度。
-    // 这里把 "\n" 视为换行，逐字加；逐字效果通常只用单行文字，但有人用换行也能工作。
-    // 实际场景里"牌型: 三条"这种短串就够了。
-    const chars: Text[] = [];
-    const widths: number[] = [];
-    let totalWidth = 0;
-
-    for (const ch of [...text]) {
-      // 用 [...text] 是为了正确按字符（包括代理对）切分；中文 / emoji 都安全。
-      const t = new Text({ text: ch, style, resolution });
-      t.anchor.set(0, anchorY);
-      t.tint = tint;
-      t.alpha = alpha;
-      t.eventMode = "none";
-      // 关掉每个逐字 Text 的整数像素吸附。
-      // 项目全局开了 roundPixels: true（让卡牌精灵图整数对齐避免亚像素闪烁），
-      // 但呼吸动画在长周期下单帧位移可能远小于 1 像素 —— 被吸到整数像素后会
-      // 表现为"卡好几帧不动、突然跳一格"。这里给文字单独走亚像素位置，
-      // 不影响其它素材。
-      t.roundPixels = false;
-      chars.push(t);
-      widths.push(t.width);
-      totalWidth += t.width;
-    }
-
-    // 计算"首字左边缘"在 src 坐标系下的 x：anchor 决定原 Text 的几何中心，
-    // 这里需要让整串字看上去与原 Text 占的位置一致。
-    // PIXI.Text 渲染时左边缘 = position.x - anchor.x * width。
-    // 我们把每个字独立摆放，让"整串"在父坐标系下与原 Text 重合：
-    //   firstLeftX = src.x - anchor.x * totalWidth
-    // 然后逐个把 x 累加上去。
-    const firstLeftX = src.position.x - anchorX * totalWidth;
-    let cursorX = firstLeftX;
-
-    const baseY: number[] = [];
-    for (let i = 0; i < chars.length; i += 1) {
-      const ch = chars[i]!;
-      ch.position.set(cursorX, src.position.y);
-      cursorX += widths[i]!;
-      baseY.push(src.position.y);
-      // 直接挂到宿主上；UINode.resortChildren 只移动 UINode 子节点，
-      // 不会把这些纯 PIXI.Text 弄乱顺序。它们与原 src Text 一样属于"内部 PIXI"。
-      this.host.addChild(ch);
-    }
-
-    this.chars = chars;
-    this.baseY = baseY;
-  }
-
-  private teardownChars(): void {
-    for (const ch of this.chars) {
-      if (ch.parent) ch.parent.removeChild(ch);
-      ch.destroy();
-    }
-    this.chars = [];
-    this.baseY = [];
-  }
-
-  // ---- 每帧 tick ----------------------------------------------
-
-  private tick(): void {
-    if (!isTextHost(this.host)) return;
+  /** 每帧把第 i 个字的 y 偏移贡献叠加到累加器上。 */
+  contribute(i: number, _count: number, now: number, acc: CharFrame): void {
     if (!this.data.enabled) return;
 
-    // 业务代码可能在两次 tick 之间用 UIText.setText 改了内容（如得分滚动）。
-    // UIText.setText 不会发 componentsChanged，所以我们这里轻量地比对一下文本/样式，
-    // 必要时重建逐字 Text。
-    const src = this.host.getPixiText();
-    if (src.text !== this.lastText || this.computeStyleHash(src) !== this.lastStyleHash) {
-      this.rebuildIfNeeded();
-    }
-
-    if (this.chars.length === 0) return;
-
-    const now = performance.now();
     const cycle = Math.max(1, this.data.cycle);
     const gap = Math.max(0, this.data.loopGap);
     const period = cycle + gap;
@@ -360,23 +213,21 @@ export class BreathingTextComponent extends UIComponent {
     const amin = this.data.amplitudeMin;
     const amax = this.data.amplitudeMax;
 
-    for (let i = 0; i < this.chars.length; i += 1) {
-      // 每个字的"相位起点"：startTime + i * stagger。
-      // 相位差为负就先压在 0（min）等到时机再起。
-      const phase = now - this.startTime - i * stagger;
-      let intensity = 0; // 0..1：0 = min，1 = max
-      if (phase >= 0) {
-        const local = phase % period;
-        if (local < cycle) {
-          const t = local / cycle;
-          intensity = sampleBreathCurve(this.data.curve, t);
-        } else {
-          intensity = 0; // 在 gap 期间，固定在 0
-        }
+    // 每个字的"相位起点"：startTime + i * stagger。
+    // 相位差为负就先压在 0（min）等到时机再起。
+    const phase = now - this.startTime - i * stagger;
+    let intensity = 0; // 0..1：0 = min，1 = max
+    if (phase >= 0) {
+      const local = phase % period;
+      if (local < cycle) {
+        const t = local / cycle;
+        intensity = sampleBreathCurve(this.data.curve, t);
+      } else {
+        intensity = 0; // 在 gap 期间，固定在 0
       }
-      const offset = amin + (amax - amin) * intensity;
-      this.chars[i]!.position.y = this.baseY[i]! + offset;
     }
+    const offset = amin + (amax - amin) * intensity;
+    acc.offsetY += offset;
   }
 
   // ---- 序列化 ----------------------------------------------------
@@ -439,8 +290,8 @@ export class BreathingTextComponent extends UIComponent {
       return root;
     }
 
-    const commit = (rebuild = false): void => {
-      if (rebuild) this.rebuildIfNeeded(true);
+    // 呼吸参数只影响每帧 contribute，不需要重建逐字 Text（字符由逐字层管理）。
+    const commit = (): void => {
       uiHierarchy.notifyComponentsChanged(this.host);
     };
 
