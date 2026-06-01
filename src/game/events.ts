@@ -35,6 +35,7 @@ export type GameEvents = {
   "play:pileFormed": { views: readonly CardView[] };
   "play:lifted": { views: readonly CardView[] };
   "play:settled": { result: ScoreResult; totalScore: number };
+  "play:cardSettleTextTriggered": { card: CardView; chips: number };
   "play:discarded": { cards: readonly CardData[] };
   "play:end": { result: ScoreResult; totalScore: number };
 };

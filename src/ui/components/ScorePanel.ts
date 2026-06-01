@@ -1,6 +1,6 @@
 import { Theme } from "../theme";
 import { Panel, PanelBackground } from "./Panel";
-import { UINode } from "@ui/hierarchy";
+import { UINode, BounceTextComponent } from "@ui/hierarchy";
 import { UIText } from "./UIText";
 
 /**
@@ -20,6 +20,11 @@ export class ScorePanel extends UINode {
   private readonly evalScoreText: UIText;
   private readonly playsText: UIText;
   private readonly discardsText: UIText;
+
+  private readonly chipsBounceComp: BounceTextComponent;
+  private readonly multBounceComp: BounceTextComponent;
+  private readonly handNameBounceComp: BounceTextComponent;
+  private readonly evalScoreBounceComp: BounceTextComponent;
 
   constructor(targetScore: number, plays: number, discards: number) {
     super({ id: "hud.scorePanel", displayName: "得分面板" });
@@ -151,6 +156,8 @@ export class ScorePanel extends UINode {
     });
     this.chipsText.setAnchor(0.5);
     this.chipsText.position.set(77.5, 260);
+    this.chipsBounceComp = new BounceTextComponent("chipsBounce");
+    this.chipsText.addComponent(this.chipsBounceComp);
     this.addChild(this.chipsText);
 
     const xLabel = new UIText({
@@ -181,6 +188,8 @@ export class ScorePanel extends UINode {
     });
     this.multText.setAnchor(0.5);
     this.multText.position.set(202.5, 260);
+    this.multBounceComp = new BounceTextComponent("multBounce");
+    this.multText.addComponent(this.multBounceComp);
     this.addChild(this.multText);
 
     // 牌型 + 预期
@@ -196,6 +205,8 @@ export class ScorePanel extends UINode {
       },
     });
     this.handNameText.position.set(30, 310);
+    this.handNameBounceComp = new BounceTextComponent("handNameBounce");
+    this.handNameText.addComponent(this.handNameBounceComp);
     this.addChild(this.handNameText);
 
     this.evalScoreText = new UIText({
@@ -210,6 +221,8 @@ export class ScorePanel extends UINode {
       },
     });
     this.evalScoreText.position.set(30, 340);
+    this.evalScoreBounceComp = new BounceTextComponent("evalScoreBounce");
+    this.evalScoreText.addComponent(this.evalScoreBounceComp);
     this.addChild(this.evalScoreText);
 
     // 出牌 / 弃牌次数
@@ -304,5 +317,29 @@ export class ScorePanel extends UINode {
 
   setDiscards(n: number): void {
     this.discardsText.setText(String(n));
+  }
+
+  triggerChipsBounce(): void {
+    this.chipsBounceComp.trigger();
+  }
+
+  triggerMultBounce(): void {
+    this.multBounceComp.trigger();
+  }
+
+  triggerHandNameBounce(): void {
+    this.handNameBounceComp.trigger();
+  }
+
+  triggerEvalScoreBounce(): void {
+    this.evalScoreBounceComp.trigger();
+  }
+
+  setHandNameVisible(visible: boolean): void {
+    this.handNameText.visible = visible;
+  }
+
+  setExpectScoreVisible(visible: boolean): void {
+    this.evalScoreText.visible = visible;
   }
 }

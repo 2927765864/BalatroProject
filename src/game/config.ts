@@ -33,6 +33,14 @@ export interface BezierCurveConfig {
   p2: { x: number; y: number };
 }
 
+export interface BounceAnimationConfig {
+  initScale: number;
+  maxScale: number;
+  stableScale: number;
+  scanSpeed: number;
+  scaleStrength: number;
+}
+
 export interface RuntimeConfig {
   world: {
     width: number;
@@ -539,6 +547,10 @@ export interface RuntimeConfig {
       playPileSettleEffect: boolean;
       playPileSettleText: boolean;
       playPileSettleBgBlock: boolean;
+      chipsBounce: boolean;
+      multBounce: boolean;
+      handNameBounce: boolean;
+      evalScoreBounce: boolean;
     };
 
     /**
@@ -822,6 +834,10 @@ export interface RuntimeConfig {
   };
   /** 可选：示例语义曲线，留作扩展（如未来按 combo 数缩放某个倍率） */
   scoreCurve: BezierCurveConfig;
+  chipsBounce: BounceAnimationConfig;
+  multBounce: BounceAnimationConfig;
+  handNameBounce: BounceAnimationConfig;
+  evalScoreBounce: BounceAnimationConfig;
   /**
    * UI 节点持久化表。键是 UINode.nodeId。
    * 由 UIHierarchy 维护：任何 transform 变化、组件增删、父子重排都会回写这里。
@@ -1130,6 +1146,10 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       playPileSettleEffect: true,
       playPileSettleText: true,
       playPileSettleBgBlock: true,
+      chipsBounce: true,
+      multBounce: true,
+      handNameBounce: true,
+      evalScoreBounce: true,
     }),
     selectMoveEnabled: true,
     selectRiseY: 30,
@@ -1229,6 +1249,34 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     endScale: 1.5,
     p1: { x: 0.42, y: 0 },
     p2: { x: 0.58, y: 1 },
+  }),
+  chipsBounce: Object.freeze({
+    initScale: 1.5,
+    maxScale: 2.0,
+    stableScale: 1.0,
+    scanSpeed: 40,
+    scaleStrength: 12.0,
+  }),
+  multBounce: Object.freeze({
+    initScale: 1.5,
+    maxScale: 2.0,
+    stableScale: 1.0,
+    scanSpeed: 40,
+    scaleStrength: 12.0,
+  }),
+  handNameBounce: Object.freeze({
+    initScale: 1.5,
+    maxScale: 1.8,
+    stableScale: 1.0,
+    scanSpeed: 50,
+    scaleStrength: 10.0,
+  }),
+  evalScoreBounce: Object.freeze({
+    initScale: 1.5,
+    maxScale: 1.8,
+    stableScale: 1.0,
+    scanSpeed: 30,
+    scaleStrength: 15.0,
   }),
   uiNodes: {},
 }) as RuntimeConfig;
@@ -1348,6 +1396,10 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
       p1: { ...src.scoreCurve.p1 },
       p2: { ...src.scoreCurve.p2 },
     },
+    chipsBounce: { ...src.chipsBounce },
+    multBounce: { ...src.multBounce },
+    handNameBounce: { ...src.handNameBounce },
+    evalScoreBounce: { ...src.evalScoreBounce },
     uiNodes: cloneUINodes(src.uiNodes),
   };
 }
@@ -1588,6 +1640,30 @@ export function applyConfig(source: unknown): void {
       p2: { ...merged.scoreCurve.p2, ...(incoming.scoreCurve.p2 ?? {}) },
     };
   }
+  if (incoming.chipsBounce) {
+    merged.chipsBounce = {
+      ...merged.chipsBounce,
+      ...incoming.chipsBounce,
+    };
+  }
+  if (incoming.multBounce) {
+    merged.multBounce = {
+      ...merged.multBounce,
+      ...incoming.multBounce,
+    };
+  }
+  if (incoming.handNameBounce) {
+    merged.handNameBounce = {
+      ...merged.handNameBounce,
+      ...incoming.handNameBounce,
+    };
+  }
+  if (incoming.evalScoreBounce) {
+    merged.evalScoreBounce = {
+      ...merged.evalScoreBounce,
+      ...incoming.evalScoreBounce,
+    };
+  }
   // uiNodes：preset 里没带就清空（让 hierarchy 自己重新捕获默认值），
   // 带了就整张表替换（这一表内部条目相互依赖，不适合按字段合并）。
   merged.uiNodes = cloneUINodes(incoming.uiNodes ?? {});
@@ -1614,6 +1690,10 @@ export function applyConfig(source: unknown): void {
   CONFIG.cardVisuals = merged.cardVisuals;
   CONFIG.playPile = merged.playPile;
   CONFIG.scoreCurve = merged.scoreCurve;
+  CONFIG.chipsBounce = merged.chipsBounce;
+  CONFIG.multBounce = merged.multBounce;
+  CONFIG.handNameBounce = merged.handNameBounce;
+  CONFIG.evalScoreBounce = merged.evalScoreBounce;
   CONFIG.uiNodes = merged.uiNodes;
 }
 
@@ -1802,6 +1882,30 @@ export function applyShippingDefaults(source: unknown): void {
       ...incoming.scoreCurve,
       p1: { ...activeDefaultConfig.scoreCurve.p1, ...(incoming.scoreCurve.p1 ?? {}) },
       p2: { ...activeDefaultConfig.scoreCurve.p2, ...(incoming.scoreCurve.p2 ?? {}) },
+    };
+  }
+  if (incoming.chipsBounce) {
+    activeDefaultConfig.chipsBounce = {
+      ...activeDefaultConfig.chipsBounce,
+      ...incoming.chipsBounce,
+    };
+  }
+  if (incoming.multBounce) {
+    activeDefaultConfig.multBounce = {
+      ...activeDefaultConfig.multBounce,
+      ...incoming.multBounce,
+    };
+  }
+  if (incoming.handNameBounce) {
+    activeDefaultConfig.handNameBounce = {
+      ...activeDefaultConfig.handNameBounce,
+      ...incoming.handNameBounce,
+    };
+  }
+  if (incoming.evalScoreBounce) {
+    activeDefaultConfig.evalScoreBounce = {
+      ...activeDefaultConfig.evalScoreBounce,
+      ...incoming.evalScoreBounce,
     };
   }
   if (incoming.uiNodes) {

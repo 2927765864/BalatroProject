@@ -48,6 +48,10 @@ export interface PlayPipelineDeps {
    * 调用时机：阶段 1 内每张牌发车的瞬间——这样剩余手牌能立刻挤位填空。
    */
   removeFromHand: (view: CardView) => void;
+  /**
+   * 分数迁移效果。在整堆卡牌下移后、飞往弃牌堆前，将预期分数迁移到回合分上。
+   */
+  animateScoreTransfer?: (result: ScoreResult) => Promise<void>;
 }
 
 export class PlayPipeline {
@@ -273,6 +277,7 @@ export class PlayPipeline {
               const chips = card.data.chips;
               TextFx.createSettleText(card.parent, this.deps.tween, card, chips, textCfg);
             }
+            bus.emit("play:cardSettleTextTriggered", { card, chips: card.data.chips });
           });
           
           // 第一张卡牌结束后的停留间隔，之后每张牌减少，最后一张使用 lastIntervalMS
@@ -331,6 +336,11 @@ export class PlayPipeline {
         cfg.liftPx, // 与 lift 同距离
         cfg.dropDurationMS
       );
+    }
+
+    // ====== 新增：在卡牌下移后、飞出前，间隔一段时间后，同时刻触发结算，并进行分数迁移 ======
+    if (this.deps.animateScoreTransfer) {
+      await this.deps.animateScoreTransfer(result);
     }
 
     // 5b: 从左到右逐张飞出。每张错开 discardIntervalMS。

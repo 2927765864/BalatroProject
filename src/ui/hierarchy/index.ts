@@ -16,6 +16,10 @@ import {
   BreathingTextComponent,
   breathingTextCanAttach,
 } from "./components/BreathingTextComponent";
+import {
+  BounceTextComponent,
+  bounceTextCanAttach,
+} from "./components/BounceTextComponent";
 
 export { UINode, isUINode } from "./UINode";
 export { uiHierarchy } from "./UIHierarchy";
@@ -29,6 +33,7 @@ export { TweenComponent } from "./components/TweenComponent";
 export { TextStyleComponent } from "./components/TextStyleComponent";
 export { ShadowComponent } from "./components/ShadowComponent";
 export { BreathingTextComponent } from "./components/BreathingTextComponent";
+export { BounceTextComponent } from "./components/BounceTextComponent";
 
 // 组件类型注册：
 //   - transform / textStyle 是默认组件，不出现在"添加组件"下拉里。
@@ -67,4 +72,11 @@ componentRegistry.register({
   displayName: "逐字呼吸",
   factory: () => new BreathingTextComponent(),
   canAttach: breathingTextCanAttach,
+});
+
+componentRegistry.register({
+  type: "bounceText",
+  displayName: "弹弹动画",
+  factory: () => new BounceTextComponent(),
+  canAttach: bounceTextCanAttach,
 });

@@ -4,6 +4,7 @@ import { EventBus } from "@core/EventBus";
 import { Store } from "@core/Store";
 import { Layers } from "@core/Layers";
 import { TweenManager } from "@tween/TweenManager";
+import { Easing } from "@tween/Easing";
 import { Deck } from "@domain/Deck";
 import { calculateScore } from "@domain/Scoring";
 import type { CardData, ScoreResult, HandTypeName } from "@domain/types";
@@ -66,6 +67,9 @@ export class GameController {
    */
   private isPlaying = false;
 
+  private lastHandType = "";
+  private lastSelectedCount = 0;
+
   /** id -> CardView 缓存，复用同一份 view（牌只是回到牌堆，不销毁）。 */
   private readonly viewByCardId = new Map<string, CardView>();
 
@@ -109,6 +113,11 @@ export class GameController {
     // 调一次 hydrate：把 CONFIG.uiNodes 里存档的父子顺序 / transform / 组件灌回去。
     uiHierarchy.hydrateFromConfig(this.app.worldRoot);
 
+    // 注册结算卡牌逐张爆字时的筹码数字弹弹动画监听
+    this.bus.on("play:cardSettleTextTriggered", () => {
+      this.hud.scorePanel.triggerChipsBounce();
+    });
+
     // 把 tween 接入 app 的更新循环
     this.app.onUpdate((dtMS) => {
       this.tween.update(dtMS);
@@ -140,7 +149,9 @@ export class GameController {
         const state = this.store.getState();
         const totalScore = state.totalScore + result.score;
         this.store.setState({ totalScore });
-        this.hud.scorePanel.setTotalScore(totalScore);
+        if (!this.isPlaying) {
+          this.hud.scorePanel.setTotalScore(totalScore);
+        }
         this.bus.emit("round:scoreChanged", { totalScore });
         return totalScore;
       },
@@ -150,6 +161,55 @@ export class GameController {
         this.store.setState({ hand: newHand });
         // 剩余手牌立即挤位（force：跳过 swap 弹性豁免，保证整齐对齐）。
         this.layoutHand({ force: true });
+      },
+      animateScoreTransfer: async (result) => {
+        const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+        
+        // "结算结束后，即出牌堆所有牌结算完，且全部下移后，间隔一段时间后，同时刻：
+        //  筹码倍率数字变为0触发弹弹动画；牌型文字隐藏，切换到预期分数文字，预期分数文字触发弹弹动画。"
+        await sleep(300);
+
+        this.hud.scorePanel.setChipsMult(0, 0);
+        this.hud.scorePanel.triggerChipsBounce();
+        this.hud.scorePanel.triggerMultBounce();
+
+        this.hud.scorePanel.setHandNameVisible(false);
+        this.hud.scorePanel.setExpectScore(result.score);
+        this.hud.scorePanel.setExpectScoreVisible(true);
+        this.hud.scorePanel.triggerEvalScoreBounce();
+
+        // 间隔极短时间后开始进行分数迁移
+        await sleep(150);
+
+        // "分数迁移，预期得分文字的数字快速变小，等量加和到回合分数数字上，回合分数字快速变大，
+        //  预期得分文字的数字减为0时瞬间消失，回合分数字此时刚好等于原分数+预期得分文字原本的数字。"
+        const state = this.store.getState();
+        const finalRoundScore = state.totalScore;
+        const startRoundScore = finalRoundScore - result.score;
+
+        const animData = {
+          evalScore: result.score,
+          roundScore: startRoundScore,
+        };
+
+        await new Promise<void>((resolve) => {
+          this.tween.add(
+            this.tween
+              .create(animData)
+              .to({ evalScore: 0, roundScore: finalRoundScore }, 500)
+              .easing(Easing.cubicOut)
+              .onUpdate(() => {
+                this.hud.scorePanel.setExpectScore(Math.round(animData.evalScore));
+                this.hud.scorePanel.setTotalScore(Math.round(animData.roundScore));
+              })
+              .onComplete(() => {
+                this.hud.scorePanel.setExpectScore(0);
+                this.hud.scorePanel.setTotalScore(finalRoundScore);
+                this.hud.scorePanel.setExpectScoreVisible(false);
+                resolve();
+              })
+          );
+        });
       },
     });
 
@@ -526,10 +586,32 @@ export class GameController {
     const result = calculateScore(cards);
     this.store.setState({ currentResult: result });
 
-    this.hud.scorePanel.setHandName(result.handType);
-    // HUD 预览只显示牌型对应的基础筹码与倍率，不计入所选牌的点数
-    this.hud.scorePanel.setChipsMult(result.baseChips, result.mult);
-    this.hud.scorePanel.setExpectScore(result.score);
+    const count = selected.length;
+
+    if (count === 0) {
+      this.hud.scorePanel.setHandNameVisible(false);
+      this.hud.scorePanel.setExpectScoreVisible(false);
+    } else {
+      this.hud.scorePanel.setHandNameVisible(true);
+      this.hud.scorePanel.setExpectScoreVisible(false);
+
+      this.hud.scorePanel.setHandName(result.handType);
+      // HUD 预览只显示牌型对应的基础筹码与倍率，不计入所选牌的点数
+      this.hud.scorePanel.setChipsMult(result.baseChips, result.mult);
+      this.hud.scorePanel.setExpectScore(result.score);
+
+      const isJustSelected = this.lastSelectedCount === 0;
+      const isHandTypeChanged = !isJustSelected && this.lastHandType !== result.handType;
+
+      if (isJustSelected || isHandTypeChanged) {
+        this.hud.scorePanel.triggerHandNameBounce();
+        this.hud.scorePanel.triggerChipsBounce();
+        this.hud.scorePanel.triggerMultBounce();
+      }
+    }
+
+    this.lastSelectedCount = count;
+    this.lastHandType = result.handType;
 
     this.updateButtons();
   }

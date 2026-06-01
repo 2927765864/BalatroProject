@@ -1456,6 +1456,38 @@ export function setupControlPanel(
       });
     }
 
+    // === 【弹弹动画】筹码数字 ===
+    bindSectionExpand("inp-expandChipsBounce", "val-expandChipsBounce", "cardVisuals.expandedSections.chipsBounce", "sect-chipsBounce-params");
+    bindNumber("inp-chipsBounceInitScale", "val-chipsBounceInitScale", "chipsBounce.initScale", { digits: 2 });
+    bindNumber("inp-chipsBounceMaxScale", "val-chipsBounceMaxScale", "chipsBounce.maxScale", { digits: 2 });
+    bindNumber("inp-chipsBounceStableScale", "val-chipsBounceStableScale", "chipsBounce.stableScale", { digits: 2 });
+    bindNumber("inp-chipsBounceScanSpeed", "val-chipsBounceScanSpeed", "chipsBounce.scanSpeed", { integer: true });
+    bindNumber("inp-chipsBounceScaleStrength", "val-chipsBounceScaleStrength", "chipsBounce.scaleStrength", { digits: 2 });
+
+    // === 【弹弹动画】倍率数字 ===
+    bindSectionExpand("inp-expandMultBounce", "val-expandMultBounce", "cardVisuals.expandedSections.multBounce", "sect-multBounce-params");
+    bindNumber("inp-multBounceInitScale", "val-multBounceInitScale", "multBounce.initScale", { digits: 2 });
+    bindNumber("inp-multBounceMaxScale", "val-multBounceMaxScale", "multBounce.maxScale", { digits: 2 });
+    bindNumber("inp-multBounceStableScale", "val-multBounceStableScale", "multBounce.stableScale", { digits: 2 });
+    bindNumber("inp-multBounceScanSpeed", "val-multBounceScanSpeed", "multBounce.scanSpeed", { integer: true });
+    bindNumber("inp-multBounceScaleStrength", "val-multBounceScaleStrength", "multBounce.scaleStrength", { digits: 2 });
+
+    // === 【弹弹动画】牌型文字 ===
+    bindSectionExpand("inp-expandHandNameBounce", "val-expandHandNameBounce", "cardVisuals.expandedSections.handNameBounce", "sect-handNameBounce-params");
+    bindNumber("inp-handNameBounceInitScale", "val-handNameBounceInitScale", "handNameBounce.initScale", { digits: 2 });
+    bindNumber("inp-handNameBounceMaxScale", "val-handNameBounceMaxScale", "handNameBounce.maxScale", { digits: 2 });
+    bindNumber("inp-handNameBounceStableScale", "val-handNameBounceStableScale", "handNameBounce.stableScale", { digits: 2 });
+    bindNumber("inp-handNameBounceScanSpeed", "val-handNameBounceScanSpeed", "handNameBounce.scanSpeed", { integer: true });
+    bindNumber("inp-handNameBounceScaleStrength", "val-handNameBounceScaleStrength", "handNameBounce.scaleStrength", { digits: 2 });
+
+    // === 【弹弹动画】预期得分文字 ===
+    bindSectionExpand("inp-expandEvalScoreBounce", "val-expandEvalScoreBounce", "cardVisuals.expandedSections.evalScoreBounce", "sect-evalScoreBounce-params");
+    bindNumber("inp-evalScoreBounceInitScale", "val-evalScoreBounceInitScale", "evalScoreBounce.initScale", { digits: 2 });
+    bindNumber("inp-evalScoreBounceMaxScale", "val-evalScoreBounceMaxScale", "evalScoreBounce.maxScale", { digits: 2 });
+    bindNumber("inp-evalScoreBounceStableScale", "val-evalScoreBounceStableScale", "evalScoreBounce.stableScale", { digits: 2 });
+    bindNumber("inp-evalScoreBounceScanSpeed", "val-evalScoreBounceScanSpeed", "evalScoreBounce.scanSpeed", { integer: true });
+    bindNumber("inp-evalScoreBounceScaleStrength", "val-evalScoreBounceScaleStrength", "evalScoreBounce.scaleStrength", { digits: 2 });
+
     // 已经绑定过的控件只重跑 sync，避免重复挂监听
     syncers.forEach((fn) => fn());
   }
