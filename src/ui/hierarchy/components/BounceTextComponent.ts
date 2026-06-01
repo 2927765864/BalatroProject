@@ -127,12 +127,19 @@ export class BounceTextComponent extends UIComponent implements CharEffect {
     const stableScale = config.stableScale;
     const speedRatio = config.speedRatio !== undefined ? Math.max(0.01, config.speedRatio) : 1.0;
 
+    const rotAngle1 = config.rotAngle1 !== undefined ? config.rotAngle1 : 0;
+    const rotAngle2 = config.rotAngle2 !== undefined ? config.rotAngle2 : 0;
+    const rotDamping = config.rotDamping !== undefined ? Math.max(0, config.rotDamping) : 0;
+    const rotFreq = config.rotFreq !== undefined ? Math.max(0, config.rotFreq) : 0;
+
     const elapsed = (now - this.startTime) * speedRatio;
     const delay = i * scanSpeed;
     const dt = elapsed - delay;
 
     let scale = initScale;
-    let charFinished = false;
+    let scaleFinished = false;
+    let rotFinished = true;
+    let rotRad = 0;
 
     if (dt < 0) {
       // 还没扫到：停在 initScale。
@@ -148,11 +155,28 @@ export class BounceTextComponent extends UIComponent implements CharEffect {
         const t_decay = (dt - riseTime) / 1000;
         const decay = Math.exp(-scaleStrength * t_decay);
         scale = stableScale + (maxScale - stableScale) * decay;
-        if (decay <= 0.01) charFinished = true;
+        if (decay <= 0.01) scaleFinished = true;
+      }
+
+      if ((rotAngle1 !== 0 || rotAngle2 !== 0) && rotFreq > 0) {
+        const t = dt / 1000;
+        const decay = Math.exp(-rotDamping * t);
+        const safeDamping = Math.max(0.01, rotDamping);
+        const omega = rotFreq * 2 * Math.PI;
+        const phase = (omega / safeDamping) * (1 - Math.exp(-safeDamping * t));
+
+        const rad1 = (rotAngle1 * Math.PI) / 180;
+        const rad2 = (rotAngle2 * Math.PI) / 180;
+
+        rotRad = decay * (rad1 * Math.cos(phase) + rad2 * Math.sin(phase));
+        if (decay > 0.01) rotFinished = false;
       }
     }
 
     acc.scale *= scale;
+    acc.rotation += rotRad;
+
+    const charFinished = scaleFinished && rotFinished;
 
     // 收尾判定：最后一个字 delay 最大、最晚完成衰减，它一旦完成即全部完成。
     // 此处调 finish() 只从逐字层注销（不立即 teardown），由逐字层在下一帧

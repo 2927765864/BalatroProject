@@ -204,6 +204,7 @@ export class ScorePanel extends UINode {
         fontWeight: "bold",
       },
     });
+    this.handNameText.visible = false;
     this.handNameText.position.set(30, 310);
     this.handNameBounceComp = new BounceTextComponent("handNameBounce");
     this.handNameText.addComponent(this.handNameBounceComp);
@@ -220,6 +221,7 @@ export class ScorePanel extends UINode {
         fontWeight: "bold",
       },
     });
+    this.evalScoreText.visible = false;
     this.evalScoreText.position.set(30, 340);
     this.evalScoreBounceComp = new BounceTextComponent("evalScoreBounce");
     this.evalScoreText.addComponent(this.evalScoreBounceComp);

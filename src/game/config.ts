@@ -40,6 +40,10 @@ export interface BounceAnimationConfig {
   scanSpeed: number;
   scaleStrength: number;
   speedRatio: number;
+  rotAngle1?: number;
+  rotAngle2?: number;
+  rotDamping?: number;
+  rotFreq?: number;
 }
 
 export interface EvalScoreTextConfig {
@@ -1274,6 +1278,10 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     scanSpeed: 40,
     scaleStrength: 12.0,
     speedRatio: 1.0,
+    rotAngle1: -15.0,
+    rotAngle2: 15.0,
+    rotDamping: 5.0,
+    rotFreq: 6.0,
   }),
   handNameBounce: Object.freeze({
     initScale: 1.5,

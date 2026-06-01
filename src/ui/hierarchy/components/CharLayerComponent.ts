@@ -42,6 +42,8 @@ export interface CharFrame {
   offsetX: number;
   /** 缩放（多个效果累乘，初值 1）。 */
   scale: number;
+  /** 旋转弧度（多个效果累加，初值 0）。 */
+  rotation: number;
 }
 
 /**
@@ -300,7 +302,7 @@ export class CharLayerComponent extends UIComponent {
     for (let i = 0; i < count; i += 1) {
       const ch = this.chars[i]!;
       // 1) 复位到基线。
-      const acc: CharFrame = { offsetX: 0, offsetY: 0, scale: 1 };
+      const acc: CharFrame = { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 };
       // 2) 累加所有效果的贡献。
       for (const effect of effectsSnapshot) {
         effect.contribute(i, count, now, acc);
@@ -308,6 +310,7 @@ export class CharLayerComponent extends UIComponent {
       // 3) 写回。
       ch.position.set(this.baseX[i]! + acc.offsetX, this.baseY[i]! + acc.offsetY);
       ch.scale.set(acc.scale);
+      ch.rotation = acc.rotation;
     }
 
     // 阴影是"烤宿主快照"的——逐字动画期间字符只是 transform 在变，不会自动

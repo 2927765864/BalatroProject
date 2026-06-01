@@ -113,6 +113,12 @@ export class GameController {
     // 调一次 hydrate：把 CONFIG.uiNodes 里存档的父子顺序 / transform / 组件灌回去。
     uiHierarchy.hydrateFromConfig(this.app.worldRoot);
 
+    // 每次刷新网页时，都把界面UI的筹码文字和倍率文字设为0，回合分数文字也设为0，默认隐藏牌型文字和预期分数文字
+    this.hud.scorePanel.setChipsMult(0, 0);
+    this.hud.scorePanel.setTotalScore(0);
+    this.hud.scorePanel.setHandNameVisible(false);
+    this.hud.scorePanel.setExpectScoreVisible(false);
+
     // 注册结算卡牌逐张爆字时的筹码数字弹弹动画监听
     this.bus.on("play:cardSettleTextTriggered", (payload) => {
       const currentChips = this.hud.scorePanel.getChips();

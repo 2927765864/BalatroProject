@@ -1473,6 +1473,10 @@ export function setupControlPanel(
     bindNumber("inp-multBounceScanSpeed", "val-multBounceScanSpeed", "multBounce.scanSpeed", { integer: true });
     bindNumber("inp-multBounceScaleStrength", "val-multBounceScaleStrength", "multBounce.scaleStrength", { digits: 2 });
     bindNumber("inp-multBounceSpeedRatio", "val-multBounceSpeedRatio", "multBounce.speedRatio", { digits: 2 });
+    bindNumber("inp-multBounceRotAngle1", "val-multBounceRotAngle1", "multBounce.rotAngle1", { digits: 2 });
+    bindNumber("inp-multBounceRotAngle2", "val-multBounceRotAngle2", "multBounce.rotAngle2", { digits: 2 });
+    bindNumber("inp-multBounceRotDamping", "val-multBounceRotDamping", "multBounce.rotDamping", { digits: 2 });
+    bindNumber("inp-multBounceRotFreq", "val-multBounceRotFreq", "multBounce.rotFreq", { digits: 2 });
 
     // === 【弹弹动画】牌型文字 ===
     bindSectionExpand("inp-expandHandNameBounce", "val-expandHandNameBounce", "cardVisuals.expandedSections.handNameBounce", "sect-handNameBounce-params");
