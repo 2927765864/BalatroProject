@@ -1166,6 +1166,10 @@ export function setupControlPanel(
       });
     }
 
+    // === 【抓牌】抓牌相关参数 ===
+    bindSectionExpand("inp-expandDrawCard", "val-expandDrawCard", "cardVisuals.expandedSections.drawCard", "sect-drawCard-params");
+    bindNumber("inp-lastCardAdvanceMS", "val-lastCardAdvanceMS", "drawCard.lastCardAdvanceMS", { integer: true });
+
     // === 卡牌换位（手动理牌）===
     // 让位牌走 CardFx.swapMove（rise → 过冲 → spring）。与 cardOvershoot 完全独立，
     // 因为换位距离固定 ≈ cardSpacing，无需距离/速度自适应。

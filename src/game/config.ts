@@ -151,6 +151,11 @@ export interface RuntimeConfig {
     /** 退出拖拽缩放曲线 */
     dragScaleOutCurve: BezierCurveConfig;
   };
+  /** 【抓牌】抓牌相关参数 */
+  drawCard: {
+    /** 抽牌数>=4时，最后一张牌提前的时间 (ms) */
+    lastCardAdvanceMS: number;
+  };
   /**
    * 卡牌换位（手动理牌）
    *
@@ -549,6 +554,7 @@ export interface RuntimeConfig {
       cardOps: boolean;
       cardMoveRotation: boolean;
       cardOvershoot: boolean;
+      drawCard: boolean;
       handSwap: boolean;
       playHandSwap: boolean;
       playPileDisplacement: boolean;
@@ -939,6 +945,9 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       p2: { x: 0.6, y: 1.0 },
     }) as BezierCurveConfig,
   }),
+  drawCard: Object.freeze({
+    lastCardAdvanceMS: 150,
+  }),
   handSwap: Object.freeze({
     enabled: true,
     riseDurationMS: 110,
@@ -1150,6 +1159,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       cardOps: true,
       cardMoveRotation: true,
       cardOvershoot: true,
+      drawCard: true,
       handSwap: true,
       playHandSwap: true,
       playPileDisplacement: true,
@@ -1379,6 +1389,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
         p2: { ...src.cardOvershoot.dragSpringCurve.p2 },
       } : undefined as any,
     },
+    drawCard: { ...src.drawCard },
     handSwap: { ...src.handSwap },
     playHandSwap: { ...src.playHandSwap },
     playPileDisplacement: { ...src.playPileDisplacement },
@@ -1566,6 +1577,12 @@ export function applyConfig(source: unknown): void {
         : merged.cardOvershoot.dragSpringCurve,
     };
   }
+  if (incoming.drawCard) {
+    merged.drawCard = {
+      ...merged.drawCard,
+      ...incoming.drawCard,
+    };
+  }
   if (incoming.handSwap) {
     merged.handSwap = {
       ...merged.handSwap,
@@ -1712,6 +1729,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.dragHandCard = merged.dragHandCard;
   CONFIG.cardMoveRotation = merged.cardMoveRotation;
   CONFIG.cardOvershoot = merged.cardOvershoot;
+  CONFIG.drawCard = merged.drawCard;
   CONFIG.handSwap = merged.handSwap;
   CONFIG.playHandSwap = merged.playHandSwap;
   CONFIG.playPileDisplacement = merged.playPileDisplacement;

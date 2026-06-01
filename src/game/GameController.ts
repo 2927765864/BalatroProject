@@ -230,7 +230,68 @@ export class GameController {
 
   // --- 抽牌 / 布局 -------------------------------------------------
 
-  private drawToFull(): void {
+  private getAnimationDuration(
+    card: CardView,
+    target: { x: number; y: number }
+  ): number {
+    const cfg = GameConfig.cardOvershoot;
+    if (!cfg?.enabled) {
+      const fallbackDist = Math.hypot(target.x - card.x, target.y - card.y);
+      const avgSpeed = Math.max(1, cfg?.tweenReturnAvgSpeed ?? 1400);
+      const minMS = Math.max(1, cfg?.tweenReturnMinMS ?? 140);
+      const maxMS = Math.max(minMS, cfg?.tweenReturnMaxMS ?? 420);
+      return Math.min(maxMS, Math.max(minMS, (fallbackDist / avgSpeed) * 1000));
+    }
+
+    const dx = target.x - card.x;
+    const dy = target.y - card.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < 1e-3) {
+      return 0;
+    }
+
+    const maxOvershoot = Math.max(0, cfg.tweenOvershootPx ?? 0);
+    const minOvershoot = Math.min(
+      maxOvershoot,
+      Math.max(0, cfg.tweenMinOvershootPx ?? 0)
+    );
+
+    let overshootPx = 0;
+    const forceOvershoot = true;
+    if (maxOvershoot > 0) {
+      if (forceOvershoot) {
+        overshootPx = maxOvershoot;
+      } else {
+        const minDist = Math.max(0, cfg.tweenMinOvershootDistancePx ?? 30);
+        const fullDist = Math.max(minDist + 1, cfg.tweenFullOvershootDistancePx ?? 280);
+        if (dist >= minDist) {
+          if (dist >= fullDist) {
+            overshootPx = maxOvershoot;
+          } else {
+            const t = (dist - minDist) / (fullDist - minDist);
+            overshootPx = minOvershoot + (maxOvershoot - minOvershoot) * t;
+          }
+        }
+      }
+    }
+
+    const avgSpeed = Math.max(1, cfg.tweenReturnAvgSpeed ?? 1400);
+    const minMS = Math.max(1, cfg.tweenReturnMinMS ?? 140);
+    const maxMS = Math.max(minMS, cfg.tweenReturnMaxMS ?? 420);
+    const naturalMS = (dist / avgSpeed) * 1000;
+    const riseMS = Math.min(maxMS, Math.max(minMS, naturalMS));
+
+    const stiffness = Math.max(0.001, cfg.tweenSpringStiffness ?? 10);
+    const springMS = Math.min(2000, Math.max(1, Math.round(1000 / stiffness)));
+
+    if (overshootPx <= 0) {
+      return riseMS;
+    }
+    return riseMS + springMS;
+  }
+
+  private async drawToFull(): Promise<void> {
     const need = GameConfig.rules.handSize - this.store.getState().hand.length;
     if (need <= 0) {
       // 手牌数量校正路径：force 强制对齐，避免极端情况下豁免 swap 弹性导致错位。
@@ -238,26 +299,55 @@ export class GameController {
       return;
     }
     const drawn = this.deck.draw(need);
-    const newHand = [...this.store.getState().hand];
+    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-    for (const data of drawn) {
+    for (let i = 0; i < drawn.length; i++) {
+      const data = drawn[i]!;
       const view = this.getOrCreateView(data);
       view.selected = false;
-      // 把 view 放进卡牌层，初始位置在屏幕外（牌堆方向）。
       this.cardLayer.addChild(view);
+      
+      // 把 view 放进卡牌层，初始位置在屏幕外（牌堆方向）。
       view.x = GameConfig.world.width + 200;
       view.y = GameConfig.world.height + 200;
       view.rotation = 0;
-      // 标记"本次 layoutHand 应当对该牌触发过冲反弹动画"——
-      // 屏幕外瞬移过来时 lastSpeed 不可靠（没有真实跨帧位移可采样），
-      // 用这个一次性标志显式告诉 moveToWithOvershoot 走过冲路径。
       view.forceOvershootOnce = true;
-      newHand.push(view);
+
+      const currentHand = [...this.store.getState().hand];
+      const insertIndex = Math.floor(Math.random() * (currentHand.length + 1));
+      
+      currentHand.splice(insertIndex, 0, view);
+      this.store.setState({ hand: currentHand });
+      this.hud.deckView.setCount(this.deck.size);
+
+      const slots = computeHandLayout(currentHand, {
+        areaLeft: this.hud.handAreaLeft,
+        areaRight: this.hud.handAreaRight,
+        baseY: this.hud.handBaseY,
+        cardSpacing: GameConfig.handLayout.cardSpacing,
+        arcEnabled: GameConfig.handLayout.arcEnabled,
+        arcHeight: GameConfig.handLayout.arcHeight,
+        fanAnglePerCardDeg: GameConfig.handLayout.fanAnglePerCardDeg,
+      });
+      const slot = slots[insertIndex]!;
+
+      // 抽牌后：手牌数量变化，必须强制对齐（force），不豁免任何"正在弹性"的牌。
+      this.layoutHand({ force: true });
+
+      const duration = this.getAnimationDuration(view, slot);
+      let delayMS = duration;
+
+      if (drawn.length >= 4 && i === drawn.length - 2) {
+        const advance = GameConfig.drawCard?.lastCardAdvanceMS ?? 150;
+        delayMS = Math.max(0, duration - advance);
+      }
+
+      if (i < drawn.length - 1) {
+        await sleep(delayMS);
+      } else {
+        await sleep(duration);
+      }
     }
-    this.store.setState({ hand: newHand });
-    this.hud.deckView.setCount(this.deck.size);
-    // 抽牌后：手牌数量变化，必须强制对齐（force），不豁免任何"正在弹性"的牌。
-    this.layoutHand({ force: true });
   }
 
   private getOrCreateView(data: CardData): CardView {
@@ -693,7 +783,7 @@ export class GameController {
       this.bus.emit("deck:changed", { size: this.deck.size });
 
       // 补牌（hand 已经在阶段 1 内被 removeFromHand 逐张清空）。
-      this.drawToFull();
+      await this.drawToFull();
       this.evaluateAndUpdate();
     } finally {
       this.isPlaying = false;
@@ -701,7 +791,7 @@ export class GameController {
     }
   }
 
-  private discardSelected(): void {
+  private async discardSelected(): Promise<void> {
     if (this.isPlaying) return;
     const state = this.store.getState();
     const unlimited = GameConfig.rules.unlimitedActions;
@@ -718,7 +808,7 @@ export class GameController {
       cards: state.selected.map((v) => v.data),
     });
 
-    this.recycleSelected();
+    await this.recycleSelected();
   }
 
   // --- 外部刷新钩子 ------------------------------------------------
@@ -778,34 +868,46 @@ export class GameController {
     this.layoutHand({ force: true });
   }
 
-  private recycleSelected(): void {
+  private async recycleSelected(): Promise<void> {
     const state = this.store.getState();
     const recycling = [...state.selected];
     const remaining = state.hand.filter((v) => !recycling.includes(v));
 
-    // 视觉：先飞出
-    for (const v of recycling) {
-      v.selected = false;
-      v.cardState = CardState.Normal;
-      CardFx.flyOut(
-        this.tween,
-        v,
-        GameConfig.world.width,
-        GameConfig.animation.flyOutDurationMS
-      );
+    this.isPlaying = true;
+    this.updateButtons();
+
+    try {
+      // 视觉：先飞出
+      for (const v of recycling) {
+        v.selected = false;
+        v.cardState = CardState.Normal;
+        CardFx.flyOut(
+          this.tween,
+          v,
+          GameConfig.world.width,
+          GameConfig.animation.flyOutDurationMS
+        );
+      }
+
+      // 等待飞出动画完成
+      const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+      await sleep(GameConfig.animation.flyOutDurationMS);
+
+      // 数据：放回牌堆并洗牌
+      this.deck.recycle(recycling.map((v) => v.data));
+      this.deck.shuffle();
+      this.hud.deckView.setCount(this.deck.size);
+      this.bus.emit("deck:changed", { size: this.deck.size });
+
+      this.store.setState({ hand: remaining, selected: [] });
+      this.bus.emit("card:selectionChanged", { selected: [] });
+
+      // 补牌并重新摆位
+      await this.drawToFull();
+      this.evaluateAndUpdate();
+    } finally {
+      this.isPlaying = false;
+      this.updateButtons();
     }
-
-    // 数据：放回牌堆并洗牌
-    this.deck.recycle(recycling.map((v) => v.data));
-    this.deck.shuffle();
-    this.hud.deckView.setCount(this.deck.size);
-    this.bus.emit("deck:changed", { size: this.deck.size });
-
-    this.store.setState({ hand: remaining, selected: [] });
-    this.bus.emit("card:selectionChanged", { selected: [] });
-
-    // 补牌并重新摆位
-    this.drawToFull();
-    this.evaluateAndUpdate();
   }
 }
