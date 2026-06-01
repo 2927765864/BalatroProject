@@ -53,6 +53,19 @@ export class App {
       antialias: true,
       // 允许亚像素位置渲染，以便文字等平滑移动。需要精确对齐的像素卡牌由各图层容器单独开启 roundPixels。
       roundPixels: false,
+      // 关闭 PIXI 自动纹理 GC。
+      //
+      // 背景：PIXI v8 的 TextureGCSystem 默认在纹理"闲置约 60s"（textureGCMaxIdle
+      // = 3600 帧 / 60fps）后自动卸载其 GPU 资源。但本项目用 generateTexture 烤了大量
+      // RenderTexture（卡面 cardTexture、剪影 shadow 等），其 GPU TextureView 可能仍被
+      // PIXI 内部的 batch BindGroup 缓存（getTextureBatchBindGroup 的模块级 cachedGroups，
+      // 该缓存在纹理销毁/卸载时不会失效）引用。一旦 GC 卸载了这种纹理，下一帧渲染会在
+      // BindGroupSystem._createBindGroup 读到 null source 而崩溃（黑屏 + Cannot read
+      // properties of null 'textureSource1'）——表现就是"待机约一分钟后突然黑屏"。
+      //
+      // 本游戏是单屏卡牌玩法，纹理生命周期已由各 View 手动管理（bakeCardTexture / refreshArt
+      // / destroy 都显式 destroy 旧纹理），不依赖 PIXI 的自动 GC，关闭它最稳妥且无副作用。
+      textureGCActive: false,
     });
 
     const mount = this.opts.mountTo ?? document.body;
