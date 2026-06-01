@@ -1463,6 +1463,7 @@ export function setupControlPanel(
     bindNumber("inp-chipsBounceStableScale", "val-chipsBounceStableScale", "chipsBounce.stableScale", { digits: 2 });
     bindNumber("inp-chipsBounceScanSpeed", "val-chipsBounceScanSpeed", "chipsBounce.scanSpeed", { integer: true });
     bindNumber("inp-chipsBounceScaleStrength", "val-chipsBounceScaleStrength", "chipsBounce.scaleStrength", { digits: 2 });
+    bindNumber("inp-chipsBounceSpeedRatio", "val-chipsBounceSpeedRatio", "chipsBounce.speedRatio", { digits: 2 });
 
     // === 【弹弹动画】倍率数字 ===
     bindSectionExpand("inp-expandMultBounce", "val-expandMultBounce", "cardVisuals.expandedSections.multBounce", "sect-multBounce-params");
@@ -1471,6 +1472,7 @@ export function setupControlPanel(
     bindNumber("inp-multBounceStableScale", "val-multBounceStableScale", "multBounce.stableScale", { digits: 2 });
     bindNumber("inp-multBounceScanSpeed", "val-multBounceScanSpeed", "multBounce.scanSpeed", { integer: true });
     bindNumber("inp-multBounceScaleStrength", "val-multBounceScaleStrength", "multBounce.scaleStrength", { digits: 2 });
+    bindNumber("inp-multBounceSpeedRatio", "val-multBounceSpeedRatio", "multBounce.speedRatio", { digits: 2 });
 
     // === 【弹弹动画】牌型文字 ===
     bindSectionExpand("inp-expandHandNameBounce", "val-expandHandNameBounce", "cardVisuals.expandedSections.handNameBounce", "sect-handNameBounce-params");
@@ -1479,6 +1481,7 @@ export function setupControlPanel(
     bindNumber("inp-handNameBounceStableScale", "val-handNameBounceStableScale", "handNameBounce.stableScale", { digits: 2 });
     bindNumber("inp-handNameBounceScanSpeed", "val-handNameBounceScanSpeed", "handNameBounce.scanSpeed", { integer: true });
     bindNumber("inp-handNameBounceScaleStrength", "val-handNameBounceScaleStrength", "handNameBounce.scaleStrength", { digits: 2 });
+    bindNumber("inp-handNameBounceSpeedRatio", "val-handNameBounceSpeedRatio", "handNameBounce.speedRatio", { digits: 2 });
 
     // === 【弹弹动画】预期得分文字 ===
     bindSectionExpand("inp-expandEvalScoreBounce", "val-expandEvalScoreBounce", "cardVisuals.expandedSections.evalScoreBounce", "sect-evalScoreBounce-params");
@@ -1487,6 +1490,7 @@ export function setupControlPanel(
     bindNumber("inp-evalScoreBounceStableScale", "val-evalScoreBounceStableScale", "evalScoreBounce.stableScale", { digits: 2 });
     bindNumber("inp-evalScoreBounceScanSpeed", "val-evalScoreBounceScanSpeed", "evalScoreBounce.scanSpeed", { integer: true });
     bindNumber("inp-evalScoreBounceScaleStrength", "val-evalScoreBounceScaleStrength", "evalScoreBounce.scaleStrength", { digits: 2 });
+    bindNumber("inp-evalScoreBounceSpeedRatio", "val-evalScoreBounceSpeedRatio", "evalScoreBounce.speedRatio", { digits: 2 });
 
     // 已经绑定过的控件只重跑 sync，避免重复挂监听
     syncers.forEach((fn) => fn());

@@ -303,6 +303,14 @@ export class ScorePanel extends UINode {
     this.multText.setText(String(mult));
   }
 
+  getChips(): number {
+    return parseInt(this.chipsText.getText(), 10) || 0;
+  }
+
+  getMult(): number {
+    return parseInt(this.multText.getText(), 10) || 0;
+  }
+
   setHandName(name: string): void {
     this.handNameText.setText(name === "无" ? "" : name);
   }

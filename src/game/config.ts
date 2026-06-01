@@ -39,6 +39,7 @@ export interface BounceAnimationConfig {
   stableScale: number;
   scanSpeed: number;
   scaleStrength: number;
+  speedRatio: number;
 }
 
 export interface RuntimeConfig {
@@ -1256,6 +1257,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     stableScale: 1.0,
     scanSpeed: 40,
     scaleStrength: 12.0,
+    speedRatio: 1.0,
   }),
   multBounce: Object.freeze({
     initScale: 1.5,
@@ -1263,6 +1265,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     stableScale: 1.0,
     scanSpeed: 40,
     scaleStrength: 12.0,
+    speedRatio: 1.0,
   }),
   handNameBounce: Object.freeze({
     initScale: 1.5,
@@ -1270,6 +1273,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     stableScale: 1.0,
     scanSpeed: 50,
     scaleStrength: 10.0,
+    speedRatio: 1.0,
   }),
   evalScoreBounce: Object.freeze({
     initScale: 1.5,
@@ -1277,6 +1281,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     stableScale: 1.0,
     scanSpeed: 30,
     scaleStrength: 15.0,
+    speedRatio: 1.0,
   }),
   uiNodes: {},
 }) as RuntimeConfig;

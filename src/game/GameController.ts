@@ -114,7 +114,11 @@ export class GameController {
     uiHierarchy.hydrateFromConfig(this.app.worldRoot);
 
     // 注册结算卡牌逐张爆字时的筹码数字弹弹动画监听
-    this.bus.on("play:cardSettleTextTriggered", () => {
+    this.bus.on("play:cardSettleTextTriggered", (payload) => {
+      const currentChips = this.hud.scorePanel.getChips();
+      const currentMult = this.hud.scorePanel.getMult();
+      const newChips = currentChips + payload.chips;
+      this.hud.scorePanel.setChipsMult(newChips, currentMult);
       this.hud.scorePanel.triggerChipsBounce();
     });
 
@@ -591,6 +595,12 @@ export class GameController {
     if (count === 0) {
       this.hud.scorePanel.setHandNameVisible(false);
       this.hud.scorePanel.setExpectScoreVisible(false);
+      this.hud.scorePanel.setChipsMult(0, 0);
+
+      if (this.lastSelectedCount > 0) {
+        this.hud.scorePanel.triggerChipsBounce();
+        this.hud.scorePanel.triggerMultBounce();
+      }
     } else {
       this.hud.scorePanel.setHandNameVisible(true);
       this.hud.scorePanel.setExpectScoreVisible(false);

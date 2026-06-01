@@ -125,8 +125,9 @@ export class BounceTextComponent extends UIComponent implements CharEffect {
     const initScale = config.initScale;
     const maxScale = config.maxScale;
     const stableScale = config.stableScale;
+    const speedRatio = config.speedRatio !== undefined ? Math.max(0.01, config.speedRatio) : 1.0;
 
-    const elapsed = now - this.startTime;
+    const elapsed = (now - this.startTime) * speedRatio;
     const delay = i * scanSpeed;
     const dt = elapsed - delay;
 
