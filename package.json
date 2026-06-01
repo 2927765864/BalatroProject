@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "pixi.js": "^8.5.0"
+    "pixi.js": "^8.17.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
