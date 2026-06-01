@@ -42,6 +42,11 @@ export interface BounceAnimationConfig {
   speedRatio: number;
 }
 
+export interface EvalScoreTextConfig {
+  delayMS: number;
+  decreaseDurationMS: number;
+}
+
 export interface RuntimeConfig {
   world: {
     width: number;
@@ -552,6 +557,7 @@ export interface RuntimeConfig {
       multBounce: boolean;
       handNameBounce: boolean;
       evalScoreBounce: boolean;
+      evalScoreText: boolean;
     };
 
     /**
@@ -839,6 +845,7 @@ export interface RuntimeConfig {
   multBounce: BounceAnimationConfig;
   handNameBounce: BounceAnimationConfig;
   evalScoreBounce: BounceAnimationConfig;
+  evalScoreText: EvalScoreTextConfig;
   /**
    * UI 节点持久化表。键是 UINode.nodeId。
    * 由 UIHierarchy 维护：任何 transform 变化、组件增删、父子重排都会回写这里。
@@ -1151,6 +1158,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       multBounce: true,
       handNameBounce: true,
       evalScoreBounce: true,
+      evalScoreText: true,
     }),
     selectMoveEnabled: true,
     selectRiseY: 30,
@@ -1283,6 +1291,10 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     scaleStrength: 15.0,
     speedRatio: 1.0,
   }),
+  evalScoreText: Object.freeze({
+    delayMS: 500,
+    decreaseDurationMS: 500,
+  }),
   uiNodes: {},
 }) as RuntimeConfig;
 
@@ -1405,6 +1417,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     multBounce: { ...src.multBounce },
     handNameBounce: { ...src.handNameBounce },
     evalScoreBounce: { ...src.evalScoreBounce },
+    evalScoreText: { ...src.evalScoreText },
     uiNodes: cloneUINodes(src.uiNodes),
   };
 }
@@ -1669,6 +1682,12 @@ export function applyConfig(source: unknown): void {
       ...incoming.evalScoreBounce,
     };
   }
+  if (incoming.evalScoreText) {
+    merged.evalScoreText = {
+      ...merged.evalScoreText,
+      ...incoming.evalScoreText,
+    };
+  }
   // uiNodes：preset 里没带就清空（让 hierarchy 自己重新捕获默认值），
   // 带了就整张表替换（这一表内部条目相互依赖，不适合按字段合并）。
   merged.uiNodes = cloneUINodes(incoming.uiNodes ?? {});
@@ -1699,6 +1718,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.multBounce = merged.multBounce;
   CONFIG.handNameBounce = merged.handNameBounce;
   CONFIG.evalScoreBounce = merged.evalScoreBounce;
+  CONFIG.evalScoreText = merged.evalScoreText;
   CONFIG.uiNodes = merged.uiNodes;
 }
 
@@ -1911,6 +1931,12 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.evalScoreBounce = {
       ...activeDefaultConfig.evalScoreBounce,
       ...incoming.evalScoreBounce,
+    };
+  }
+  if (incoming.evalScoreText) {
+    activeDefaultConfig.evalScoreText = {
+      ...activeDefaultConfig.evalScoreText,
+      ...incoming.evalScoreText,
     };
   }
   if (incoming.uiNodes) {

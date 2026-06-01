@@ -183,7 +183,7 @@ export class GameController {
         this.hud.scorePanel.triggerEvalScoreBounce();
 
         // 间隔极短时间后开始进行分数迁移
-        await sleep(150);
+        await sleep(GameConfig.evalScoreText.delayMS);
 
         // "分数迁移，预期得分文字的数字快速变小，等量加和到回合分数数字上，回合分数字快速变大，
         //  预期得分文字的数字减为0时瞬间消失，回合分数字此时刚好等于原分数+预期得分文字原本的数字。"
@@ -200,7 +200,7 @@ export class GameController {
           this.tween.add(
             this.tween
               .create(animData)
-              .to({ evalScore: 0, roundScore: finalRoundScore }, 500)
+              .to({ evalScore: 0, roundScore: finalRoundScore }, GameConfig.evalScoreText.decreaseDurationMS)
               .easing(Easing.cubicOut)
               .onUpdate(() => {
                 this.hud.scorePanel.setExpectScore(Math.round(animData.evalScore));

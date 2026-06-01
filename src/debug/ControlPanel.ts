@@ -1492,6 +1492,11 @@ export function setupControlPanel(
     bindNumber("inp-evalScoreBounceScaleStrength", "val-evalScoreBounceScaleStrength", "evalScoreBounce.scaleStrength", { digits: 2 });
     bindNumber("inp-evalScoreBounceSpeedRatio", "val-evalScoreBounceSpeedRatio", "evalScoreBounce.speedRatio", { digits: 2 });
 
+    // === 【结算分数】预期得分文字 ===
+    bindSectionExpand("inp-expandEvalScoreText", "val-expandEvalScoreText", "cardVisuals.expandedSections.evalScoreText", "sect-evalScoreText-params");
+    bindNumber("inp-evalScoreTextDelayMS", "val-evalScoreTextDelayMS", "evalScoreText.delayMS", { integer: true });
+    bindNumber("inp-evalScoreTextDecreaseDurationMS", "val-evalScoreTextDecreaseDurationMS", "evalScoreText.decreaseDurationMS", { integer: true });
+
     // 已经绑定过的控件只重跑 sync，避免重复挂监听
     syncers.forEach((fn) => fn());
   }

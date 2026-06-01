@@ -2132,6 +2132,33 @@
 
             </div>
 
+            <!-- 【结算分数】预期得分文字 -->
+            <div class="panel-row" style="background: rgba(0, 162, 255, 0.08); font-weight: bold; color: #00a2ff; border-top: 1px solid rgba(0, 162, 255, 0.2); border-bottom: 1px solid rgba(0, 162, 255, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>【结算分数】预期得分文字</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#a2d6ff;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandEvalScoreText" style="color: #00a2ff;">开</span>
+                <input id="inp-expandEvalScoreText" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+
+            <div id="sect-evalScoreText-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>减少前延迟时间 (ms)</span>
+                  <span id="val-evalScoreTextDelayMS">500</span>
+                </div>
+                <input id="inp-evalScoreTextDelayMS" type="number" step="50" min="0" max="5000" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>数字减少时间 (ms)</span>
+                  <span id="val-evalScoreTextDecreaseDurationMS">500</span>
+                </div>
+                <input id="inp-evalScoreTextDecreaseDurationMS" type="number" step="50" min="50" max="5000" />
+              </div>
+            </div>
+
             <!-- 【弹弹动画】筹码数字 -->
             <div class="panel-row" style="background: rgba(0, 162, 255, 0.08); font-weight: bold; color: #00a2ff; border-top: 1px solid rgba(0, 162, 255, 0.2); border-bottom: 1px solid rgba(0, 162, 255, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>【弹弹动画】筹码数字</span>

@@ -338,7 +338,8 @@
         "playPileSettleEffect": false,
         "playPileSettleText": true,
         "playPileSettleBgBlock": true,
-        "mouseOffset": true
+        "mouseOffset": true,
+        "evalScoreText": true
       },
       "selectMoveEnabled": true,
       "selectRiseY": 26,
@@ -460,6 +461,10 @@
       "dropDurationMS": 220,
       "discardIntervalMS": 80,
       "discardFlyDurationMS": 320
+    },
+    "evalScoreText": {
+      "delayMS": 500,
+      "decreaseDurationMS": 500
     },
     "scoreCurve": {
       "enabled": false,
