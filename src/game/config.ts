@@ -49,6 +49,8 @@ export interface BounceAnimationConfig {
 export interface EvalScoreTextConfig {
   delayMS: number;
   decreaseDurationMS: number;
+  /** 预期得分文字数字减少完并消失后，停留时间 (ms) */
+  stayDurationMS: number;
 }
 
 export interface RuntimeConfig {
@@ -331,6 +333,8 @@ export interface RuntimeConfig {
     springStiffness: number;
     /** 每张要抬起的牌之间的时间间隔 */
     interval: number;
+    /** 所有应该上移的牌上移后，停留时间，用来延迟进入结算的时机 (ms) */
+    stayDuration: number;
     /** 下移的过冲幅度 */
     dropOvershoot: number;
     /** 下移回弹刚度 */
@@ -1128,6 +1132,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     overshoot: 15,
     springStiffness: 15,
     interval: 150,
+    stayDuration: 0,
     dropOvershoot: 10,
     dropSpringStiffness: 12,
     dropStartSpeed: 300,
@@ -1462,6 +1467,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
   evalScoreText: Object.freeze({
     delayMS: 500,
     decreaseDurationMS: 500,
+    stayDurationMS: 0,
   }),
   uiNodes: {},
 }) as RuntimeConfig;

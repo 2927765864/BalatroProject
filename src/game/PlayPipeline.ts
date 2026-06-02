@@ -246,6 +246,9 @@ export class PlayPipeline {
           liftPromises.push(promise);
         }
         await Promise.all(liftPromises);
+        if (liftEffectCfg.stayDuration && liftEffectCfg.stayDuration > 0) {
+          await sleep(liftEffectCfg.stayDuration);
+        }
       }
     } else {
       await PlayPileFx.liftPile(

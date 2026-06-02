@@ -1258,6 +1258,7 @@ export function setupControlPanel(
     bindNumber("inp-playPileLiftEffectOvershoot", "val-playPileLiftEffectOvershoot", "playPileLiftEffect.overshoot", { digits: 1 });
     bindNumber("inp-playPileLiftEffectSpringStiffness", "val-playPileLiftEffectSpringStiffness", "playPileLiftEffect.springStiffness", { digits: 1 });
     bindNumber("inp-playPileLiftEffectInterval", "val-playPileLiftEffectInterval", "playPileLiftEffect.interval", { integer: true });
+    bindNumber("inp-playPileLiftEffectStayDuration", "val-playPileLiftEffectStayDuration", "playPileLiftEffect.stayDuration", { integer: true });
     bindNumber("inp-playPileLiftEffectDropStartSpeed", "val-playPileLiftEffectDropStartSpeed", "playPileLiftEffect.dropStartSpeed", { integer: true });
     bindNumber("inp-playPileLiftEffectDropOvershoot", "val-playPileLiftEffectDropOvershoot", "playPileLiftEffect.dropOvershoot", { digits: 1 });
     bindNumber("inp-playPileLiftEffectDropSpringStiffness", "val-playPileLiftEffectDropSpringStiffness", "playPileLiftEffect.dropSpringStiffness", { digits: 1 });
@@ -1551,6 +1552,7 @@ export function setupControlPanel(
     bindSectionExpand("inp-expandEvalScoreText", "val-expandEvalScoreText", "cardVisuals.expandedSections.evalScoreText", "sect-evalScoreText-params");
     bindNumber("inp-evalScoreTextDelayMS", "val-evalScoreTextDelayMS", "evalScoreText.delayMS", { integer: true });
     bindNumber("inp-evalScoreTextDecreaseDurationMS", "val-evalScoreTextDecreaseDurationMS", "evalScoreText.decreaseDurationMS", { integer: true });
+    bindNumber("inp-evalScoreTextStayDurationMS", "val-evalScoreTextStayDurationMS", "evalScoreText.stayDurationMS", { integer: true });
 
     // 已经绑定过的控件只重跑 sync，避免重复挂监听
     syncers.forEach((fn) => fn());

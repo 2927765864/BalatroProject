@@ -251,7 +251,8 @@
       "decelerateTime": 0.1,
       "overshoot": 15,
       "springStiffness": 10.5,
-      "interval": 400,
+      "interval": 200,
+      "stayDuration": 400,
       "dropOvershoot": 16,
       "dropSpringStiffness": 12,
       "dropStartSpeed": 500,
@@ -382,15 +383,15 @@
         "playPileDisplacement": false,
         "playCardMove": false,
         "playCardMoveControl": false,
-        "playPileLiftEffect": false,
+        "playPileLiftEffect": true,
         "playPileSettleEffect": false,
-        "playPileSettleText": true,
+        "playPileSettleText": false,
         "playPileSettleBgBlock": false,
         "chipsBounce": false,
         "multBounce": false,
         "handNameBounce": false,
         "evalScoreBounce": false,
-        "evalScoreText": false,
+        "evalScoreText": true,
         "mouseOffset": true
       },
       "selectMoveEnabled": true,
@@ -565,7 +566,8 @@
     },
     "evalScoreText": {
       "delayMS": 1000,
-      "decreaseDurationMS": 500
+      "decreaseDurationMS": 500,
+      "stayDurationMS": 800
     },
     "uiNodes": {
       "hud.leftPanel.background": {
@@ -829,7 +831,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "525"
+              "text": "352"
             }
           },
           {
@@ -1116,7 +1118,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "高牌"
+              "text": "两对"
             }
           },
           {

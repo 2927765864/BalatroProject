@@ -241,6 +241,10 @@ export class GameController {
               })
           );
         });
+
+        if (GameConfig.evalScoreText.stayDurationMS && GameConfig.evalScoreText.stayDurationMS > 0) {
+          await sleep(GameConfig.evalScoreText.stayDurationMS);
+        }
       },
     });
 
