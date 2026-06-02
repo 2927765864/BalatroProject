@@ -2128,6 +2128,28 @@ export function applyShippingDefaults(source: unknown): void {
       ...incoming.playPileSettleEffect,
     };
   }
+  if (incoming.playPileSettleTextEffect) {
+    activeDefaultConfig.playPileSettleTextEffect = {
+      ...activeDefaultConfig.playPileSettleTextEffect,
+      ...incoming.playPileSettleTextEffect,
+      bgBlockFadeCurve: incoming.playPileSettleTextEffect.bgBlockFadeCurve
+        ? {
+            ...activeDefaultConfig.playPileSettleTextEffect.bgBlockFadeCurve,
+            ...incoming.playPileSettleTextEffect.bgBlockFadeCurve,
+            p1: { ...(activeDefaultConfig.playPileSettleTextEffect.bgBlockFadeCurve?.p1 ?? {}), ...(incoming.playPileSettleTextEffect.bgBlockFadeCurve.p1 ?? {}) },
+            p2: { ...(activeDefaultConfig.playPileSettleTextEffect.bgBlockFadeCurve?.p2 ?? {}), ...(incoming.playPileSettleTextEffect.bgBlockFadeCurve.p2 ?? {}) },
+          }
+        : activeDefaultConfig.playPileSettleTextEffect.bgBlockFadeCurve,
+      bgBlockScaleCurve: incoming.playPileSettleTextEffect.bgBlockScaleCurve
+        ? {
+            ...activeDefaultConfig.playPileSettleTextEffect.bgBlockScaleCurve,
+            ...incoming.playPileSettleTextEffect.bgBlockScaleCurve,
+            p1: { ...(activeDefaultConfig.playPileSettleTextEffect.bgBlockScaleCurve?.p1 ?? {}), ...(incoming.playPileSettleTextEffect.bgBlockScaleCurve.p1 ?? {}) },
+            p2: { ...(activeDefaultConfig.playPileSettleTextEffect.bgBlockScaleCurve?.p2 ?? {}), ...(incoming.playPileSettleTextEffect.bgBlockScaleCurve.p2 ?? {}) },
+          }
+        : activeDefaultConfig.playPileSettleTextEffect.bgBlockScaleCurve,
+    };
+  }
   if (incoming.cardVisuals) {
     activeDefaultConfig.cardVisuals = {
       ...activeDefaultConfig.cardVisuals,
