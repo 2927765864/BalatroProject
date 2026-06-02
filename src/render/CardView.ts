@@ -197,6 +197,19 @@ export class CardView extends Container {
   private breathingY = 0;
   private wobbleRot = 0;
 
+  // ── 抓牌翻面动画（绕竖中轴线翻面：背面朝上 → 一条线 → 正面朝上）──
+  // 翻面分两段：
+  //   第一段（rise）：在飞向目标位置的过程中，翻约 90°（卡面压成"一条线"），到末尾切背面→正面贴图；
+  //   第二段（settle）：到位后继续翻约 90°，最终正面水平朝上。
+  // 用一个累加的有效角 flipAngle（0 → π）驱动，水平缩放 = |cos(flipAngle)|。
+  // active=false 时该通道完全静默（flipScaleX 恒为 1，不影响任何其它效果）。
+  private flipActive = false;
+  private flipElapsedMS = 0;       // 自翻面开始累计的时长
+  private flipFirstHalfMS = 0;     // 第一段（飞行中翻面）时长——通常等于飞行时长 × firstHalfRatio(±jitter)
+  private flipSecondHalfMS = 0;    // 第二段（到位后翻面）时长——第一段时长 × secondHalfRatio(±jitter)
+  private flipShowingBack = false; // 当前 mesh 是否正贴着背面纹理
+  private flipScaleX = 1.0;        // 当前帧翻面通道输出的水平缩放（|cos(angle)|），作用到 displayWrapper.scale.x
+
   // 4 个角的目标偏移量（相对于矩形几何角的位移，即"角点 = 几何角 + 偏移"）
   // TL=top-left, TR=top-right, BR=bottom-right, BL=bottom-left
   private targetCornerOffset = { tlX: 0, tlY: 0, trX: 0, trY: 0, brX: 0, brY: 0, blX: 0, blY: 0 };
@@ -208,6 +221,8 @@ export class CardView extends Container {
   private contentContainer: Container | null = null;
   // 离屏烘焙得到的卡面纹理（透视 mesh 的源贴图）
   private cardTexture: Texture | null = null;
+  // 离屏烘焙得到的"背面"纹理（抓牌翻面动画前半段使用）。懒创建。
+  private cardBackTexture: Texture | null = null;
   // 真正显示的透视 mesh（PerspectiveMesh）
   private tiltMesh: PerspectiveMesh | null = null;
   // 外层容器（承载 tiltMesh），用于施加 hover scale / wobble rotation / breathing y
@@ -381,6 +396,14 @@ export class CardView extends Container {
       this.cardTexture.destroy(true);
       this.cardTexture = null;
     }
+    if (this.cardBackTexture) {
+      this.cardBackTexture.destroy(true);
+      this.cardBackTexture = null;
+    }
+    // 美术参数变化会重建 mesh：翻面通道里指向旧贴图的状态必须清掉，避免引用已销毁纹理。
+    this.flipActive = false;
+    this.flipShowingBack = false;
+    this.flipScaleX = 1.0;
     this.removeChildren().forEach((child) => {
       child.destroy({ children: true });
     });
@@ -407,6 +430,10 @@ export class CardView extends Container {
     if (this.cardTexture) {
       this.cardTexture.destroy(true);
       this.cardTexture = null;
+    }
+    if (this.cardBackTexture) {
+      this.cardBackTexture.destroy(true);
+      this.cardBackTexture = null;
     }
     if (this.pivotMarker) {
       if (this.pivotMarker.parent) {
@@ -527,6 +554,191 @@ export class CardView extends Container {
     }
   }
 
+  /**
+   * 懒烘焙"背面"纹理，供抓牌翻面动画前半段使用。
+   *
+   * 背面外观与 DeckView 顶面、CardView 正面分支保持一致（白底 + 背面贴图 + 1px 像素描边 + 圆角遮罩），
+   * 只是贴图换成 assets.getBack(CONFIG.cardArt.back)。烤出来的纹理尺寸与正面一致（W×H），
+   * 这样翻面切换贴图时不会有任何尺寸跳变。
+   *
+   * 没有 renderer / 背面贴图缺失时返回 null（翻面会自动退化为不显示背面）。
+   */
+  private getCardBackTexture(): Texture | null {
+    if (this.cardBackTexture) return this.cardBackTexture;
+
+    const renderer = uiHierarchy.getRenderer();
+    if (!renderer) return null;
+
+    const W = CardSkin.width;
+    const H = CardSkin.height;
+    const { row, col } = CONFIG.cardArt.back;
+    const backTex = assets.getBack(row, col);
+    if (!backTex) return null;
+
+    const pad = 2;
+    const innerW = W - pad * 2;
+    const innerH = H - pad * 2;
+    const innerRadius = Math.max(0, CONFIG.cardArt.cornerRadius);
+
+    const src = new Container();
+
+    const bg = new Graphics();
+    bg.roundRect(pad, pad, innerW, innerH, innerRadius);
+    bg.fill({ color: CONFIG.cardArt.faceColor });
+    src.addChild(bg);
+
+    const sprite = new Sprite(backTex);
+    sprite.position.set(pad, pad);
+    sprite.width = innerW;
+    sprite.height = innerH;
+    src.addChild(sprite);
+
+    // 像素描边纹理在贴图原生分辨率下生成，再缩放到 innerW×innerH，
+    // 故圆角半径需从显示空间换算回贴图像素空间（与 DeckView / drawPixelOutline 一致）。
+    const sxRatio = innerW / backTex.width;
+    const syRatio = innerH / backTex.height;
+    const sourceRadius = innerRadius / ((sxRatio + syRatio) / 2);
+    const outline = new Sprite(
+      getPixelOutlineTexture(backTex.width, backTex.height, sourceRadius, CONFIG.cardArt.outlineColor)
+    );
+    outline.position.set(pad, pad);
+    outline.width = innerW;
+    outline.height = innerH;
+    src.addChild(outline);
+
+    const mask = new Graphics();
+    mask.roundRect(pad, pad, innerW, innerH, innerRadius);
+    mask.fill({ color: 0xffffff });
+    mask.roundPixels = false;
+    src.addChild(mask);
+    src.mask = mask;
+
+    try {
+      const tex = renderer.generateTexture({
+        target: src,
+        frame: new Rectangle(0, 0, W, H),
+        resolution: renderer.resolution,
+        antialias: true,
+      });
+      this.cardBackTexture = tex;
+      return tex;
+    } catch (err) {
+      console.warn(`[CardView] bakeCardBackTexture 失败：`, err);
+      return null;
+    } finally {
+      src.destroy({ children: true });
+    }
+  }
+
+  /**
+   * 启动"抓牌翻面"动画。由 GameController.drawToFull 在发牌瞬间调用。
+   *
+   * @param flightDurationMS 该牌从发牌堆飞到目标位置的时长（用于把翻面节奏与飞行同步）。
+   *
+   * 翻面节奏（两段，各带一个随机抖动量——即用户要的两个"大概"）：
+   *   第一段时长 = flightDurationMS × clamp(firstHalfRatio ± rand(firstHalfJitter), 0~1)
+   *               这一段内 flipAngle 0 → π/2（卡面压成一条线），末尾把贴图从背面切到正面。
+   *   第二段时长 = 第一段时长 × max(0, secondHalfRatio ± rand(secondHalfJitter))
+   *               这一段内 flipAngle π/2 → π，最终正面水平朝上。
+   *
+   * 开关关闭、或缺少 renderer/背面贴图时直接放弃翻面（卡牌正面朝上，无动画），不影响发牌。
+   */
+  public startDrawFlip(flightDurationMS: number): void {
+    const cfg = CONFIG.drawFlip;
+    if (!cfg?.enabled) {
+      this.cancelDrawFlip();
+      return;
+    }
+
+    const backTex = this.getCardBackTexture();
+    if (!backTex || !this.tiltMesh) {
+      // 拿不到背面纹理：无法翻面，保持正面朝上。
+      this.cancelDrawFlip();
+      return;
+    }
+
+    const rand = (jitter: number) => (Math.random() * 2 - 1) * Math.max(0, jitter);
+
+    const firstRatio = Math.min(
+      1,
+      Math.max(0, (cfg.firstHalfRatio ?? 1.0) + rand(cfg.firstHalfJitter ?? 0))
+    );
+    const secondRatio = Math.max(0, (cfg.secondHalfRatio ?? 0.5) + rand(cfg.secondHalfJitter ?? 0));
+
+    const flight = Math.max(1, flightDurationMS);
+    this.flipFirstHalfMS = Math.max(1, flight * firstRatio);
+    this.flipSecondHalfMS = Math.max(0, this.flipFirstHalfMS * secondRatio);
+
+    this.flipActive = true;
+    this.flipElapsedMS = 0;
+    this.flipScaleX = 1.0;
+
+    // 立刻切到背面贴图（发牌瞬间背面朝上）。
+    this.flipShowingBack = true;
+    this.tiltMesh.texture = backTex;
+  }
+
+  /** 中止翻面动画并恢复正面显示（防御/退化路径）。 */
+  private cancelDrawFlip(): void {
+    this.flipActive = false;
+    this.flipScaleX = 1.0;
+    if (this.flipShowingBack && this.tiltMesh && this.cardTexture) {
+      this.tiltMesh.texture = this.cardTexture;
+    }
+    this.flipShowingBack = false;
+  }
+
+  /**
+   * 推进翻面动画。每帧在 applyVisuals 之前调用。
+   *
+   * flipAngle 由分段线性时间映射得到：
+   *   t ∈ [0, firstHalfMS]            → angle 0 → π/2，到 firstHalfMS 时切背面→正面贴图；
+   *   t ∈ [firstHalfMS, +secondHalfMS] → angle π/2 → π；
+   *   t ≥ 全程                         → angle = π，结束，flipScaleX 收敛回 1。
+   * 水平缩放 flipScaleX = |cos(angle)|，在 π/2 处恰好为 0（"一条线"），在 0 / π 处为 1（满幅正/背面）。
+   */
+  private updateDrawFlip(dtMS: number): void {
+    if (!this.flipActive) return;
+
+    this.flipElapsedMS += dtMS;
+
+    const firstMS = this.flipFirstHalfMS;
+    const secondMS = this.flipSecondHalfMS;
+    const totalMS = firstMS + secondMS;
+
+    let angle: number;
+    if (this.flipElapsedMS <= firstMS) {
+      // 第一段：0 → π/2
+      angle = (this.flipElapsedMS / firstMS) * (Math.PI / 2);
+    } else if (this.flipElapsedMS < totalMS && secondMS > 0) {
+      // 第二段：π/2 → π
+      const t2 = (this.flipElapsedMS - firstMS) / secondMS;
+      angle = Math.PI / 2 + t2 * (Math.PI / 2);
+    } else {
+      angle = Math.PI;
+    }
+
+    // 越过 90° 临界点（卡面压成一条线）时，把贴图从背面切到正面。
+    if (this.flipShowingBack && angle >= Math.PI / 2) {
+      if (this.tiltMesh && this.cardTexture) {
+        this.tiltMesh.texture = this.cardTexture;
+      }
+      this.flipShowingBack = false;
+    }
+
+    this.flipScaleX = Math.abs(Math.cos(angle));
+
+    // 全程结束：收尾归一，关闭通道。
+    if (this.flipElapsedMS >= totalMS) {
+      this.flipActive = false;
+      this.flipScaleX = 1.0;
+      if (this.flipShowingBack && this.tiltMesh && this.cardTexture) {
+        this.tiltMesh.texture = this.cardTexture;
+        this.flipShowingBack = false;
+      }
+    }
+  }
+
   updateShadow(): void {
     if (!this.shadowGraphics) return;
 
@@ -640,7 +852,9 @@ export class CardView extends Container {
       );
       // 3) 阴影自身只需补 innerRot：外层 this.rotation 由父级带，外层 scale 同理
       this.shadowGraphics.rotation = innerRot;
-      this.shadowGraphics.scale.set(shadowConf.scaleRatio);
+      // 抓牌翻面：卡面沿竖中轴线被压缩（flipScaleX），阴影也要同步在 X 轴压缩，
+      // 否则会出现"卡牌翻成一条线、阴影仍是满幅矩形"的脱节。
+      this.shadowGraphics.scale.set(shadowConf.scaleRatio * this.flipScaleX, shadowConf.scaleRatio);
       this.shadowGraphics.alpha = shadowConf.alpha;
     } else {
       // 确保它挂在独立的 shadowContainer 下
@@ -654,7 +868,12 @@ export class CardView extends Container {
       // 常态阴影在独立层级中，需要直接把"卡牌视觉位姿"写到阴影自己身上
       this.shadowGraphics.position.set(cx + worldDx, cy + worldDy);
       this.shadowGraphics.rotation = visualRot;
-      this.shadowGraphics.scale.set(this.scale.x * shadowConf.scaleRatio, this.scale.y * shadowConf.scaleRatio);
+      // 抓牌翻面：阴影 X 轴跟随卡面的 flipScaleX 压缩（阴影旋转 visualRot 与卡面内层旋转一致，
+      // 故局部 X 轴方向一致，可直接相乘），避免翻面时阴影与卡面脱节。
+      this.shadowGraphics.scale.set(
+        this.scale.x * shadowConf.scaleRatio * this.flipScaleX,
+        this.scale.y * shadowConf.scaleRatio,
+      );
       this.shadowGraphics.alpha = shadowConf.alpha;
       this.shadowGraphics.pivot.set(width / 2, height / 2);
     }
@@ -1292,6 +1511,9 @@ export class CardView extends Container {
     //    通过虚拟鼠标产生缓慢的圆周倾斜。两种来源共用同一套投影公式与同一份目标角偏移，
     //    悬停一旦激活，呼吸态会自然让位（同 target，靠插值平滑切换）。
     this.updateMouse3DTilt(dtMS);
+
+    // 3b. 抓牌翻面（绕竖中轴线翻面：背面 → 一条线 → 正面）。独立通道，仅在发牌后短暂激活。
+    this.updateDrawFlip(dtMS);
 
     // 4. 将计算后的效果应用到视觉容器
     this.applyVisuals();
@@ -2221,7 +2443,9 @@ export class CardView extends Container {
       this.displayWrapper.rotation = totalRot;
       // 最终缩放 = hover/常态 currentScale × 拖拽缩放乘数 × 结算缩放乘数（独立通道、可与 hover 复合）
       const finalScale = this.currentScale * this.dragScaleMul * this.scoringScaleMul;
-      this.displayWrapper.scale.set(finalScale, finalScale);
+      // 抓牌翻面：仅在 X 轴叠加 flipScaleX（= |cos(flipAngle)|），实现绕竖中轴线的翻面压缩。
+      // 通道静默时 flipScaleX 恒为 1，对常态缩放无任何影响。
+      this.displayWrapper.scale.set(finalScale * this.flipScaleX, finalScale);
     }
 
     // 3. 轴点可视化（调试用）。

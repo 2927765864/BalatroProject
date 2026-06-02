@@ -161,6 +161,45 @@ export interface RuntimeConfig {
     speedRatio: number;
   };
   /**
+   * 【抓牌】卡牌翻面效果
+   *
+   * 卡牌从发牌堆发出时背面朝上，沿竖中轴线（绕 Y 轴）翻面，最终正面朝上。
+   * 翻面分两段：
+   *   第一段：在飞向目标位置的过程中翻约 90°（此时卡面压成"一条线"，刚好背面消失）；
+   *   第二段：到达目标位置后继续翻约 90°，最终正好正面朝上。
+   *
+   * 两段都各带一个随机抖动量（below）。视觉表现：
+   *   有效翻面总角度 = 180°（固定，保证最终正面水平朝上）；
+   *   "90° 临界点"出现的时机 = 飞行时长的某个随机比例附近；
+   *   第二段时长 = 第一段（飞行）时长 × 随机比例。
+   */
+  drawFlip: {
+    /** 总开关：关闭则发牌直接正面朝上、无翻面动画。 */
+    enabled: boolean;
+    /**
+     * 第一段（飞行中翻面）到达"90°一条线"临界点的时机，
+     * 表示为"飞行时长的比例"基准值（0~1）。1.0 = 恰好在落点完成第一段 90°。
+     */
+    firstHalfRatio: number;
+    /**
+     * 第一段时机的随机抖动量（±，0~1）。每次发牌从
+     * [firstHalfRatio - jitter, firstHalfRatio + jitter] 中随机取值。
+     * 这是你要求的第一个"大概"。
+     */
+    firstHalfJitter: number;
+    /**
+     * 第二段（到位后继续翻面）的时长基准值，
+     * 表示为"第一段飞行时长的比例"。0.5 = 第二段用一半飞行时长完成后 90°。
+     */
+    secondHalfRatio: number;
+    /**
+     * 第二段时长的随机抖动量（±，比例）。每次发牌从
+     * [secondHalfRatio - jitter, secondHalfRatio + jitter] 中随机取值。
+     * 这是你要求的第二个"大概"。
+     */
+    secondHalfJitter: number;
+  };
+  /**
    * 卡牌换位（手动理牌）
    *
    * 触发场景：玩家拖拽手牌时，拖拽牌中心 x 越过相邻牌当前槽位中线 →
@@ -559,6 +598,7 @@ export interface RuntimeConfig {
       cardMoveRotation: boolean;
       cardOvershoot: boolean;
       drawCard: boolean;
+      drawFlip: boolean;
       handSwap: boolean;
       playHandSwap: boolean;
       playPileDisplacement: boolean;
@@ -954,6 +994,13 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     nextCardAdvanceMS: 0,
     speedRatio: 1.0,
   }),
+  drawFlip: Object.freeze({
+    enabled: true,
+    firstHalfRatio: 1.0,
+    firstHalfJitter: 0.15,
+    secondHalfRatio: 0.5,
+    secondHalfJitter: 0.15,
+  }),
   handSwap: Object.freeze({
     enabled: true,
     riseDurationMS: 110,
@@ -1166,6 +1213,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       cardMoveRotation: true,
       cardOvershoot: true,
       drawCard: true,
+      drawFlip: true,
       handSwap: true,
       playHandSwap: true,
       playPileDisplacement: true,
@@ -1396,6 +1444,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
       } : undefined as any,
     },
     drawCard: { ...src.drawCard },
+    drawFlip: { ...src.drawFlip },
     handSwap: { ...src.handSwap },
     playHandSwap: { ...src.playHandSwap },
     playPileDisplacement: { ...src.playPileDisplacement },
@@ -1587,6 +1636,12 @@ export function applyConfig(source: unknown): void {
     merged.drawCard = {
       ...merged.drawCard,
       ...incoming.drawCard,
+    };
+  }
+  if (incoming.drawFlip) {
+    merged.drawFlip = {
+      ...merged.drawFlip,
+      ...incoming.drawFlip,
     };
   }
   if (incoming.handSwap) {

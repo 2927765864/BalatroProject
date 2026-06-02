@@ -113,6 +113,13 @@ export class GameController {
     // 调一次 hydrate：把 CONFIG.uiNodes 里存档的父子顺序 / transform / 组件灌回去。
     uiHierarchy.hydrateFromConfig(this.app.worldRoot);
 
+    // 牌堆层级修正：把 deckView 从 HUD（UI 层）移到 worldRoot 的 Deck 层（zIndex=10），
+    // 使其位于卡牌层（zIndex=30）之下，这样发牌时"发出的牌"会盖住牌堆，而不是被牌堆遮住。
+    // reparent 会保持牌堆的世界坐标不变（HUD 无偏移，视觉位置不变），并登记到 UI 层级系统，
+    // 后续 hydrate/persist 行为保持稳定。必须放在 hydrate 之后，否则会被 hydrate 按旧存档移回 HUD。
+    uiHierarchy.reparent(this.hud.deckView, null, this.app.worldRoot);
+    this.hud.deckView.zIndex = Layers.Deck;
+
     // 每次刷新网页时，都把界面UI的筹码文字和倍率文字设为0，回合分数文字也设为0，默认隐藏牌型文字和预期分数文字
     this.hud.scorePanel.setChipsMult(0, 0);
     this.hud.scorePanel.setTotalScore(0);
@@ -308,6 +315,10 @@ export class GameController {
       this.layoutHand({ force: true, speedRatio });
 
       const duration = this.getAnimationDuration(view, slot, speedRatio);
+
+      // 抓牌翻面：卡牌背面朝上从发牌堆飞出，飞行途中绕竖中轴线翻面，到位后继续翻面到正面。
+      // 把飞行时长传入，让翻面节奏与飞行同步（两段时机各带随机抖动，见 CONFIG.drawFlip）。
+      view.startDrawFlip(duration);
 
       const nextCardAdvance = GameConfig.drawCard?.nextCardAdvanceMS ?? 0;
       const scaledNextAdvance = nextCardAdvance / speedRatio;

@@ -1172,6 +1172,14 @@ export function setupControlPanel(
     bindNumber("inp-nextCardAdvanceMS", "val-nextCardAdvanceMS", "drawCard.nextCardAdvanceMS", { integer: true });
     bindNumber("inp-drawCardSpeedRatio", "val-drawCardSpeedRatio", "drawCard.speedRatio", { digits: 1 });
 
+    // === 【抓牌】卡牌翻面效果 ===
+    bindSectionExpand("inp-expandDrawFlip", "val-expandDrawFlip", "cardVisuals.expandedSections.drawFlip", "sect-drawFlip-params");
+    bindToggle("inp-drawFlipEnabled", "val-drawFlipEnabled", "drawFlip.enabled");
+    bindNumber("inp-drawFlipFirstHalfRatio", "val-drawFlipFirstHalfRatio", "drawFlip.firstHalfRatio", { digits: 2 });
+    bindNumber("inp-drawFlipFirstHalfJitter", "val-drawFlipFirstHalfJitter", "drawFlip.firstHalfJitter", { digits: 2 });
+    bindNumber("inp-drawFlipSecondHalfRatio", "val-drawFlipSecondHalfRatio", "drawFlip.secondHalfRatio", { digits: 2 });
+    bindNumber("inp-drawFlipSecondHalfJitter", "val-drawFlipSecondHalfJitter", "drawFlip.secondHalfJitter", { digits: 2 });
+
     // === 卡牌换位（手动理牌）===
     // 让位牌走 CardFx.swapMove（rise → 过冲 → spring）。与 cardOvershoot 完全独立，
     // 因为换位距离固定 ≈ cardSpacing，无需距离/速度自适应。
