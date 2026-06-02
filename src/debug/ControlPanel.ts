@@ -1169,6 +1169,8 @@ export function setupControlPanel(
     // === 【抓牌】抓牌相关参数 ===
     bindSectionExpand("inp-expandDrawCard", "val-expandDrawCard", "cardVisuals.expandedSections.drawCard", "sect-drawCard-params");
     bindNumber("inp-lastCardAdvanceMS", "val-lastCardAdvanceMS", "drawCard.lastCardAdvanceMS", { integer: true });
+    bindNumber("inp-nextCardAdvanceMS", "val-nextCardAdvanceMS", "drawCard.nextCardAdvanceMS", { integer: true });
+    bindNumber("inp-drawCardSpeedRatio", "val-drawCardSpeedRatio", "drawCard.speedRatio", { digits: 1 });
 
     // === 卡牌换位（手动理牌）===
     // 让位牌走 CardFx.swapMove（rise → 过冲 → spring）。与 cardOvershoot 完全独立，

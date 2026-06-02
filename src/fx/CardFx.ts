@@ -128,7 +128,8 @@ export const CardFx = {
     _totalMS = 280,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _currentSpeed = 0,
-    forceOvershoot = false
+    forceOvershoot = false,
+    speedRatio = 1.0
   ): Promise<void> {
     const cfg = CONFIG.cardOvershoot;
 
@@ -140,7 +141,7 @@ export const CardFx = {
       const minMS = Math.max(1, cfg?.tweenReturnMinMS ?? 140);
       const maxMS = Math.max(minMS, cfg?.tweenReturnMaxMS ?? 420);
       const adaptiveMS = Math.min(maxMS, Math.max(minMS, (fallbackDist / avgSpeed) * 1000));
-      return CardFx.moveTo(tm, card, target, adaptiveMS);
+      return CardFx.moveTo(tm, card, target, adaptiveMS / speedRatio);
     }
 
     const dx = target.x - card.x;
@@ -164,7 +165,7 @@ export const CardFx = {
     const minMS = Math.max(1, cfg.tweenReturnMinMS ?? 140);
     const maxMS = Math.max(minMS, cfg.tweenReturnMaxMS ?? 420);
     const naturalMS = (dist / avgSpeed) * 1000;
-    const riseMS = Math.min(maxMS, Math.max(minMS, naturalMS));
+    const riseMS = Math.min(maxMS, Math.max(minMS, naturalMS)) / speedRatio;
 
     // 过冲点 = 终点 + 单位方向向量 × overshoot
     const nx = dx / dist;
@@ -174,7 +175,7 @@ export const CardFx = {
 
     // 弹簧回弹时长 = round(1000 / stiffness)，与 selectMove 同公式。
     const stiffness = Math.max(0.001, cfg.tweenSpringStiffness ?? 10);
-    const springMS = Math.min(2000, Math.max(1, Math.round(1000 / stiffness)));
+    const springMS = Math.min(2000, Math.max(1, Math.round(1000 / stiffness))) / speedRatio;
 
     const fallbackRiseEase: EaseFn =
       cfg.tweenRiseCurve && cfg.tweenRiseCurve.enabled !== false

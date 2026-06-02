@@ -232,7 +232,8 @@ export class GameController {
 
   private getAnimationDuration(
     card: CardView,
-    target: { x: number; y: number }
+    target: { x: number; y: number },
+    speedRatio = 1.0
   ): number {
     const cfg = GameConfig.cardOvershoot;
     if (!cfg?.enabled) {
@@ -240,7 +241,7 @@ export class GameController {
       const avgSpeed = Math.max(1, cfg?.tweenReturnAvgSpeed ?? 1400);
       const minMS = Math.max(1, cfg?.tweenReturnMinMS ?? 140);
       const maxMS = Math.max(minMS, cfg?.tweenReturnMaxMS ?? 420);
-      return Math.min(maxMS, Math.max(minMS, (fallbackDist / avgSpeed) * 1000));
+      return Math.min(maxMS, Math.max(minMS, (fallbackDist / avgSpeed) * 1000)) / speedRatio;
     }
 
     const dx = target.x - card.x;
@@ -251,44 +252,14 @@ export class GameController {
       return 0;
     }
 
-    const maxOvershoot = Math.max(0, cfg.tweenOvershootPx ?? 0);
-    const minOvershoot = Math.min(
-      maxOvershoot,
-      Math.max(0, cfg.tweenMinOvershootPx ?? 0)
-    );
-
-    let overshootPx = 0;
-    const forceOvershoot = true;
-    if (maxOvershoot > 0) {
-      if (forceOvershoot) {
-        overshootPx = maxOvershoot;
-      } else {
-        const minDist = Math.max(0, cfg.tweenMinOvershootDistancePx ?? 30);
-        const fullDist = Math.max(minDist + 1, cfg.tweenFullOvershootDistancePx ?? 280);
-        if (dist >= minDist) {
-          if (dist >= fullDist) {
-            overshootPx = maxOvershoot;
-          } else {
-            const t = (dist - minDist) / (fullDist - minDist);
-            overshootPx = minOvershoot + (maxOvershoot - minOvershoot) * t;
-          }
-        }
-      }
-    }
-
     const avgSpeed = Math.max(1, cfg.tweenReturnAvgSpeed ?? 1400);
     const minMS = Math.max(1, cfg.tweenReturnMinMS ?? 140);
     const maxMS = Math.max(minMS, cfg.tweenReturnMaxMS ?? 420);
     const naturalMS = (dist / avgSpeed) * 1000;
     const riseMS = Math.min(maxMS, Math.max(minMS, naturalMS));
 
-    const stiffness = Math.max(0.001, cfg.tweenSpringStiffness ?? 10);
-    const springMS = Math.min(2000, Math.max(1, Math.round(1000 / stiffness)));
-
-    if (overshootPx <= 0) {
-      return riseMS;
-    }
-    return riseMS + springMS;
+    // 所谓的卡牌到达指定位置，应该不包含过冲，也不包含回弹等时间，因此只返回 riseMS (且应用速度比例)
+    return riseMS / speedRatio;
   }
 
   private async drawToFull(): Promise<void> {
@@ -301,15 +272,17 @@ export class GameController {
     const drawn = this.deck.draw(need);
     const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+    const speedRatio = GameConfig.drawCard?.speedRatio ?? 1.0;
+
     for (let i = 0; i < drawn.length; i++) {
       const data = drawn[i]!;
       const view = this.getOrCreateView(data);
       view.selected = false;
       this.cardLayer.addChild(view);
       
-      // 把 view 放进卡牌层，初始位置在屏幕外（牌堆方向）。
-      view.x = GameConfig.world.width + 200;
-      view.y = GameConfig.world.height + 200;
+      // 从右下角的卡牌堆（deckView）位置刷出（对齐中心点）
+      view.x = this.hud.deckView.x + view.pivot.x;
+      view.y = this.hud.deckView.y + view.pivot.y;
       view.rotation = 0;
       view.forceOvershootOnce = true;
 
@@ -332,14 +305,20 @@ export class GameController {
       const slot = slots[insertIndex]!;
 
       // 抽牌后：手牌数量变化，必须强制对齐（force），不豁免任何"正在弹性"的牌。
-      this.layoutHand({ force: true });
+      this.layoutHand({ force: true, speedRatio });
 
-      const duration = this.getAnimationDuration(view, slot);
-      let delayMS = duration;
+      const duration = this.getAnimationDuration(view, slot, speedRatio);
+
+      const nextCardAdvance = GameConfig.drawCard?.nextCardAdvanceMS ?? 0;
+      const scaledNextAdvance = nextCardAdvance / speedRatio;
+
+      let delayMS = Math.max(0, duration - scaledNextAdvance);
 
       if (drawn.length >= 4 && i === drawn.length - 2) {
-        const advance = GameConfig.drawCard?.lastCardAdvanceMS ?? 150;
-        delayMS = Math.max(0, duration - advance);
+        const lastCardAdvance = GameConfig.drawCard?.lastCardAdvanceMS ?? 150;
+        // 最后一组牌的提前量为下一张牌提前量与最后一张牌提前量叠加
+        const scaledLastAdvance = lastCardAdvance / speedRatio;
+        delayMS = Math.max(0, duration - (scaledNextAdvance + scaledLastAdvance));
       }
 
       if (i < drawn.length - 1) {
@@ -412,7 +391,7 @@ export class GameController {
    *                     弃牌、回合重置等）。拖拽中的 onDragging 重排不应传 true，
    *                     否则会打断正在播放的 swap 弹性。默认 false。
    */
-  layoutHand(opts?: { swapFor?: ReadonlySet<CardView>; force?: boolean }): void {
+  layoutHand(opts?: { swapFor?: ReadonlySet<CardView>; force?: boolean; speedRatio?: number }): void {
     const hand = this.store.getState().hand;
     const slots = computeHandLayout(hand, {
       areaLeft: this.hud.handAreaLeft,
@@ -502,6 +481,7 @@ export class GameController {
         GameConfig.animation.moveDurationMS,
         0,
         force,
+        opts?.speedRatio ?? 1.0
       );
     });
   }

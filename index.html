@@ -392,6 +392,22 @@
                 </div>
                 <input id="inp-lastCardAdvanceMS" type="number" step="10" min="0" max="2000" />
               </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>下一张牌的提前时间 (ms)</span>
+                  <span id="val-nextCardAdvanceMS">0</span>
+                </div>
+                <input id="inp-nextCardAdvanceMS" type="number" step="10" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>整体抽牌动画的速度比例</span>
+                  <span id="val-drawCardSpeedRatio">1.0</span>
+                </div>
+                <input id="inp-drawCardSpeedRatio" type="number" step="0.1" min="0.1" max="10.0" />
+              </div>
             </div>
 
             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">

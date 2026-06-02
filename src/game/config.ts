@@ -155,6 +155,10 @@ export interface RuntimeConfig {
   drawCard: {
     /** 抽牌数>=4时，最后一张牌提前的时间 (ms) */
     lastCardAdvanceMS: number;
+    /** 下一张牌的提前时间 (ms) */
+    nextCardAdvanceMS: number;
+    /** 整体抽牌动画的速度比例 */
+    speedRatio: number;
   };
   /**
    * 卡牌换位（手动理牌）
@@ -947,6 +951,8 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
   }),
   drawCard: Object.freeze({
     lastCardAdvanceMS: 150,
+    nextCardAdvanceMS: 0,
+    speedRatio: 1.0,
   }),
   handSwap: Object.freeze({
     enabled: true,
