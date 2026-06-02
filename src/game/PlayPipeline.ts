@@ -344,18 +344,33 @@ export class PlayPipeline {
       await this.deps.animateScoreTransfer(result);
     }
 
-    // 5b: 从左到右逐张丢弃到弃牌堆。每张错开 discardIntervalMS。
-    // 出牌结束的丢弃沿用 playPile.discardIntervalMS / discardFlyDurationMS，
-    // 但翻面（压成一条线）共用「弃牌/出牌结束」翻面参数（discardFlip），
+    // 5b: 从左到右逐张丢弃到弃牌堆。每张错开「弃牌时间间隔」。
+    // 出牌结束的丢弃飞行时长沿用 playPile.discardFlyDurationMS，
+    // 但相邻两张牌的错开间隔与手牌弃牌共用「弃牌/出牌结束」专区的 discard.intervalMS，
+    // 翻面（压成一条线）共用「弃牌/出牌结束」翻面参数（discardFlip），
     // 整体节奏受弃牌动画速度比例 discard.speedRatio 调制。
+    //
+    // 居中复位：每丢出一张牌，剩余的出牌堆牌立刻用「出牌堆的位移」逻辑（swapMove）
+    // 重新排布、保持整体居中。沿用位移专区前四个参数：
+    //   enabled / cardSpacing / riseDurationMS / springDurationMS。
     const discardCfg = CONFIG.discard;
     const speedRatio = Math.max(0.01, discardCfg?.speedRatio ?? 1.0);
     const flyDurationMS = Math.max(1, cfg.discardFlyDurationMS / speedRatio);
-    const intervalMS = Math.max(0, cfg.discardIntervalMS / speedRatio);
+    const intervalMS = Math.max(0, (discardCfg?.intervalMS ?? cfg.discardIntervalMS) / speedRatio);
     // 随机旋转范围（度→弧度），与手牌弃牌共用 discardFlip.randomRotationDeg。
     const randRotDeg = Math.max(0, CONFIG.discardFlip?.randomRotationDeg ?? 0);
     const randomRotation = (): number =>
       randRotDeg <= 0 ? 0 : ((Math.random() * 2 - 1) * randRotDeg * Math.PI) / 180;
+
+    // 居中重排所需的几何参数（与阶段 1+2 的位移逻辑保持一致）。
+    const handArea2 = this.deps.getHandArea();
+    const centerX2 = cfg.centerAlignsHand
+      ? (handArea2.left + handArea2.right) / 2
+      : this.deps.worldWidth / 2;
+    const baseY2 = handArea2.baseY + cfg.baseYOffset;
+    // 剩余出牌堆（按从左到右顺序）。每丢出一张就从头部移除。
+    const remaining: CardView[] = [...selected];
+
     for (let i = 0; i < total; i++) {
       const view = selected[i]!;
       // 飞出瞬间：图层置于手牌之下、但仍在阴影层之上。
@@ -374,6 +389,27 @@ export class PlayPipeline {
         flyDurationMS,
         randomRotation()
       );
+
+      // 该牌刚弃出 → 立即把它从剩余堆移除，并让剩下的牌重排居中。
+      const idx = remaining.indexOf(view);
+      if (idx !== -1) remaining.splice(idx, 1);
+
+      if (isDisplacementEnabled && remaining.length > 0) {
+        const n = remaining.length;
+        const spacing = dispCfg.cardSpacing;
+        const startOffset = ((n - 1) / 2) * spacing;
+        for (let j = 0; j < n; j++) {
+          const card = remaining[j]!;
+          const targetX = centerX2 - startOffset + j * spacing;
+          CardFx.swapMove(
+            this.deps.tween,
+            card,
+            { x: targetX, y: baseY2, rotation: 0 },
+            dispCfg
+          );
+        }
+      }
+
       if (i < total - 1) {
         await sleep(intervalMS);
       }
