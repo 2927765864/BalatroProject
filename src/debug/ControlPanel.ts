@@ -161,6 +161,7 @@ export function setupControlPanel(
   let dragSpringCurvePanel: BezierCurvePanel | null = null;
   let bgBlockFadeCurvePanel: BezierCurvePanel | null = null;
   let bgBlockScaleCurvePanel: BezierCurvePanel | null = null;
+  let playCardMoveCurvePanel: BezierCurvePanel | null = null;
 
   // 收集所有"按 CONFIG 当前值刷新自身"的回调，preset 加载后批量重跑。
   const syncers: Array<() => void> = [];
@@ -1228,6 +1229,27 @@ export function setupControlPanel(
     bindNumber("inp-playCardMoveOvershoot2Px", "val-playCardMoveOvershoot2Px", "playCardMove.overshoot2Px", { digits: 1 });
     bindNumber("inp-playCardMoveStiffness", "val-playCardMoveStiffness", "playCardMove.stiffness", { digits: 1 });
 
+    // === 【出牌】手牌堆到出牌堆的移动控制 ===
+    bindSectionExpand("inp-expandPlayCardMoveControl", "val-expandPlayCardMoveControl", "cardVisuals.expandedSections.playCardMoveControl", "sect-playCardMoveControl-params");
+    bindToggle("inp-playCardMoveControlEnabled", "val-playCardMoveControlEnabled", "playCardMoveControl.enabled");
+    bindNumber("inp-playCardMoveControlStartSpeed", "val-playCardMoveControlStartSpeed", "playCardMoveControl.startSpeed", { integer: true });
+
+    const playCardMoveCurveMount = document.getElementById("mount-playCardMoveCurve");
+    if (playCardMoveCurveMount && !playCardMoveCurvePanel) {
+      playCardMoveCurvePanel = buildCurvePanel(playCardMoveCurveMount, CONFIG.playCardMoveControl.moveCurve, {
+        label: "移动速率曲线",
+        onChange: () => {
+          notify("playCardMoveControl.moveCurve", CONFIG.playCardMoveControl.moveCurve);
+        }
+      });
+
+      syncers.push(() => {
+        if (playCardMoveCurvePanel) {
+          playCardMoveCurvePanel.setCurve(CONFIG.playCardMoveControl.moveCurve);
+        }
+      });
+    }
+
     // === 【出牌】出牌堆上移效果 ===
     bindSectionExpand("inp-expandPlayPileLiftEffect", "val-expandPlayPileLiftEffect", "cardVisuals.expandedSections.playPileLiftEffect", "sect-playPileLiftEffect-params");
     bindToggle("inp-playPileLiftEffectEnabled", "val-playPileLiftEffectEnabled", "playPileLiftEffect.enabled");
@@ -1299,8 +1321,8 @@ export function setupControlPanel(
           input.dataset["derivedMaxRotHook"] = "1";
           syncers.push(sync);
 
-          // 上游输入实时联动。两个上游 id：inp-dragMaxSpeed / inp-cardMoveRotationPerSpeed。
-          for (const upstreamId of ["inp-dragMaxSpeed", "inp-cardMoveRotationPerSpeed"]) {
+          // 上游输入实时联动。三个上游 id：inp-dragMaxSpeed / inp-cardMoveRotationPerSpeed / inp-playCardMoveControlStartSpeed。
+          for (const upstreamId of ["inp-dragMaxSpeed", "inp-cardMoveRotationPerSpeed", "inp-playCardMoveControlStartSpeed"]) {
             const up = document.getElementById(upstreamId) as HTMLInputElement | null;
             if (up && up.dataset["derivedMaxRotHook"] !== "1") {
               up.dataset["derivedMaxRotHook"] = "1";
@@ -1587,6 +1609,7 @@ export function setupControlPanel(
       dragSpringCurvePanel?.destroy();
       bgBlockFadeCurvePanel?.destroy();
       bgBlockScaleCurvePanel?.destroy();
+      playCardMoveCurvePanel?.destroy();
       removeHistoryShortcuts();
       removeHierarchyHistory();
       for (const name of eventsToStop) {

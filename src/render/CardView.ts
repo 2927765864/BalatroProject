@@ -30,8 +30,12 @@ import { getPixelOutlineTexture } from "./PixelOutlineTexture";
  * 任一相关配置改变（maxSpeed 或 rotationPerSpeed）时，maxRot 自动更新，
  * 无需用户手动同步——这也是把它从独立配置项改为派生量的初衷。
  */
-export function computeMaxRot(): number {
-  const speedPerMs = (CONFIG.dragHandCard?.maxSpeed ?? 0) / 1000;
+export function computeMaxRot(card?: CardView): number {
+  let maxSpeed = CONFIG.dragHandCard?.maxSpeed ?? 0;
+  if (card?.isPlayCardMoving && CONFIG.playCardMoveControl?.enabled) {
+    maxSpeed = CONFIG.playCardMoveControl.startSpeed;
+  }
+  const speedPerMs = maxSpeed / 1000;
   const cfg = CONFIG.cardMoveRotation;
   const k = (isDrawingCards && cfg?.drawRotationPerSpeed !== undefined) ? cfg.drawRotationPerSpeed : (cfg?.rotationPerSpeed ?? 0);
   return Math.abs(speedPerMs * k);
@@ -122,6 +126,10 @@ export class CardView extends Container {
    * 开启后阴影会切换成拖拽阴影效果。
    */
   isScoringLifted = false;
+  /**
+   * 当前是否正在从手牌堆移动到出牌堆。
+   */
+  isPlayCardMoving = false;
   /**
    * 结算筹码计算时的缩放乘数与旋转偏移（独立通道）
    */
@@ -1728,7 +1736,7 @@ export class CardView extends Container {
     //    理论上不会超过 maxSpeed/1000，但其他移动源如 tween 突变时可能瞬时超出）。
     const rotK = (isDrawingCards && cfg.drawRotationPerSpeed !== undefined) ? cfg.drawRotationPerSpeed : cfg.rotationPerSpeed;
     let targetRot = vEffective * rotK;
-    const maxRot = computeMaxRot();
+    const maxRot = computeMaxRot(this);
     if (targetRot > maxRot) targetRot = maxRot;
     else if (targetRot < -maxRot) targetRot = -maxRot;
 

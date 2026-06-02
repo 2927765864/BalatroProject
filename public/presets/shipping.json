@@ -178,7 +178,7 @@
     "drawCard": {
       "lastCardAdvanceMS": 80,
       "nextCardAdvanceMS": 0,
-      "speedRatio": 1,
+      "speedRatio": 1.8,
       "useInitialRotation": true,
       "initialRotationDeg": -60,
       "initMaxRotation": true
@@ -191,8 +191,8 @@
       "secondHalfJitter": 0.15
     },
     "discard": {
-      "intervalMS": 200,
-      "speedRatio": 1
+      "intervalMS": 270,
+      "speedRatio": 1.8
     },
     "discardFlip": {
       "enabled": true,
@@ -218,8 +218,8 @@
       "riseDurationMS": 60,
       "springDurationMS": 50,
       "overshootPx": 28,
-      "firstIntervalMS": 350,
-      "intervalReductionMS": 40,
+      "firstIntervalMS": 180,
+      "intervalReductionMS": 10,
       "lastIntervalMS": 170
     },
     "playCardMove": {
@@ -227,6 +227,23 @@
       "overshoot1Px": 34,
       "overshoot2Px": 21,
       "stiffness": 18
+    },
+    "playCardMoveControl": {
+      "enabled": true,
+      "moveCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 1,
+        "p1": {
+          "x": 0.1,
+          "y": 0.85
+        },
+        "p2": {
+          "x": 0.25,
+          "y": 1
+        }
+      },
+      "startSpeed": 6000
     },
     "playPileLiftEffect": {
       "enabled": true,
@@ -279,8 +296,8 @@
       "charStableScale": 1,
       "swingPivotY": 100,
       "swingMaxAngleDeg": 20,
-      "swingFrequency": 2,
-      "swingDamping": 3.5,
+      "swingFrequency": 3,
+      "swingDamping": 4,
       "swingDurationMS": 350,
       "stayDurationMS": 550,
       "fadeDurationMS": 350,
@@ -358,15 +375,16 @@
         "cardOvershoot": false,
         "drawCard": false,
         "drawFlip": false,
-        "discard": true,
-        "discardFlip": true,
+        "discard": false,
+        "discardFlip": false,
         "handSwap": false,
         "playHandSwap": false,
         "playPileDisplacement": false,
         "playCardMove": false,
+        "playCardMoveControl": false,
         "playPileLiftEffect": false,
         "playPileSettleEffect": false,
-        "playPileSettleText": false,
+        "playPileSettleText": true,
         "playPileSettleBgBlock": false,
         "chipsBounce": false,
         "multBounce": false,
@@ -811,7 +829,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "60"
+              "text": "525"
             }
           },
           {
@@ -1098,7 +1116,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "对子"
+              "text": "高牌"
             }
           },
           {

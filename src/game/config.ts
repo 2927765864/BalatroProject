@@ -312,6 +312,12 @@ export interface RuntimeConfig {
     overshoot2Px: number;
     stiffness: number;
   };
+  /** 【出牌】手牌堆到出牌堆的移动控制 */
+  playCardMoveControl: {
+    enabled: boolean;
+    moveCurve: BezierCurveConfig;
+    startSpeed: number;
+  };
   /** 【出牌】出牌堆上移效果 */
   playPileLiftEffect: {
     enabled: boolean;
@@ -665,6 +671,7 @@ export interface RuntimeConfig {
       playHandSwap: boolean;
       playPileDisplacement: boolean;
       playCardMove: boolean;
+      playCardMoveControl: boolean;
       playPileLiftEffect: boolean;
       playPileSettleEffect: boolean;
       playPileSettleText: boolean;
@@ -1103,6 +1110,17 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     overshoot2Px: 12,
     stiffness: 12,
   }),
+  playCardMoveControl: Object.freeze({
+    enabled: true,
+    moveCurve: Object.freeze({
+      enabled: true,
+      startScale: 0,
+      endScale: 1,
+      p1: { x: 0.1, y: 0.85 },
+      p2: { x: 0.25, y: 1.0 },
+    }) as BezierCurveConfig,
+    startSpeed: 4000,
+  }),
   playPileLiftEffect: Object.freeze({
     enabled: true,
     startSpeed: 400,
@@ -1295,6 +1313,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       playHandSwap: true,
       playPileDisplacement: true,
       playCardMove: true,
+      playCardMoveControl: true,
       playPileLiftEffect: true,
       playPileSettleEffect: true,
       playPileSettleText: true,
@@ -1528,6 +1547,14 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     playHandSwap: { ...src.playHandSwap },
     playPileDisplacement: { ...src.playPileDisplacement },
     playCardMove: { ...src.playCardMove },
+    playCardMoveControl: {
+      ...src.playCardMoveControl,
+      moveCurve: src.playCardMoveControl.moveCurve ? {
+        ...src.playCardMoveControl.moveCurve,
+        p1: { ...src.playCardMoveControl.moveCurve.p1 },
+        p2: { ...src.playCardMoveControl.moveCurve.p2 },
+      } : undefined as any,
+    },
     playPileLiftEffect: { ...src.playPileLiftEffect },
     playPileSettleEffect: { ...src.playPileSettleEffect },
     playPileSettleTextEffect: {
@@ -1759,6 +1786,20 @@ export function applyConfig(source: unknown): void {
       ...incoming.playCardMove,
     };
   }
+  if (incoming.playCardMoveControl) {
+    merged.playCardMoveControl = {
+      ...merged.playCardMoveControl,
+      ...incoming.playCardMoveControl,
+      moveCurve: incoming.playCardMoveControl.moveCurve
+        ? {
+            ...merged.playCardMoveControl.moveCurve,
+            ...incoming.playCardMoveControl.moveCurve,
+            p1: { ...(merged.playCardMoveControl.moveCurve?.p1 ?? {}), ...(incoming.playCardMoveControl.moveCurve.p1 ?? {}) },
+            p2: { ...(merged.playCardMoveControl.moveCurve?.p2 ?? {}), ...(incoming.playCardMoveControl.moveCurve.p2 ?? {}) },
+          }
+        : merged.playCardMoveControl.moveCurve,
+    };
+  }
   if (incoming.playPileLiftEffect) {
     merged.playPileLiftEffect = {
       ...merged.playPileLiftEffect,
@@ -1889,6 +1930,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.playHandSwap = merged.playHandSwap;
   CONFIG.playPileDisplacement = merged.playPileDisplacement;
   CONFIG.playCardMove = merged.playCardMove;
+  CONFIG.playCardMoveControl = merged.playCardMoveControl;
   CONFIG.playPileLiftEffect = merged.playPileLiftEffect;
   CONFIG.playPileSettleEffect = merged.playPileSettleEffect;
   CONFIG.playPileSettleTextEffect = merged.playPileSettleTextEffect;
@@ -2058,6 +2100,20 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.playCardMove = {
       ...activeDefaultConfig.playCardMove,
       ...incoming.playCardMove,
+    };
+  }
+  if (incoming.playCardMoveControl) {
+    activeDefaultConfig.playCardMoveControl = {
+      ...activeDefaultConfig.playCardMoveControl,
+      ...incoming.playCardMoveControl,
+      moveCurve: incoming.playCardMoveControl.moveCurve
+        ? {
+            ...activeDefaultConfig.playCardMoveControl.moveCurve,
+            ...incoming.playCardMoveControl.moveCurve,
+            p1: { ...(activeDefaultConfig.playCardMoveControl.moveCurve?.p1 ?? {}), ...(incoming.playCardMoveControl.moveCurve.p1 ?? {}) },
+            p2: { ...(activeDefaultConfig.playCardMoveControl.moveCurve?.p2 ?? {}), ...(incoming.playCardMoveControl.moveCurve.p2 ?? {}) },
+          }
+        : activeDefaultConfig.playCardMoveControl.moveCurve,
     };
   }
   if (incoming.playPileLiftEffect) {

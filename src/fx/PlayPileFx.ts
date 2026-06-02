@@ -4,6 +4,16 @@ import { Easing } from "@tween/Easing";
 import { CONFIG } from "@game/config";
 import { CardFx } from "./CardFx";
 
+function curveToEase(curve: { p1: { y: number }; p2: { y: number } }) {
+  const p1y = curve.p1.y;
+  const p2y = curve.p2.y;
+  return (t: number): number => {
+    const tt = t < 0 ? 0 : t > 1 ? 1 : t;
+    const it = 1 - tt;
+    return 3 * it * it * tt * p1y + 3 * it * tt * tt * p2y + tt * tt * tt;
+  };
+}
+
 /**
  * 出牌堆视效集合（骨架占位）
  *
@@ -45,10 +55,11 @@ export const PlayPileFx = {
     durationMS: number
   ): Promise<void> {
     void overshootPx;
+    
+    card.isPlayCardMoving = true;
+    
     const playCfg = CONFIG.playCardMove;
-    if (!playCfg || !playCfg.enabled) {
-      return CardFx.moveTo(tm, card, slot, durationMS);
-    }
+    const controlCfg = CONFIG.playCardMoveControl;
 
     const dx = slot.x - card.x;
     const dy = slot.y - card.y;
@@ -58,36 +69,67 @@ export const PlayPileFx = {
       card.x = slot.x;
       card.y = slot.y;
       card.rotation = slot.rotation;
+      card.isPlayCardMoving = false;
       return Promise.resolve();
     }
 
     const nx = dx / dist;
     const ny = dy / dist;
 
-    const { overshoot1Px, overshoot2Px, stiffness } = playCfg;
+    // Determine target of first segment
+    let p1x = slot.x;
+    let p1y = slot.y;
+    let rebound1MS = 0;
+    let rebound2MS = 0;
+    let p2x = slot.x;
+    let p2y = slot.y;
+    let p3x = slot.x;
+    let p3y = slot.y;
 
-    const p1x = slot.x + nx * overshoot1Px;
-    const p1y = slot.y + ny * overshoot1Px;
+    const hasOvershoot = playCfg && playCfg.enabled;
+    if (hasOvershoot) {
+      const { overshoot1Px, overshoot2Px, stiffness } = playCfg;
+      p1x = slot.x + nx * overshoot1Px;
+      p1y = slot.y + ny * overshoot1Px;
+      p2x = slot.x - nx * overshoot2Px;
+      p2y = slot.y - ny * overshoot2Px;
+      p3x = slot.x;
+      p3y = slot.y;
+      rebound1MS = Math.max(1, Math.round(1000 / stiffness));
+      rebound2MS = Math.max(1, Math.round(1000 / stiffness));
+    }
 
-    const p2x = slot.x - nx * overshoot2Px;
-    const p2y = slot.y - ny * overshoot2Px;
+    let actualEasing = Easing.cubicOut;
+    let actualDurationMS = durationMS;
 
-    const p3x = slot.x;
-    const p3y = slot.y;
-
-    const rebound1MS = Math.max(1, Math.round(1000 / stiffness));
-    const rebound2MS = Math.max(1, Math.round(1000 / stiffness));
+    if (controlCfg && controlCfg.enabled) {
+      actualEasing = curveToEase(controlCfg.moveCurve);
+      const firstSegmentDist = Math.hypot(p1x - card.x, p1y - card.y);
+      const y1 = controlCfg.moveCurve.p1.y;
+      const slope = Math.max(0.1, 3 * y1);
+      actualDurationMS = (firstSegmentDist * slope / controlCfg.startSpeed) * 1000;
+      actualDurationMS = Math.max(50, Math.min(2000, actualDurationMS));
+    }
 
     return new Promise<void>((resolve) => {
+      const finish = () => {
+        card.isPlayCardMoving = false;
+        resolve();
+      };
+
       tm.add(
         tm
           .create(card)
-          .to({ x: p1x, y: p1y, rotation: slot.rotation }, durationMS)
-          .easing(Easing.cubicOut)
-          .onStop(resolve)
+          .to({ x: p1x, y: p1y, rotation: slot.rotation }, actualDurationMS)
+          .easing(actualEasing)
+          .onStop(finish)
           .onComplete(() => {
             if (card.isDragging) {
-              resolve();
+              finish();
+              return;
+            }
+            if (!hasOvershoot) {
+              finish();
               return;
             }
             tm.add(
@@ -95,10 +137,10 @@ export const PlayPileFx = {
                 .create(card)
                 .to({ x: p2x, y: p2y }, rebound1MS)
                 .easing(Easing.quadInOut)
-                .onStop(resolve)
+                .onStop(finish)
                 .onComplete(() => {
                   if (card.isDragging) {
-                    resolve();
+                    finish();
                     return;
                   }
                   tm.add(
@@ -106,8 +148,8 @@ export const PlayPileFx = {
                       .create(card)
                       .to({ x: p3x, y: p3y }, rebound2MS)
                       .easing(Easing.cubicOut)
-                      .onStop(resolve)
-                      .onComplete(resolve)
+                      .onStop(finish)
+                      .onComplete(finish)
                   );
                 })
             );

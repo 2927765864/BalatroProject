@@ -662,6 +662,35 @@
             </div>
 
             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>【出牌】手牌堆到出牌堆的移动控制</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandPlayCardMoveControl" style="color: var(--accent);">开</span>
+                <input id="inp-expandPlayCardMoveControl" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+
+            <div id="sect-playCardMoveControl-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用移动控制</span>
+                  <span id="val-playCardMoveControlEnabled">开</span>
+                </div>
+                <input id="inp-playCardMoveControlEnabled" type="checkbox" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>初速度 (像素/秒)</span>
+                  <span id="val-playCardMoveControlStartSpeed">4000</span>
+                </div>
+                <input id="inp-playCardMoveControlStartSpeed" type="number" step="100" min="100" max="20000" />
+              </div>
+
+              <div id="mount-playCardMoveCurve" style="padding: 6px 12px;"></div>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>【出牌】出牌堆上移效果</span>
               <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
                 <span>展开详情</span>
