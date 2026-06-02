@@ -305,6 +305,7 @@
       "pivotOffsetX": -4,
       "pivotOffsetY": -43,
       "rotationPerSpeed": 0.42,
+      "drawRotationPerSpeed": 0.6,
       "followLerp": 0.33,
       "friction": 0.1,
       "minSpeed": 0.005,

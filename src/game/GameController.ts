@@ -13,7 +13,7 @@ import { computeHandLayout } from "@render/HandLayout";
 import { HUD, type HUDMode } from "@ui/HUD";
 import { uiHierarchy } from "@ui/hierarchy";
 import { CardFx } from "@fx/CardFx";
-import { GameConfig } from "./config";
+import { GameConfig, setDrawingCards } from "./config";
 import type { GameEvents } from "./events";
 import { PlayPipeline } from "./PlayPipeline";
 
@@ -270,73 +270,80 @@ export class GameController {
   }
 
   private async drawToFull(): Promise<void> {
-    const need = GameConfig.rules.handSize - this.store.getState().hand.length;
-    if (need <= 0) {
-      // 手牌数量校正路径：force 强制对齐，避免极端情况下豁免 swap 弹性导致错位。
-      this.layoutHand({ force: true });
-      return;
-    }
-    const drawn = this.deck.draw(need);
-    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-    const speedRatio = GameConfig.drawCard?.speedRatio ?? 1.0;
-
-    for (let i = 0; i < drawn.length; i++) {
-      const data = drawn[i]!;
-      const view = this.getOrCreateView(data);
-      view.selected = false;
-      this.cardLayer.addChild(view);
-      
-      // 从右下角的卡牌堆（deckView）位置刷出（对齐中心点）
-      view.x = this.hud.deckView.x + view.pivot.x;
-      view.y = this.hud.deckView.y + view.pivot.y;
-      view.rotation = 0;
-      view.forceOvershootOnce = true;
-
-      const currentHand = [...this.store.getState().hand];
-      const insertIndex = Math.floor(Math.random() * (currentHand.length + 1));
-      
-      currentHand.splice(insertIndex, 0, view);
-      this.store.setState({ hand: currentHand });
-      this.hud.deckView.setCount(this.deck.size);
-
-      const slots = computeHandLayout(currentHand, {
-        areaLeft: this.hud.handAreaLeft,
-        areaRight: this.hud.handAreaRight,
-        baseY: this.hud.handBaseY,
-        cardSpacing: GameConfig.handLayout.cardSpacing,
-        arcEnabled: GameConfig.handLayout.arcEnabled,
-        arcHeight: GameConfig.handLayout.arcHeight,
-        fanAnglePerCardDeg: GameConfig.handLayout.fanAnglePerCardDeg,
-      });
-      const slot = slots[insertIndex]!;
-
-      // 抽牌后：手牌数量变化，必须强制对齐（force），不豁免任何"正在弹性"的牌。
-      this.layoutHand({ force: true, speedRatio });
-
-      const duration = this.getAnimationDuration(view, slot, speedRatio);
-
-      // 抓牌翻面：卡牌背面朝上从发牌堆飞出，飞行途中绕竖中轴线翻面，到位后继续翻面到正面。
-      // 把飞行时长传入，让翻面节奏与飞行同步（两段时机各带随机抖动，见 CONFIG.drawFlip）。
-      view.startDrawFlip(duration);
-
-      const nextCardAdvance = GameConfig.drawCard?.nextCardAdvanceMS ?? 0;
-      const scaledNextAdvance = nextCardAdvance / speedRatio;
-
-      let delayMS = Math.max(0, duration - scaledNextAdvance);
-
-      if (drawn.length >= 4 && i === drawn.length - 2) {
-        const lastCardAdvance = GameConfig.drawCard?.lastCardAdvanceMS ?? 150;
-        // 最后一组牌的提前量为下一张牌提前量与最后一张牌提前量叠加
-        const scaledLastAdvance = lastCardAdvance / speedRatio;
-        delayMS = Math.max(0, duration - (scaledNextAdvance + scaledLastAdvance));
+    setDrawingCards(true);
+    try {
+      const need = GameConfig.rules.handSize - this.store.getState().hand.length;
+      if (need <= 0) {
+        // 手牌数量校正路径：force 强制对齐，避免极端情况下豁免 swap 弹性导致错位。
+        this.layoutHand({ force: true });
+        return;
       }
+      const drawn = this.deck.draw(need);
+      const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-      if (i < drawn.length - 1) {
-        await sleep(delayMS);
-      } else {
-        await sleep(duration);
+      const speedRatio = GameConfig.drawCard?.speedRatio ?? 1.0;
+
+      for (let i = 0; i < drawn.length; i++) {
+        const data = drawn[i]!;
+        const view = this.getOrCreateView(data);
+        view.selected = false;
+        this.cardLayer.addChild(view);
+        
+        // 从右下角的卡牌堆（deckView）位置刷出（对齐中心点）
+        view.x = this.hud.deckView.x + view.pivot.x;
+        view.y = this.hud.deckView.y + view.pivot.y;
+        view.rotation = GameConfig.drawCard?.useInitialRotation
+          ? (GameConfig.drawCard.initialRotationDeg * Math.PI) / 180
+          : 0;
+        view.forceOvershootOnce = true;
+
+        const currentHand = [...this.store.getState().hand];
+        const insertIndex = Math.floor(Math.random() * (currentHand.length + 1));
+        
+        currentHand.splice(insertIndex, 0, view);
+        this.store.setState({ hand: currentHand });
+        this.hud.deckView.setCount(this.deck.size);
+
+        const slots = computeHandLayout(currentHand, {
+          areaLeft: this.hud.handAreaLeft,
+          areaRight: this.hud.handAreaRight,
+          baseY: this.hud.handBaseY,
+          cardSpacing: GameConfig.handLayout.cardSpacing,
+          arcEnabled: GameConfig.handLayout.arcEnabled,
+          arcHeight: GameConfig.handLayout.arcHeight,
+          fanAnglePerCardDeg: GameConfig.handLayout.fanAnglePerCardDeg,
+        });
+        const slot = slots[insertIndex]!;
+
+        // 抽牌后：手牌数量变化，必须强制对齐（force），不豁免任何"正在弹性"的牌。
+        this.layoutHand({ force: true, speedRatio });
+
+        const duration = this.getAnimationDuration(view, slot, speedRatio);
+
+        // 抓牌翻面：卡牌背面朝上从发牌堆飞出，飞行途中绕竖中轴线翻面，到位后继续翻面到正面。
+        // 把飞行时长传入，让翻面节奏与飞行同步（两段时机各带随机抖动，见 CONFIG.drawFlip）。
+        view.startDrawFlip(duration);
+
+        const nextCardAdvance = GameConfig.drawCard?.nextCardAdvanceMS ?? 0;
+        const scaledNextAdvance = nextCardAdvance / speedRatio;
+
+        let delayMS = Math.max(0, duration - scaledNextAdvance);
+
+        if (drawn.length >= 4 && i === drawn.length - 2) {
+          const lastCardAdvance = GameConfig.drawCard?.lastCardAdvanceMS ?? 150;
+          // 最后一组牌的提前量为下一张牌提前量与最后一张牌提前量叠加
+          const scaledLastAdvance = lastCardAdvance / speedRatio;
+          delayMS = Math.max(0, duration - (scaledNextAdvance + scaledLastAdvance));
+        }
+
+        if (i < drawn.length - 1) {
+          await sleep(delayMS);
+        } else {
+          await sleep(duration);
+        }
       }
+    } finally {
+      setDrawingCards(false);
     }
   }
 

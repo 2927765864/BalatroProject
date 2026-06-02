@@ -159,6 +159,10 @@ export interface RuntimeConfig {
     nextCardAdvanceMS: number;
     /** 整体抽牌动画的速度比例 */
     speedRatio: number;
+    /** 是否启用初始旋转角度 */
+    useInitialRotation: boolean;
+    /** 初始旋转角度 (度) */
+    initialRotationDeg: number;
   };
   /**
    * 【抓牌】卡牌翻面效果
@@ -564,6 +568,10 @@ export interface RuntimeConfig {
      * 注：vx 为 px/ms，所以速度 1 px/ms = 1000 px/s 是相当快的拖拽。
      */
     rotationPerSpeed: number;
+    /**
+     * 【抓牌】每单位有效速度（px/ms）映射到多少弧度的目标旋转角。
+     */
+    drawRotationPerSpeed: number;
     /**
      * 速度→旋转目标的跟随插值系数 (0~1，按 16.67ms 标准帧计算)。
      * 越大跟得越快、越灵敏；越小越钝。建议 0.15 ~ 0.45。
@@ -993,6 +1001,8 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     lastCardAdvanceMS: 150,
     nextCardAdvanceMS: 0,
     speedRatio: 1.0,
+    useInitialRotation: false,
+    initialRotationDeg: -15,
   }),
   drawFlip: Object.freeze({
     enabled: true,
@@ -1193,6 +1203,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     // 注：旋转上限 maxRot 由 (dragHandCard.maxSpeed/1000) × rotationPerSpeed 派生，
     //     不再作为独立配置项存储。默认 (3000/1000)*0.06 = 0.18 rad ≈ 10.3°。
     rotationPerSpeed: 0.06,
+    drawRotationPerSpeed: 0.15,
     followLerp: 0.25,
     friction: 0.12,
     minSpeed: 0.02,
@@ -2102,3 +2113,8 @@ export const STORAGE_KEYS = {
   config: CONFIG_STORAGE_KEY,
   presets: "balatroRuntimeControlPresets",
 };
+
+export let isDrawingCards = false;
+export function setDrawingCards(val: boolean) {
+  isDrawingCards = val;
+}

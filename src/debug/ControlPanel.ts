@@ -1171,6 +1171,8 @@ export function setupControlPanel(
     bindNumber("inp-lastCardAdvanceMS", "val-lastCardAdvanceMS", "drawCard.lastCardAdvanceMS", { integer: true });
     bindNumber("inp-nextCardAdvanceMS", "val-nextCardAdvanceMS", "drawCard.nextCardAdvanceMS", { integer: true });
     bindNumber("inp-drawCardSpeedRatio", "val-drawCardSpeedRatio", "drawCard.speedRatio", { digits: 1 });
+    bindToggle("inp-drawCardUseInitialRotation", "val-drawCardUseInitialRotation", "drawCard.useInitialRotation");
+    bindNumber("inp-drawCardInitialRotationDeg", "val-drawCardInitialRotationDeg", "drawCard.initialRotationDeg", { integer: true });
 
     // === 【抓牌】卡牌翻面效果 ===
     bindSectionExpand("inp-expandDrawFlip", "val-expandDrawFlip", "cardVisuals.expandedSections.drawFlip", "sect-drawFlip-params");
@@ -1260,6 +1262,7 @@ export function setupControlPanel(
     bindNumber("inp-cardMoveRotationPivotX", "val-cardMoveRotationPivotX", "cardMoveRotation.pivotOffsetX", { integer: true });
     bindNumber("inp-cardMoveRotationPivotY", "val-cardMoveRotationPivotY", "cardMoveRotation.pivotOffsetY", { integer: true });
     bindNumber("inp-cardMoveRotationPerSpeed", "val-cardMoveRotationPerSpeed", "cardMoveRotation.rotationPerSpeed", { digits: 3 });
+    bindNumber("inp-cardMoveRotationDrawPerSpeed", "val-cardMoveRotationDrawPerSpeed", "cardMoveRotation.drawRotationPerSpeed", { digits: 3 });
 
     // 最大旋转角是派生量（dragHandCard.maxSpeed × cardMoveRotation.rotationPerSpeed / 1000），
     // input 在 HTML 中已经标了 readonly+disabled，所以这里不挂 change 监听，

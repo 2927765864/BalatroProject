@@ -11,7 +11,7 @@ import {
 } from "pixi.js";
 import type { CardData } from "@domain/types";
 import { assets } from "@core/AssetManager";
-import { CONFIG } from "@game/config";
+import { CONFIG, isDrawingCards } from "@game/config";
 import { sampleCurve } from "@/debug/BezierCurveEditor";
 import { uiHierarchy } from "@ui/hierarchy";
 import { CardSkin } from "./CardSkin";
@@ -32,7 +32,8 @@ import { getPixelOutlineTexture } from "./PixelOutlineTexture";
  */
 export function computeMaxRot(): number {
   const speedPerMs = (CONFIG.dragHandCard?.maxSpeed ?? 0) / 1000;
-  const k = CONFIG.cardMoveRotation?.rotationPerSpeed ?? 0;
+  const cfg = CONFIG.cardMoveRotation;
+  const k = (isDrawingCards && cfg?.drawRotationPerSpeed !== undefined) ? cfg.drawRotationPerSpeed : (cfg?.rotationPerSpeed ?? 0);
   return Math.abs(speedPerMs * k);
 }
 
@@ -1624,7 +1625,8 @@ export class CardView extends Container {
     //    避免手填值与速度上限失配造成的"打不到上限"或"长期被截断"等死区。
     //    实际截断仍然保留作为安全网（vEffective 来自 updateDragging 的位置差分，
     //    理论上不会超过 maxSpeed/1000，但其他移动源如 tween 突变时可能瞬时超出）。
-    let targetRot = vEffective * cfg.rotationPerSpeed;
+    const rotK = (isDrawingCards && cfg.drawRotationPerSpeed !== undefined) ? cfg.drawRotationPerSpeed : cfg.rotationPerSpeed;
+    let targetRot = vEffective * rotK;
     const maxRot = computeMaxRot();
     if (targetRot > maxRot) targetRot = maxRot;
     else if (targetRot < -maxRot) targetRot = -maxRot;
