@@ -258,6 +258,37 @@ export const CardFx = {
   },
 
   /**
+   * 飞向弃牌堆的动画：终点在世界「正右方」外一点、垂直居中。
+   * 配合 CardView.startDiscardFlip 在飞行途中沿竖中轴线翻约 90°（压成一条线）。
+   * 翻面压线由 flipScaleX 通道负责；可选 targetRotation 用于飞出后的随机旋转姿态。
+   */
+  flyToDiscardPile(
+    tm: TweenManager,
+    card: CardView,
+    worldWidth: number,
+    worldHeight: number,
+    durationMS = 320,
+    targetRotation?: number
+  ): Promise<void> {
+    return new Promise((resolve) => {
+      const target: { x: number; y: number; rotation?: number } = {
+        x: worldWidth + 200,
+        y: worldHeight / 2,
+      };
+      if (targetRotation !== undefined) {
+        target.rotation = targetRotation;
+      }
+      tm.add(
+        tm
+          .create(card)
+          .to(target, durationMS)
+          .easing(Easing.cubicIn)
+          .onComplete(resolve)
+      );
+    });
+  },
+
+  /**
    * 选中 / 取消选中的两段位移动画。
    *
    * 第一段（rise/fall）：当前 y → 过弹点 y（最终 y 沿位移方向再多走 overshoot 像素），

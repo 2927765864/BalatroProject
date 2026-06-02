@@ -261,16 +261,19 @@ export const PlayPileFx = {
   },
 
   /**
-   * 单张丢牌：直接复用 CardFx.flyOut（飞到屏幕右上方外）。
+   * 单张丢牌：飞向弃牌堆（屏幕正右方外、垂直居中）。
+   * 配合 CardView.startDiscardFlip 在飞行途中沿竖中轴线翻约 90°（压成一条线）。
    * TODO(future visual)：未来引入 DiscardView 后改为飞向 discard 锚点。
    */
   flyToDiscard(
     tm: TweenManager,
     card: CardView,
     worldWidth: number,
-    durationMS: number
+    worldHeight: number,
+    durationMS: number,
+    targetRotation?: number
   ): Promise<void> {
-    return CardFx.flyOut(tm, card, worldWidth, durationMS);
+    return CardFx.flyToDiscardPile(tm, card, worldWidth, worldHeight, durationMS, targetRotation);
   },
 
   /**

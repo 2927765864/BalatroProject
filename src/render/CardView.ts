@@ -211,6 +211,19 @@ export class CardView extends Container {
   private flipShowingBack = false; // 当前 mesh 是否正贴着背面纹理
   private flipScaleX = 1.0;        // 当前帧翻面通道输出的水平缩放（|cos(angle)|），作用到 displayWrapper.scale.x
 
+  // ── 弃牌/出牌结束翻面动画（正面朝上 → 飞行途中翻约 90° → 压成一条线）──
+  // 与抓牌翻面共用 flipScaleX 输出通道（同一时刻不会同时存在），但角度只从 0 单向翻到
+  // 目标角（约 90°，带随机抖动），全程正面朝上、不切贴图。active=false 时完全静默。
+  private discardFlipActive = false;
+  private discardFlipElapsedMS = 0;  // 自弃牌翻面开始累计的时长
+  private discardFlipDurationMS = 0; // 翻面总时长（= 飞行时长）
+  private discardFlipTargetAngle = Math.PI / 2; // 目标累计角（弧度，约 π/2 带抖动）
+
+  // 弃牌飞行期标志：飞向弃牌堆的整个过程为 true。期间禁用「速度→旋转」联动
+  // （velocityRotation），让卡牌严格保持飞出瞬间设定的随机旋转角度直到弃牌结束。
+  // 与翻面开关 discardFlip.enabled 解耦：无论翻面是否开启，弃牌飞行都禁用速度旋转。
+  private discardFlying = false;
+
   // 4 个角的目标偏移量（相对于矩形几何角的位移，即"角点 = 几何角 + 偏移"）
   // TL=top-left, TR=top-right, BR=bottom-right, BL=bottom-left
   private targetCornerOffset = { tlX: 0, tlY: 0, trX: 0, trY: 0, brX: 0, brY: 0, blX: 0, blY: 0 };
@@ -737,6 +750,74 @@ export class CardView extends Container {
         this.tiltMesh.texture = this.cardTexture;
         this.flipShowingBack = false;
       }
+    }
+  }
+
+  /**
+   * 启动「弃牌/出牌结束」翻面：牌正面朝上，飞出后沿竖中轴线翻面，
+   * 在飞行时长内累计翻到约 90°（flipAngleDeg ± flipAngleJitterDeg），最终大概压成一条线。
+   *
+   * 全程不切贴图（角度 ≤ 90°，背面不会露出）。开关关闭时直接放弃（保持满幅正面），不影响飞出。
+   *
+   * @param flightDurationMS 卡牌飞向弃牌堆的飞行时长（翻面与之同步）。
+   */
+  public startDiscardFlip(flightDurationMS: number): void {
+    const cfg = CONFIG.discardFlip;
+    if (!cfg?.enabled) {
+      this.cancelDiscardFlip();
+      return;
+    }
+
+    const rand = (jitter: number) => (Math.random() * 2 - 1) * Math.max(0, jitter);
+    const angleDeg = Math.max(
+      0,
+      Math.min(90, (cfg.flipAngleDeg ?? 90) + rand(cfg.flipAngleJitterDeg ?? 0))
+    );
+
+    this.discardFlipActive = true;
+    this.discardFlipElapsedMS = 0;
+    this.discardFlipDurationMS = Math.max(1, flightDurationMS);
+    this.discardFlipTargetAngle = (angleDeg * Math.PI) / 180;
+    this.flipScaleX = 1.0;
+  }
+
+  /** 中止弃牌翻面并恢复满幅显示（防御/退化路径）。 */
+  private cancelDiscardFlip(): void {
+    this.discardFlipActive = false;
+    if (!this.flipActive) this.flipScaleX = 1.0;
+  }
+
+  /**
+   * 标记进入「弃牌飞行期」。期间禁用速度→旋转联动（velocityRotation 恒为 0），
+   * 使卡牌严格保持飞出瞬间设定的随机旋转角度（外层 this.rotation）直到弃牌结束。
+   * 立即清零当前速度旋转，避免飞出瞬间残留的拖尾旋转污染随机角度。
+   */
+  public beginDiscardFly(): void {
+    this.discardFlying = true;
+    this.velocityRotation = 0;
+  }
+
+  /** 结束「弃牌飞行期」，恢复速度→旋转联动（牌随即被数据层回收）。 */
+  public endDiscardFly(): void {
+    this.discardFlying = false;
+  }
+
+  /**
+   * 推进弃牌翻面动画。每帧在 applyVisuals 之前调用。
+   * angle 从 0 线性翻到 targetAngle（约 π/2），水平缩放 flipScaleX = |cos(angle)|，
+   * 到目标角时大概压成一条线后保持（牌此时已飞出屏外，被回收）。
+   */
+  private updateDiscardFlip(dtMS: number): void {
+    if (!this.discardFlipActive) return;
+
+    this.discardFlipElapsedMS += dtMS;
+    const t = Math.min(1, this.discardFlipElapsedMS / this.discardFlipDurationMS);
+    const angle = t * this.discardFlipTargetAngle;
+    this.flipScaleX = Math.abs(Math.cos(angle));
+
+    if (t >= 1) {
+      // 到达目标角后保持压线状态（不归一），牌已飞出屏外随即被数据层回收。
+      this.discardFlipActive = false;
     }
   }
 
@@ -1516,6 +1597,9 @@ export class CardView extends Container {
     // 3b. 抓牌翻面（绕竖中轴线翻面：背面 → 一条线 → 正面）。独立通道，仅在发牌后短暂激活。
     this.updateDrawFlip(dtMS);
 
+    // 3c. 弃牌/出牌结束翻面（正面 → 飞行途中翻约 90° → 压成一条线）。仅在丢弃飞出时短暂激活。
+    this.updateDiscardFlip(dtMS);
+
     // 4. 将计算后的效果应用到视觉容器
     this.applyVisuals();
   }
@@ -1539,6 +1623,23 @@ export class CardView extends Container {
    */
   private updateMoveRotation(dtMS: number): void {
     const cfg = CONFIG.cardMoveRotation;
+
+    // 弃牌飞行期：禁用速度→旋转联动，让卡牌保持飞出瞬间设定的随机旋转角度。
+    // 速度旋转直接置零；同时维护 prev/lastSpeed，避免弃牌结束后第一帧速度爆冲。
+    if (this.discardFlying) {
+      this.velocityRotation = 0;
+      if (!this.prevSampled) {
+        this.prevSampled = true;
+      } else if (dtMS > 0) {
+        const vx = (this.x - this.prevX) / dtMS;
+        const vy = (this.y - this.prevY) / dtMS;
+        this.lastSpeedPxPerSec = Math.hypot(vx, vy) * 1000;
+      }
+      this.prevX = this.x;
+      this.prevY = this.y;
+      return;
+    }
+
     if (!cfg || !cfg.enabled || dtMS <= 0) {
       // 关闭或时间步无效时，平滑回零（不直接置零，避免开关切换的瞬间跳变）。
       this.velocityRotation *= 0.85;

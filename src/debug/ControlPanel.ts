@@ -1174,6 +1174,11 @@ export function setupControlPanel(
     bindToggle("inp-drawCardUseInitialRotation", "val-drawCardUseInitialRotation", "drawCard.useInitialRotation");
     bindNumber("inp-drawCardInitialRotationDeg", "val-drawCardInitialRotationDeg", "drawCard.initialRotationDeg", { integer: true });
 
+    // === 【弃牌】弃牌相关参数 ===
+    bindSectionExpand("inp-expandDiscard", "val-expandDiscard", "cardVisuals.expandedSections.discard", "sect-discard-params");
+    bindNumber("inp-discardIntervalMS", "val-discardIntervalMS", "discard.intervalMS", { integer: true });
+    bindNumber("inp-discardSpeedRatio", "val-discardSpeedRatio", "discard.speedRatio", { digits: 1 });
+
     // === 【抓牌】卡牌翻面效果 ===
     bindSectionExpand("inp-expandDrawFlip", "val-expandDrawFlip", "cardVisuals.expandedSections.drawFlip", "sect-drawFlip-params");
     bindToggle("inp-drawFlipEnabled", "val-drawFlipEnabled", "drawFlip.enabled");
@@ -1181,6 +1186,13 @@ export function setupControlPanel(
     bindNumber("inp-drawFlipFirstHalfJitter", "val-drawFlipFirstHalfJitter", "drawFlip.firstHalfJitter", { digits: 2 });
     bindNumber("inp-drawFlipSecondHalfRatio", "val-drawFlipSecondHalfRatio", "drawFlip.secondHalfRatio", { digits: 2 });
     bindNumber("inp-drawFlipSecondHalfJitter", "val-drawFlipSecondHalfJitter", "drawFlip.secondHalfJitter", { digits: 2 });
+
+    // === 【弃牌/出牌结束】卡牌翻面效果 ===
+    bindSectionExpand("inp-expandDiscardFlip", "val-expandDiscardFlip", "cardVisuals.expandedSections.discardFlip", "sect-discardFlip-params");
+    bindToggle("inp-discardFlipEnabled", "val-discardFlipEnabled", "discardFlip.enabled");
+    bindNumber("inp-discardFlipAngleDeg", "val-discardFlipAngleDeg", "discardFlip.flipAngleDeg", { integer: true });
+    bindNumber("inp-discardFlipAngleJitterDeg", "val-discardFlipAngleJitterDeg", "discardFlip.flipAngleJitterDeg", { integer: true });
+    bindNumber("inp-discardFlipRandomRotationDeg", "val-discardFlipRandomRotationDeg", "discardFlip.randomRotationDeg", { integer: true });
 
     // === 卡牌换位（手动理牌）===
     // 让位牌走 CardFx.swapMove（rise → 过冲 → spring）。与 cardOvershoot 完全独立，

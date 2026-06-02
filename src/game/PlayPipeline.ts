@@ -34,6 +34,7 @@ export interface PlayPipelineDeps {
   tween: TweenManager;
   bus: EventBus<GameEvents>;
   worldWidth: number;
+  worldHeight: number;
   /** 读手牌堆水平区域（用于出牌堆中位对齐）。 */
   getHandArea: () => { left: number; right: number; baseY: number };
   /** 触发手牌重排（force 用于 1) 让出选中的牌后剩余牌挤位）。 */
@@ -343,22 +344,46 @@ export class PlayPipeline {
       await this.deps.animateScoreTransfer(result);
     }
 
-    // 5b: 从左到右逐张飞出。每张错开 discardIntervalMS。
+    // 5b: 从左到右逐张丢弃到弃牌堆。每张错开 discardIntervalMS。
+    // 出牌结束的丢弃沿用 playPile.discardIntervalMS / discardFlyDurationMS，
+    // 但翻面（压成一条线）共用「弃牌/出牌结束」翻面参数（discardFlip），
+    // 整体节奏受弃牌动画速度比例 discard.speedRatio 调制。
+    const discardCfg = CONFIG.discard;
+    const speedRatio = Math.max(0.01, discardCfg?.speedRatio ?? 1.0);
+    const flyDurationMS = Math.max(1, cfg.discardFlyDurationMS / speedRatio);
+    const intervalMS = Math.max(0, cfg.discardIntervalMS / speedRatio);
+    // 随机旋转范围（度→弧度），与手牌弃牌共用 discardFlip.randomRotationDeg。
+    const randRotDeg = Math.max(0, CONFIG.discardFlip?.randomRotationDeg ?? 0);
+    const randomRotation = (): number =>
+      randRotDeg <= 0 ? 0 : ((Math.random() * 2 - 1) * randRotDeg * Math.PI) / 180;
     for (let i = 0; i < total; i++) {
       const view = selected[i]!;
+      // 飞出瞬间：图层置于手牌之下、但仍在阴影层之上。
+      //   手牌 zIndex = 0..n-1（≥0），阴影层 zIndex = -1；取 (-1, 0) 区间的值即可。
+      view.zIndex = -0.1 - i * 0.001;
+      // 正面朝上 → 飞行途中沿竖中轴线翻约 90° → 压成一条线，目标弃牌堆（屏幕正右方外、垂直居中）。
+      view.startDiscardFlip(flyDurationMS);
+      // 进入弃牌飞行期：禁用速度→旋转联动，保持飞出瞬间的随机旋转角度直到弃牌结束。
+      view.beginDiscardFly();
       // 不 await 单张飞出，让下一张能立即错开发车。
       void PlayPileFx.flyToDiscard(
         this.deps.tween,
         view,
         this.deps.worldWidth,
-        cfg.discardFlyDurationMS
+        this.deps.worldHeight,
+        flyDurationMS,
+        randomRotation()
       );
       if (i < total - 1) {
-        await sleep(cfg.discardIntervalMS);
+        await sleep(intervalMS);
       }
     }
     // 等最后一张飞行时长，确保所有牌都飞到屏幕外才结束 pipeline。
-    await sleep(cfg.discardFlyDurationMS);
+    await sleep(flyDurationMS);
+    // 弃牌飞行结束：恢复速度旋转标志，避免这些 CardView 被回收复用后残留禁用态。
+    for (const view of selected) {
+      view.endDiscardFly();
+    }
 
     bus.emit("play:discarded", { cards: selected.map((v) => v.data) });
     bus.emit("play:end", { result, totalScore });

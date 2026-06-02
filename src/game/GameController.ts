@@ -169,6 +169,7 @@ export class GameController {
       tween: this.tween,
       bus: this.bus,
       worldWidth: GameConfig.world.width,
+      worldHeight: GameConfig.world.height,
       getHandArea: () => ({
         left: this.hud.handAreaLeft,
         right: this.hud.handAreaRight,
@@ -895,28 +896,66 @@ export class GameController {
 
   private async recycleSelected(): Promise<void> {
     const state = this.store.getState();
-    const recycling = [...state.selected];
+    // 按 handIndex 从左到右依次弃牌（与你的需求一致）。
+    const recycling = [...state.selected].sort((a, b) => a.handIndex - b.handIndex);
     const remaining = state.hand.filter((v) => !recycling.includes(v));
 
     this.isPlaying = true;
+    // 进入"挤位阶段"：每张牌弃出瞬间触发的剩余手牌重排走 playHandSwap（利落挤位居中）。
+    this.isPlayPhaseSwapping = true;
     this.updateButtons();
 
     try {
-      // 视觉：先飞出
-      for (const v of recycling) {
+      const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+      // 弃牌参数：speedRatio 同时缩放飞行时长与弃牌间隔（>1 更快）。
+      const discardCfg = GameConfig.discard;
+      const speedRatio = Math.max(0.01, discardCfg?.speedRatio ?? 1.0);
+      const flyDurationMS = Math.max(1, GameConfig.animation.flyOutDurationMS / speedRatio);
+      const intervalMS = Math.max(0, (discardCfg?.intervalMS ?? 0) / speedRatio);
+
+      // 视觉：从左到右逐张错开飞向弃牌堆（屏幕正右方外、垂直居中），飞行途中翻约 90° 压成一条线。
+      for (let i = 0; i < recycling.length; i++) {
+        const v = recycling[i]!;
         v.selected = false;
         v.cardState = CardState.Normal;
-        CardFx.flyOut(
+
+        // ① 弃出瞬间：从手牌数组摘掉这张，立即让剩余手牌挤位居中重排（playHandSwap）。
+        const curHand = this.store.getState().hand;
+        this.store.setState({ hand: curHand.filter((c) => c !== v) });
+        this.layoutHand({ force: true });
+
+        // ② 飞出瞬间：图层置于手牌之下、但仍在阴影层之上。
+        //    手牌 zIndex = 0..n-1（≥0），阴影层 zIndex = -1；取 (-1, 0) 区间的值即可。
+        //    后弃出的牌略低于先弃出的牌（i 越大越靠下），但都 > -1 不会钻到阴影下。
+        v.zIndex = -0.1 - i * 0.001;
+        const randomRotation = this.computeDiscardRandomRotation();
+
+        v.startDiscardFlip(flyDurationMS);
+        // 进入弃牌飞行期：禁用速度→旋转联动，保持飞出瞬间的随机旋转角度直到弃牌结束。
+        v.beginDiscardFly();
+        // 不 await 单张飞出，让下一张能按 intervalMS 错开发车。
+        void CardFx.flyToDiscardPile(
           this.tween,
           v,
           GameConfig.world.width,
-          GameConfig.animation.flyOutDurationMS
+          GameConfig.world.height,
+          flyDurationMS,
+          randomRotation
         );
+        if (i < recycling.length - 1 && intervalMS > 0) {
+          await sleep(intervalMS);
+        }
       }
 
-      // 等待飞出动画完成
-      const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-      await sleep(GameConfig.animation.flyOutDurationMS);
+      // 等待最后一张飞出动画完成
+      await sleep(flyDurationMS);
+      // 弃牌飞行结束：恢复速度旋转标志，避免这些 CardView 被回收复用后残留禁用态。
+      for (const v of recycling) {
+        v.endDiscardFly();
+      }
+      // 挤位阶段结束（补牌应走距离驱动归位，而非 playHandSwap 短动画）。
+      this.isPlayPhaseSwapping = false;
 
       // 数据：放回牌堆并洗牌
       this.deck.recycle(recycling.map((v) => v.data));
@@ -924,6 +963,7 @@ export class GameController {
       this.hud.deckView.setCount(this.deck.size);
       this.bus.emit("deck:changed", { size: this.deck.size });
 
+      // 手牌数组已在上面逐张摘空到 remaining；这里同步选中态。
       this.store.setState({ hand: remaining, selected: [] });
       this.bus.emit("card:selectionChanged", { selected: [] });
 
@@ -932,7 +972,19 @@ export class GameController {
       this.evaluateAndUpdate();
     } finally {
       this.isPlaying = false;
+      this.isPlayPhaseSwapping = false;
       this.updateButtons();
     }
+  }
+
+  /**
+   * 计算丢入弃牌堆时的随机旋转角度（弧度）。
+   * 取值范围 [-randomRotationDeg, +randomRotationDeg]（度），翻面关闭时仍生效。
+   */
+  private computeDiscardRandomRotation(): number {
+    const deg = Math.max(0, GameConfig.discardFlip?.randomRotationDeg ?? 0);
+    if (deg <= 0) return 0;
+    const r = (Math.random() * 2 - 1) * deg;
+    return (r * Math.PI) / 180;
   }
 }

@@ -204,6 +204,53 @@ export interface RuntimeConfig {
     secondHalfJitter: number;
   };
   /**
+   * 【弃牌】弃牌相关参数
+   *
+   * 触发：选中若干手牌后点击「弃牌」键。被选中的牌从左到右依次飞向弃牌堆
+   * （屏幕大正右方、出屏一点、垂直居中）。
+   */
+  discard: {
+    /** 弃牌时间间隔（ms，相邻两张牌发车的错开间隔，从左到右）。 */
+    intervalMS: number;
+    /**
+     * 整体弃牌动画的速度比例。
+     * 同时缩放单张飞出时长与弃牌间隔：>1 更快（时长/间隔变短），<1 更慢。
+     * 与 animation.flyOutDurationMS 联动（实际飞行时长 = flyOutDurationMS / speedRatio）。
+     */
+    speedRatio: number;
+  };
+  /**
+   * 【弃牌/出牌结束】卡牌翻面效果
+   *
+   * 同时控制两类丢弃：
+   *   1) 手牌弃牌（点击弃牌键后选中牌飞向弃牌堆）；
+   *   2) 出牌结算结束后，卡牌从出牌堆丢弃到弃牌堆。
+   *
+   * 翻面逻辑：牌开始弃牌时正面朝上，飞出后立刻沿竖中轴线（绕 Y 轴）翻面，
+   * 目标是弃牌堆（屏幕大正右方、出屏一点）。飞行途中翻约 90°——最终大概压成一条线。
+   * "约 90°" = flipAngleDeg ± flipAngleJitterDeg 的随机抖动量。
+   */
+  discardFlip: {
+    /** 总开关：关闭则弃牌/丢弃时正面朝上、无翻面压线效果。 */
+    enabled: boolean;
+    /**
+     * 飞行结束时累计翻面角度的基准值（度）。约 90° 时卡面恰好压成一条线。
+     * 取值 0~90：0=不翻面（满幅正面），90=完全压成一条线。
+     */
+    flipAngleDeg: number;
+    /**
+     * 翻面角度的随机抖动量（±度）。每张牌从
+     * [flipAngleDeg - jitter, flipAngleDeg + jitter] 中随机取值。
+     * 这就是你要求的"大概"压成一条线的抖动来源。
+     */
+    flipAngleJitterDeg: number;
+    /**
+     * 飞出后施加的随机旋转角度范围（±度）。牌飞出瞬间从 [-deg, +deg] 取一个随机角，
+     * 在飞行途中旋转到该角度，让丢入弃牌堆的牌呈现散乱姿态。0 = 不旋转。
+     */
+    randomRotationDeg: number;
+  };
+  /**
    * 卡牌换位（手动理牌）
    *
    * 触发场景：玩家拖拽手牌时，拖拽牌中心 x 越过相邻牌当前槽位中线 →
@@ -607,6 +654,8 @@ export interface RuntimeConfig {
       cardOvershoot: boolean;
       drawCard: boolean;
       drawFlip: boolean;
+      discard: boolean;
+      discardFlip: boolean;
       handSwap: boolean;
       playHandSwap: boolean;
       playPileDisplacement: boolean;
@@ -1011,6 +1060,16 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     secondHalfRatio: 0.5,
     secondHalfJitter: 0.15,
   }),
+  discard: Object.freeze({
+    intervalMS: 80,
+    speedRatio: 1.0,
+  }),
+  discardFlip: Object.freeze({
+    enabled: true,
+    flipAngleDeg: 90,
+    flipAngleJitterDeg: 15,
+    randomRotationDeg: 20,
+  }),
   handSwap: Object.freeze({
     enabled: true,
     riseDurationMS: 110,
@@ -1225,6 +1284,8 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       cardOvershoot: true,
       drawCard: true,
       drawFlip: true,
+      discard: true,
+      discardFlip: true,
       handSwap: true,
       playHandSwap: true,
       playPileDisplacement: true,
@@ -1456,6 +1517,8 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     },
     drawCard: { ...src.drawCard },
     drawFlip: { ...src.drawFlip },
+    discard: { ...src.discard },
+    discardFlip: { ...src.discardFlip },
     handSwap: { ...src.handSwap },
     playHandSwap: { ...src.playHandSwap },
     playPileDisplacement: { ...src.playPileDisplacement },
@@ -1655,6 +1718,18 @@ export function applyConfig(source: unknown): void {
       ...incoming.drawFlip,
     };
   }
+  if (incoming.discard) {
+    merged.discard = {
+      ...merged.discard,
+      ...incoming.discard,
+    };
+  }
+  if (incoming.discardFlip) {
+    merged.discardFlip = {
+      ...merged.discardFlip,
+      ...incoming.discardFlip,
+    };
+  }
   if (incoming.handSwap) {
     merged.handSwap = {
       ...merged.handSwap,
@@ -1802,6 +1877,9 @@ export function applyConfig(source: unknown): void {
   CONFIG.cardMoveRotation = merged.cardMoveRotation;
   CONFIG.cardOvershoot = merged.cardOvershoot;
   CONFIG.drawCard = merged.drawCard;
+  CONFIG.drawFlip = merged.drawFlip;
+  CONFIG.discard = merged.discard;
+  CONFIG.discardFlip = merged.discardFlip;
   CONFIG.handSwap = merged.handSwap;
   CONFIG.playHandSwap = merged.playHandSwap;
   CONFIG.playPileDisplacement = merged.playPileDisplacement;
@@ -1927,6 +2005,30 @@ export function applyShippingDefaults(source: unknown): void {
             p2: { ...(activeDefaultConfig.cardOvershoot.dragSpringCurve?.p2 ?? {}), ...(incoming.cardOvershoot.dragSpringCurve.p2 ?? {}) },
           }
         : activeDefaultConfig.cardOvershoot.dragSpringCurve,
+    };
+  }
+  if (incoming.drawCard) {
+    activeDefaultConfig.drawCard = {
+      ...activeDefaultConfig.drawCard,
+      ...incoming.drawCard,
+    };
+  }
+  if (incoming.drawFlip) {
+    activeDefaultConfig.drawFlip = {
+      ...activeDefaultConfig.drawFlip,
+      ...incoming.drawFlip,
+    };
+  }
+  if (incoming.discard) {
+    activeDefaultConfig.discard = {
+      ...activeDefaultConfig.discard,
+      ...incoming.discard,
+    };
+  }
+  if (incoming.discardFlip) {
+    activeDefaultConfig.discardFlip = {
+      ...activeDefaultConfig.discardFlip,
+      ...incoming.discardFlip,
     };
   }
   if (incoming.handSwap) {
