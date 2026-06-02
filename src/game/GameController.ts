@@ -67,6 +67,19 @@ export class GameController {
    */
   private isPlaying = false;
 
+  /**
+   * 出牌"挤位阶段"标志：仅在 PlayPipeline.run 期间为 true。
+   *
+   * 与 isPlaying 的区别：isPlaying 是整个出牌/弃牌"流程锁"（含补牌），在 finally 才解除；
+   * 而本标志只覆盖"选中牌飞向出牌堆、剩余手牌向中间挤位让路"这一阶段。
+   *
+   * 用途：layoutHand 中据此决定剩余手牌走 CardFx.swapMove（固定短时长 playHandSwap，
+   * 利落挤位）。一旦进入补牌阶段（drawToFull），本标志已置回 false，发出的新牌就会
+   * 正确走 moveToWithOvershoot（距离驱动时长），而不是被误判成"挤位"用 110ms 飞完，
+   * 避免补牌"移动速度异常快"。
+   */
+  private isPlayPhaseSwapping = false;
+
   private lastHandType = "";
   private lastSelectedCount = 0;
 
@@ -478,8 +491,11 @@ export class GameController {
         // 落入下面的 moveToWithOvershoot 常规分支。
       }
 
-      // 「【出牌】手牌换位」分支：出牌时，手牌的其他牌向中位移位
-      if (this.isPlaying) {
+      // 「【出牌】手牌换位」分支：出牌"挤位阶段"，手牌的其他牌向中位移位（利落短动画）。
+      // 注意：必须用 isPlayPhaseSwapping 而非 isPlaying——后者在补牌阶段仍为 true，
+      // 若用 isPlaying 会让 drawToFull 发出的新牌也误走这条 swapMove（固定 110ms），
+      // 导致补牌移动速度异常快。补牌阶段本标志已为 false，自然落入下面的距离驱动归位。
+      if (this.isPlayPhaseSwapping) {
         CardFx.swapMove(this.tween, view, slot, GameConfig.playHandSwap);
         return;
       }
@@ -765,7 +781,16 @@ export class GameController {
     this.updateButtons();
 
     try {
-      const { views } = await this.playPipeline.run(selectedSnapshot, result);
+      // 进入"挤位阶段"：run() 内部触发的剩余手牌重排走 swapMove（利落挤位）。
+      this.isPlayPhaseSwapping = true;
+      let views: CardView[];
+      try {
+        ({ views } = await this.playPipeline.run(selectedSnapshot, result));
+      } finally {
+        // 出牌堆流程结束、进入补牌前关闭挤位标志：drawToFull 发出的新牌将走
+        // 距离驱动的归位动画（moveToWithOvershoot），而非固定短时长的挤位动画。
+        this.isPlayPhaseSwapping = false;
+      }
 
       // ── 流程结束：数据回收 + 补牌 ───────────────────────
       // 视图层面：所有牌已飞出屏幕，无需 flyOut；但需要把 view 状态复位以便复用。
@@ -784,6 +809,8 @@ export class GameController {
       await this.drawToFull();
       this.evaluateAndUpdate();
     } finally {
+      // 兜底：即便 run() 抛错绕过了上面的内层 finally，这里也确保挤位标志被关闭。
+      this.isPlayPhaseSwapping = false;
       this.isPlaying = false;
       this.updateButtons();
     }
