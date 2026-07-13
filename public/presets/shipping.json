@@ -1,6 +1,6 @@
 {
   "type": "runtime-control-preset",
-  "version": 4,
+  "version": 5,
   "name": "shipping",
   "config": {
     "world": {
@@ -670,11 +670,11 @@
           {
             "type": "transform",
             "data": {
-              "x": 120,
-              "y": 30,
+              "x": 108,
+              "y": 32,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 0.9999999999999998,
+              "scaleY": 0.9999999999999998
             }
           },
           {
@@ -682,6 +682,47 @@
             "data": {
               "text": "至少得分"
             }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.5,
+              "angle": 45,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 470,
+              "cycle": 2000,
+              "loopGap": 900,
+              "amplitudeMin": 0,
+              "amplitudeMax": -6,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 0.58,
+                  "y": 1
+                }
+              }
+            }
+          },
+          {
+            "type": "charLayer",
+            "data": {}
           }
         ]
       },
@@ -692,11 +733,11 @@
           {
             "type": "transform",
             "data": {
-              "x": 120,
-              "y": 55,
+              "x": 114,
+              "y": 59,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 0.9999999999999998,
+              "scaleY": 0.9999999999999998
             }
           },
           {
@@ -704,6 +745,47 @@
             "data": {
               "text": "450"
             }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.4,
+              "angle": 45,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 80,
+              "cycle": 700,
+              "loopGap": 750,
+              "amplitudeMin": 0,
+              "amplitudeMax": -8,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 0.58,
+                  "y": 1
+                }
+              }
+            }
+          },
+          {
+            "type": "charLayer",
+            "data": {}
           }
         ]
       },
@@ -730,8 +812,8 @@
           {
             "type": "transform",
             "data": {
-              "x": 20,
-              "y": 140,
+              "x": 18,
+              "y": 131,
               "rotation": 0,
               "scaleX": 1,
               "scaleY": 1
@@ -740,17 +822,17 @@
         ]
       },
       "hud.scorePanel.scoreLabel": {
-        "parentId": "hud.scorePanel",
-        "siblingIndex": 4,
+        "parentId": "hud.scorePanel.roundScorePanel",
+        "siblingIndex": 1,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 30,
-              "y": 150,
+              "x": 12,
+              "y": 21,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 0.9999999999999996,
+              "scaleY": 0.9999999999999996
             }
           },
           {
@@ -762,24 +844,65 @@
         ]
       },
       "hud.scorePanel.scoreText": {
-        "parentId": "hud.scorePanel",
-        "siblingIndex": 5,
+        "parentId": "hud.scorePanel.roundScorePanel",
+        "siblingIndex": 2,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 240,
-              "y": 150,
+              "x": 164,
+              "y": 7.99999999999997,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 0.9999999999999996,
+              "scaleY": 0.9999999999999996
             }
           },
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "60"
             }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.4,
+              "angle": 45,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 80,
+              "cycle": 700,
+              "loopGap": 200,
+              "amplitudeMin": 0,
+              "amplitudeMax": -4,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 0.58,
+                  "y": 1
+                }
+              }
+            }
+          },
+          {
+            "type": "charLayer",
+            "data": {}
           }
         ]
       },
@@ -790,75 +913,75 @@
           {
             "type": "transform",
             "data": {
-              "x": 0,
-              "y": 0,
+              "x": -19,
+              "y": -356,
               "rotation": 0,
               "scaleX": 1,
-              "scaleY": 1
+              "scaleY": 2.02
             }
           }
         ]
       },
       "hud.scorePanel.chipMultPanel": {
         "parentId": "hud.scorePanel",
-        "siblingIndex": 6,
+        "siblingIndex": 5,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 20,
-              "y": 220,
+              "x": 37,
+              "y": 565,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 0.9999999999999996,
+              "scaleY": 0.9999999999999996
             }
           }
         ]
       },
       "hud.scorePanel.chipBg": {
-        "parentId": "hud.scorePanel",
-        "siblingIndex": 7,
+        "parentId": "hud.scorePanel.chipMultPanel",
+        "siblingIndex": 1,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 30,
-              "y": 230,
+              "x": -10.000000000000002,
+              "y": -267.00000000000017,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 1.0000000000000002,
+              "scaleY": 1.0000000000000002
             }
           }
         ]
       },
       "hud.scorePanel.multBg": {
-        "parentId": "hud.scorePanel",
-        "siblingIndex": 8,
+        "parentId": "hud.scorePanel.chipMultPanel",
+        "siblingIndex": 2,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 155,
-              "y": 230,
+              "x": 115.00000000000003,
+              "y": -267.00000000000017,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 1.0000000000000002,
+              "scaleY": 1.0000000000000002
             }
           }
         ]
       },
       "hud.scorePanel.chipsText": {
-        "parentId": "hud.scorePanel",
-        "siblingIndex": 9,
+        "parentId": "hud.scorePanel.chipMultPanel",
+        "siblingIndex": 3,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 77.5,
-              "y": 260,
+              "x": 37.50000000000001,
+              "y": -237.00000000000017,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 1.4000000000000004,
+              "scaleY": 1.4000000000000004
             }
           },
           {
@@ -876,21 +999,58 @@
           {
             "type": "charLayer",
             "data": {}
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.4,
+              "angle": 45,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 580,
+              "cycle": 4000,
+              "loopGap": 0,
+              "amplitudeMin": 2,
+              "amplitudeMax": -2,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 0.58,
+                  "y": 1
+                }
+              }
+            }
           }
         ]
       },
       "hud.scorePanel.xLabel": {
-        "parentId": "hud.scorePanel",
-        "siblingIndex": 10,
+        "parentId": "hud.scorePanel.chipMultPanel",
+        "siblingIndex": 4,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 140,
-              "y": 260,
+              "x": 100.00000000000001,
+              "y": -237.00000000000017,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 1.0000000000000002,
+              "scaleY": 1.0000000000000002
             }
           },
           {
@@ -902,17 +1062,17 @@
         ]
       },
       "hud.scorePanel.multText": {
-        "parentId": "hud.scorePanel",
-        "siblingIndex": 11,
+        "parentId": "hud.scorePanel.chipMultPanel",
+        "siblingIndex": 5,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 202.5,
-              "y": 260,
+              "x": 162.50000000000003,
+              "y": -237.00000000000017,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 1.4000000000000004,
+              "scaleY": 1.4000000000000004
             }
           },
           {
@@ -930,27 +1090,64 @@
           {
             "type": "charLayer",
             "data": {}
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.4,
+              "angle": 45,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 580,
+              "cycle": 4000,
+              "loopGap": 0,
+              "amplitudeMin": 2,
+              "amplitudeMax": -2,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 0.58,
+                  "y": 1
+                }
+              }
+            }
           }
         ]
       },
       "hud.scorePanel.handNameText": {
         "parentId": "hud.scorePanel",
-        "siblingIndex": 12,
+        "siblingIndex": 6,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 30,
-              "y": 310,
+              "x": 103,
+              "y": 232,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 2,
+              "scaleY": 2
             }
           },
           {
             "type": "textStyle",
             "data": {
-              "text": "高牌"
+              "text": "对子"
             }
           },
           {
@@ -962,27 +1159,64 @@
           {
             "type": "charLayer",
             "data": {}
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 410,
+              "cycle": 2100,
+              "loopGap": 0,
+              "amplitudeMin": 1,
+              "amplitudeMax": -1,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 0.58,
+                  "y": 1
+                }
+              }
+            }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 1,
+              "angle": 44,
+              "distance": 2,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
           }
         ]
       },
       "hud.scorePanel.evalScoreText": {
         "parentId": "hud.scorePanel",
-        "siblingIndex": 13,
+        "siblingIndex": 7,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 30,
-              "y": 340,
+              "x": 121,
+              "y": 217,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 3,
+              "scaleY": 3
             }
           },
           {
             "type": "textStyle",
             "data": {
-              "text": "15"
+              "text": "0"
             }
           },
           {
@@ -1015,12 +1249,12 @@
       },
       "hud.scorePanel.infoPanel": {
         "parentId": "hud.scorePanel",
-        "siblingIndex": 14,
+        "siblingIndex": 4,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 110,
+              "x": 60,
               "y": 380,
               "rotation": 0,
               "scaleX": 1,
@@ -1030,17 +1264,17 @@
         ]
       },
       "hud.scorePanel.playLabel": {
-        "parentId": "hud.scorePanel",
-        "siblingIndex": 15,
+        "parentId": "hud.scorePanel.infoPanel",
+        "siblingIndex": 1,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 130,
-              "y": 385,
+              "x": 19.999999999999986,
+              "y": 4.999999999999886,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 0.9999999999999998,
+              "scaleY": 0.9999999999999998
             }
           },
           {
@@ -1052,17 +1286,17 @@
         ]
       },
       "hud.scorePanel.playsText": {
-        "parentId": "hud.scorePanel",
-        "siblingIndex": 16,
+        "parentId": "hud.scorePanel.infoPanel",
+        "siblingIndex": 2,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 135,
-              "y": 410,
+              "x": 24.999999999999986,
+              "y": 29.999999999999943,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 0.9999999999999998,
+              "scaleY": 0.9999999999999998
             }
           },
           {
@@ -1070,21 +1304,34 @@
             "data": {
               "text": "4"
             }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.5,
+              "angle": 45,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
           }
         ]
       },
       "hud.scorePanel.discardLabel": {
-        "parentId": "hud.scorePanel",
-        "siblingIndex": 17,
+        "parentId": "hud.scorePanel.infoPanel",
+        "siblingIndex": 3,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 205,
-              "y": 385,
+              "x": 94.99999999999999,
+              "y": 4.999999999999886,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 0.9999999999999998,
+              "scaleY": 0.9999999999999998
             }
           },
           {
@@ -1096,17 +1343,17 @@
         ]
       },
       "hud.scorePanel.discardsText": {
-        "parentId": "hud.scorePanel",
-        "siblingIndex": 18,
+        "parentId": "hud.scorePanel.infoPanel",
+        "siblingIndex": 4,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 210,
-              "y": 410,
+              "x": 99.99999999999999,
+              "y": 29.999999999999943,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 0.9999999999999998,
+              "scaleY": 0.9999999999999998
             }
           },
           {
@@ -1114,11 +1361,24 @@
             "data": {
               "text": "3"
             }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.5,
+              "angle": 45,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
           }
         ]
       },
       "hud.scorePanel": {
-        "parentId": "hud",
+        "parentId": "hud.leftPanel",
         "siblingIndex": 1,
         "components": [
           {
@@ -1173,16 +1433,29 @@
       },
       "hud.playBtn": {
         "parentId": "hud",
-        "siblingIndex": 2,
+        "siblingIndex": 1,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 540,
-              "y": 600,
+              "x": 620,
+              "y": 610,
               "rotation": 0,
               "scaleX": 1,
               "scaleY": 1
+            }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.5,
+              "angle": 90,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
             }
           }
         ]
@@ -1227,13 +1500,80 @@
       },
       "hud.discardBtn": {
         "parentId": "hud",
-        "siblingIndex": 3,
+        "siblingIndex": 2,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 700,
-              "y": 600,
+              "x": 800,
+              "y": 610,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.5,
+              "angle": 90,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
+          }
+        ]
+      },
+      "hud.deckView.countText": {
+        "parentId": "hud.deckView",
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 50,
+              "y": 148,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "44/52"
+            }
+          }
+        ]
+      },
+      "hud.deckView": {
+        "parentId": null,
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 1160,
+              "y": 539.9999999999999,
+              "rotation": 0,
+              "scaleX": 0.9999999999999998,
+              "scaleY": 0.9999999999999998
+            }
+          }
+        ]
+      },
+      "hud": {
+        "parentId": null,
+        "siblingIndex": 1,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 0,
+              "y": 0,
               "rotation": 0,
               "scaleX": 1,
               "scaleY": 1
@@ -1281,13 +1621,13 @@
       },
       "hud.sortRankBtn": {
         "parentId": "hud",
-        "siblingIndex": 4,
+        "siblingIndex": 3,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 540,
-              "y": 700,
+              "x": 620,
+              "y": 678,
               "rotation": 0,
               "scaleX": 1,
               "scaleY": 1
@@ -1335,67 +1675,13 @@
       },
       "hud.sortSuitBtn": {
         "parentId": "hud",
-        "siblingIndex": 5,
+        "siblingIndex": 4,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 700,
-              "y": 700,
-              "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
-            }
-          }
-        ]
-      },
-      "hud.deckView.countText": {
-        "parentId": "hud.deckView",
-        "siblingIndex": 0,
-        "components": [
-          {
-            "type": "transform",
-            "data": {
-              "x": 50,
-              "y": 148,
-              "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
-            }
-          },
-          {
-            "type": "textStyle",
-            "data": {
-              "text": "44/52"
-            }
-          }
-        ]
-      },
-      "hud.deckView": {
-        "parentId": null,
-        "siblingIndex": 0,
-        "components": [
-          {
-            "type": "transform",
-            "data": {
-              "x": 1160,
-              "y": 540,
-              "rotation": 0,
-              "scaleX": 0.9999999999999999,
-              "scaleY": 0.9999999999999999
-            }
-          }
-        ]
-      },
-      "hud": {
-        "parentId": null,
-        "siblingIndex": 1,
-        "components": [
-          {
-            "type": "transform",
-            "data": {
-              "x": 0,
-              "y": 0,
+              "x": 800,
+              "y": 678,
               "rotation": 0,
               "scaleX": 1,
               "scaleY": 1

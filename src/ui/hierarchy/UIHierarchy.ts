@@ -22,7 +22,11 @@ import {
   componentRegistry,
   type SerializedComponent,
 } from "./UIComponent";
-import { CONFIG, type UINodeSerialized } from "@game/config";
+import {
+  CONFIG,
+  activeDefaultConfig,
+  type UINodeSerialized,
+} from "@game/config";
 import type { Container, Renderer, Ticker } from "pixi.js";
 
 export type HierarchyEventType =
@@ -340,7 +344,22 @@ class UIHierarchyImpl {
    *   3) 灌字段。
    */
   hydrateFromConfig(worldRoot: Container): void {
-    const data = CONFIG.uiNodes ?? {};
+    // 防御：若运行时 uiNodes 被误清空（例如旧版 applyConfig 在缺字段时写成 {}），
+    // 回退到 shipping / activeDefaultConfig，避免把代码硬编码布局 persist 回 CONFIG。
+    let data = CONFIG.uiNodes ?? {};
+    if (Object.keys(data).length === 0) {
+      const fallback = activeDefaultConfig.uiNodes ?? {};
+      if (Object.keys(fallback).length > 0) {
+        CONFIG.uiNodes = JSON.parse(JSON.stringify(fallback)) as Record<
+          string,
+          UINodeSerialized
+        >;
+        data = CONFIG.uiNodes;
+        console.warn(
+          "[UIHierarchy] CONFIG.uiNodes 为空，已回退到 activeDefaultConfig（shipping）。",
+        );
+      }
+    }
     this.silent = true;
 
     // 第一遍：reparent

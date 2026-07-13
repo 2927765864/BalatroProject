@@ -10,7 +10,18 @@
  *   - 想新增参数 = 在 DEFAULT_CONFIG 里加一项，再在面板 HTML + bind 一行即可。
  */
 
-export const CONFIG_VERSION = 4;
+/**
+ * 配置 schema 版本。
+ * 升级时 loadSavedConfig 会：
+ *   1) 把旧 localStorage 整包备份到 `balatroRuntimeConfig.bak.v{old}`；
+ *   2) 丢弃本地 uiNodes，回退到 shipping / activeDefaultConfig（避免结构漂移 + 历史 bug
+ *      把空表/硬编码默认写进 localStorage 后永久盖住调好的界面布局）。
+ * 其余数值参数仍按字段合并，用户本地调参不会整表丢失。
+ *
+ * v5：修复 v4 升级时 shipping.uiNodes 被硬编码默认覆盖、以及 applyConfig
+ * 在 uiNodes 缺失时写成 {} 导致界面 UI 全部回退的问题。
+ */
+export const CONFIG_VERSION = 5;
 
 /**
  * 单个 UI 节点的可持久化数据。
@@ -2113,9 +2124,14 @@ export function applyConfig(source: unknown): void {
         : merged.joker.effects,
     };
   }
-  // uiNodes：preset 里没带就清空（让 hierarchy 自己重新捕获默认值），
-  // 带了就整张表替换（这一表内部条目相互依赖，不适合按字段合并）。
-  merged.uiNodes = cloneUINodes(incoming.uiNodes ?? {});
+  // uiNodes：整张表内部条目相互依赖（parentId / siblingIndex），不适合按字段合并。
+  // 关键规则：
+  //   - 来源**显式携带** uiNodes（含空对象）→ 整表替换；
+  //   - 来源**未携带** uiNodes → 保留 activeDefaultConfig 里已有的（通常是 shipping），
+  //     绝不能写成 {}，否则会把刚载入的 shipping 布局冲掉，界面 UI 全部回退到代码硬编码。
+  if (Object.prototype.hasOwnProperty.call(incoming, "uiNodes")) {
+    merged.uiNodes = cloneUINodes(incoming.uiNodes ?? {});
+  }
 
   // 就地写回，保留外部对 CONFIG 的引用稳定。
   CONFIG.world = merged.world;
@@ -2486,6 +2502,27 @@ export async function loadShippingConfig(): Promise<void> {
 
 const CONFIG_STORAGE_KEY = "balatroRuntimeConfig";
 
+/**
+ * 跨版本升级时备份旧 localStorage，便于手工找回被丢弃的 uiNodes / 参数。
+ * 失败（配额满等）只打日志，不阻断启动。
+ */
+function backupSavedConfig(
+  storageKey: string,
+  raw: string,
+  savedVersion: number,
+): void {
+  try {
+    const bakKey = `${storageKey}.bak.v${savedVersion}`;
+    // 同版本备份已存在则保留最早一份，避免反复覆盖真正有用的旧档。
+    if (localStorage.getItem(bakKey) == null) {
+      localStorage.setItem(bakKey, raw);
+      console.info(`[config] 已备份旧配置到 localStorage["${bakKey}"]`);
+    }
+  } catch (err) {
+    console.warn("[config] 备份旧配置失败（可忽略）：", err);
+  }
+}
+
 export function loadSavedConfig(storageKey: string = CONFIG_STORAGE_KEY): void {
   try {
     const raw = localStorage.getItem(storageKey);
@@ -2493,16 +2530,30 @@ export function loadSavedConfig(storageKey: string = CONFIG_STORAGE_KEY): void {
     const parsed = JSON.parse(raw) as Record<string, unknown> | null;
     if (!parsed || typeof parsed !== "object") return;
 
-    // UI 序列化布局结构（uiNodes）跨版本不兼容时直接丢弃，让 hierarchy
-    // 自己用默认结构重建；其余参数仍然合并进 CONFIG。
     const savedVersion = typeof parsed["__version"] === "number"
       ? (parsed["__version"] as number)
       : 0;
+
+    let migrated = false;
     if (savedVersion !== CONFIG_VERSION) {
+      backupSavedConfig(storageKey, raw, savedVersion);
+      // 跨版本：丢弃本地 uiNodes，让 applyConfig 保留 activeDefaultConfig
+      // （即 shipping）中的界面布局。其余数值参数继续合并。
+      // 注意：绝不能在 applyConfig 里把缺失的 uiNodes 写成 {}——那会清空 shipping。
       delete parsed["uiNodes"];
+      migrated = true;
+      console.warn(
+        `[config] 本地配置版本 ${savedVersion} ≠ 当前 ${CONFIG_VERSION}，` +
+          "已回退界面 UI（uiNodes）到 shipping/出厂默认，其它参数仍合并本地值。",
+      );
     }
 
     applyConfig(parsed);
+
+    // 把迁移后的结果写回，避免每次刷新都重复告警 / 重复丢弃 uiNodes。
+    if (migrated) {
+      saveCurrentConfig(storageKey);
+    }
   } catch (err) {
     console.error("[config] 读取本地保存配置失败：", err);
   }
@@ -2512,6 +2563,18 @@ export function saveCurrentConfig(
   storageKey: string = CONFIG_STORAGE_KEY,
 ): void {
   try {
+    // 保存前若 uiNodes 意外为空而 shipping 默认非空，拒绝把空表持久化，
+    // 避免下次启动用空表盖住调好的布局。
+    if (
+      (!CONFIG.uiNodes || Object.keys(CONFIG.uiNodes).length === 0) &&
+      activeDefaultConfig.uiNodes &&
+      Object.keys(activeDefaultConfig.uiNodes).length > 0
+    ) {
+      CONFIG.uiNodes = cloneUINodes(activeDefaultConfig.uiNodes);
+      console.warn(
+        "[config] 保存时 CONFIG.uiNodes 为空，已用 activeDefaultConfig 回填后再写入。",
+      );
+    }
     const payload = { __version: CONFIG_VERSION, ...CONFIG };
     localStorage.setItem(storageKey, JSON.stringify(payload));
   } catch (err) {
