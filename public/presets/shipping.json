@@ -429,7 +429,8 @@
           "x": 0.604030299533696,
           "y": 0.9924276380422041
         }
-      }
+      },
+      "textSuffix": "倍率"
     },
     "cardMoveRotation": {
       "enabled": true,

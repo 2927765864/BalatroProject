@@ -59,19 +59,20 @@ export const TextFx = {
   },
 
   /**
-   * 创建出牌堆卡牌结算筹码时的专用往复震荡、逐字弹出数字效果。
-   * 
+   * 创建结算时的专用往复震荡、逐字弹出数字效果。
+   * 手牌筹码弹字默认 "+N"；小丑倍率弹字可通过 cfg.textSuffix 显示为 "+N倍率"。
+   *
    * @param parent 效果容器所在的父级节点（通常是卡牌的 parent，以便文字在相同层级显示并独立于卡牌自身运动）
    * @param tm 缓动管理器
    * @param card 对应的卡牌视图
-   * @param chips 筹码数量
+   * @param value 数值（筹码或倍率加成）
    * @param cfg 结算文字效果配置
    */
   createSettleText(
     parent: Container,
     tm: TweenManager,
     card: CardView,
-    chips: number,
+    value: number,
     cfg: {
       fontSize: number;
       letterSpacing: number;
@@ -104,10 +105,12 @@ export const TextFx = {
       bgBlockDurationMS: number;
       bgBlockFadeCurve: BezierCurveConfig;
       bgBlockScaleCurve: BezierCurveConfig;
+      /** 数字后缀，如小丑倍率的 "倍率"；缺省为空（手牌筹码保持 "+N"）。 */
+      textSuffix?: string;
     }
   ): void {
-    const textStr = "+" + chips;
-    const chars = textStr.split("");
+    const textStr = "+" + value + (cfg.textSuffix ?? "");
+    const chars = Array.from(textStr);
 
     const container = new Container();
     const targetX = card.x;

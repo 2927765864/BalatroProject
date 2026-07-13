@@ -498,12 +498,14 @@ export interface RuntimeConfig {
   };
   /**
    * 【小丑】小丑牌的结算数字效果（含红色背景小方块）
-   * 与 playPileSettleTextEffect 同构，默认红底；额外提供 defaultMultBonus（默认 +10）。
+   * 与 playPileSettleTextEffect 同构，默认红底；额外提供 defaultMultBonus（默认 +10）与 textSuffix（默认 "倍率"）。
    */
   jokerSettleTextEffect: {
     enabled: boolean;
-    /** 每张小丑结算时增加的倍率（弹字显示为 "+N"）。 */
+    /** 每张小丑结算时增加的倍率（弹字显示为 "+N" + textSuffix）。 */
     defaultMultBonus: number;
+    /** 弹字数字后缀，默认 "倍率"，最终显示如 "+10倍率"。 */
+    textSuffix: string;
     fontSize: number;
     letterSpacing: number;
     color: number;
@@ -1414,7 +1416,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       p2: { x: 0.25, y: 1.0 },
     }) as BezierCurveConfig,
   }),
-  // 小丑结算：默认与出牌堆结算同构；倍率弹字默认 +10，背景方块默认红色。
+  // 小丑结算：默认与出牌堆结算同构；倍率弹字默认 +10倍率，背景方块默认红色。
   jokerSettleEffect: Object.freeze({
     enabled: true,
     firstIntervalMS: 300,
@@ -1438,6 +1440,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
   jokerSettleTextEffect: Object.freeze({
     enabled: true,
     defaultMultBonus: 10,
+    textSuffix: "倍率",
     fontSize: 36,
     letterSpacing: 2,
     color: 0xffd700,
