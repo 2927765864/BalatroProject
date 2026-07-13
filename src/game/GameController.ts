@@ -160,6 +160,15 @@ export class GameController {
       this.hud.scorePanel.triggerChipsBounce();
     });
 
+    // 注册小丑结算逐张爆字时的倍率数字弹弹动画监听
+    this.bus.on("play:jokerSettleTextTriggered", (payload) => {
+      const currentChips = this.hud.scorePanel.getChips();
+      const currentMult = this.hud.scorePanel.getMult();
+      const newMult = currentMult + payload.mult;
+      this.hud.scorePanel.setChipsMult(currentChips, newMult);
+      this.hud.scorePanel.triggerMultBounce();
+    });
+
     // 把 tween 接入 app 的更新循环
     this.app.onUpdate((dtMS) => {
       this.tween.update(dtMS);
@@ -205,6 +214,7 @@ export class GameController {
         // 剩余手牌立即挤位（force：跳过 swap 弹性豁免，保证整齐对齐）。
         this.layoutHand({ force: true });
       },
+      getJokers: () => this.jokers,
       animateScoreTransfer: async (result) => {
         const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
         

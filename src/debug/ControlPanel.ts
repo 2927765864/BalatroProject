@@ -160,6 +160,8 @@ export function setupControlPanel(
   let dragSpringCurvePanel: BezierCurvePanel | null = null;
   let bgBlockFadeCurvePanel: BezierCurvePanel | null = null;
   let bgBlockScaleCurvePanel: BezierCurvePanel | null = null;
+  let jokerBgBlockFadeCurvePanel: BezierCurvePanel | null = null;
+  let jokerBgBlockScaleCurvePanel: BezierCurvePanel | null = null;
   let playCardMoveCurvePanel: BezierCurvePanel | null = null;
 
   // 收集所有"按 CONFIG 当前值刷新自身"的回调，preset 加载后批量重跑。
@@ -1438,6 +1440,7 @@ export function setupControlPanel(
 
     // === 7. 小丑牌相关 ===
     // 启用效果：只做「是否对小丑复用该手牌专区」的总开关；参数值仍读手牌专区。
+    bindSectionExpand("inp-expandJokerEffects", "val-expandJokerEffects", "cardVisuals.expandedSections.jokerEffects", "sect-jokerEffects-params");
     bindToggle("inp-jokerFxShadow", "val-jokerFxShadow", "joker.effects.shadow");
     bindToggle("inp-jokerFxBreathing", "val-jokerFxBreathing", "joker.effects.breathing");
     bindToggle("inp-jokerFxIdleTilt", "val-jokerFxIdleTilt", "joker.effects.idleTilt");
@@ -1446,9 +1449,99 @@ export function setupControlPanel(
     bindToggle("inp-jokerFxHoverBreathing", "val-jokerFxHoverBreathing", "joker.effects.hoverBreathing");
     bindToggle("inp-jokerFxMouse3DTilt", "val-jokerFxMouse3DTilt", "joker.effects.mouse3DTilt");
     // 布局（最小必要字段）
+    bindSectionExpand("inp-expandJokerLayout", "val-expandJokerLayout", "cardVisuals.expandedSections.jokerLayout", "sect-jokerLayout-params");
     bindNumber("inp-jokerSlotCount", "val-jokerSlotCount", "joker.slotCount", { integer: true });
     bindNumber("inp-jokerCardSpacing", "val-jokerCardSpacing", "joker.cardSpacing", { digits: 0 });
     bindNumber("inp-jokerBaseY", "val-jokerBaseY", "joker.baseY", { digits: 0 });
+
+    // === 【小丑】小丑牌的结算效果 ===
+    bindSectionExpand("inp-expandJokerSettleEffect", "val-expandJokerSettleEffect", "cardVisuals.expandedSections.jokerSettleEffect", "sect-jokerSettleEffect-params");
+    bindToggle("inp-jokerSettleEffectEnabled", "val-jokerSettleEffectEnabled", "jokerSettleEffect.enabled");
+    bindNumber("inp-jokerSettleEffectFirstIntervalMS", "val-jokerSettleEffectFirstIntervalMS", "jokerSettleEffect.firstIntervalMS", { integer: true });
+    bindNumber("inp-jokerSettleEffectIntervalReductionMS", "val-jokerSettleEffectIntervalReductionMS", "jokerSettleEffect.intervalReductionMS", { integer: true });
+    bindNumber("inp-jokerSettleEffectLastIntervalMS", "val-jokerSettleEffectLastIntervalMS", "jokerSettleEffect.lastIntervalMS", { integer: true });
+    bindNumber("inp-jokerSettleEffectS1", "val-jokerSettleEffectS1", "jokerSettleEffect.s1", { digits: 2 });
+    bindNumber("inp-jokerSettleEffectT1", "val-jokerSettleEffectT1", "jokerSettleEffect.t1", { integer: true });
+    bindNumber("inp-jokerSettleEffectS2", "val-jokerSettleEffectS2", "jokerSettleEffect.s2", { digits: 2 });
+    bindNumber("inp-jokerSettleEffectT2", "val-jokerSettleEffectT2", "jokerSettleEffect.t2", { integer: true });
+    bindNumber("inp-jokerSettleEffectS3", "val-jokerSettleEffectS3", "jokerSettleEffect.s3", { digits: 2 });
+    bindNumber("inp-jokerSettleEffectT3", "val-jokerSettleEffectT3", "jokerSettleEffect.t3", { integer: true });
+    bindNumber("inp-jokerSettleEffectS4", "val-jokerSettleEffectS4", "jokerSettleEffect.s4", { digits: 2 });
+    bindNumber("inp-jokerSettleEffectT4", "val-jokerSettleEffectT4", "jokerSettleEffect.t4", { integer: true });
+    bindNumber("inp-jokerSettleEffectS5", "val-jokerSettleEffectS5", "jokerSettleEffect.s5", { digits: 2 });
+    bindNumber("inp-jokerSettleEffectT5", "val-jokerSettleEffectT5", "jokerSettleEffect.t5", { integer: true });
+    bindNumber("inp-jokerSettleEffectR1", "val-jokerSettleEffectR1", "jokerSettleEffect.r1", { digits: 2 });
+    bindNumber("inp-jokerSettleEffectR2", "val-jokerSettleEffectR2", "jokerSettleEffect.r2", { digits: 2 });
+    bindNumber("inp-jokerSettleEffectR3", "val-jokerSettleEffectR3", "jokerSettleEffect.r3", { digits: 2 });
+    bindNumber("inp-jokerSettleEffectR4", "val-jokerSettleEffectR4", "jokerSettleEffect.r4", { digits: 2 });
+
+    // === 【小丑】结算数字效果 + 红色背景方块 ===
+    bindSectionExpand("inp-expandJokerSettleText", "val-expandJokerSettleText", "cardVisuals.expandedSections.jokerSettleText", "sect-jokerSettleText-params");
+    bindSectionExpand("inp-expandJokerSettleBgBlock", "val-expandJokerSettleBgBlock", "cardVisuals.expandedSections.jokerSettleBgBlock", "sect-jokerSettleBgBlock-params");
+
+    bindToggle("inp-jokerSettleTextEffectEnabled", "val-jokerSettleTextEffectEnabled", "jokerSettleTextEffect.enabled");
+    bindNumber("inp-jokerSettleTextEffectDefaultMultBonus", "val-jokerSettleTextEffectDefaultMultBonus", "jokerSettleTextEffect.defaultMultBonus", { integer: true });
+    bindNumber("inp-jokerSettleTextEffectFontSize", "val-jokerSettleTextEffectFontSize", "jokerSettleTextEffect.fontSize", { integer: true });
+    bindNumber("inp-jokerSettleTextEffectLetterSpacing", "val-jokerSettleTextEffectLetterSpacing", "jokerSettleTextEffect.letterSpacing", { digits: 1 });
+    bindColor("inp-jokerSettleTextEffectColor", "val-jokerSettleTextEffectColor", "jokerSettleTextEffect.color");
+    bindNumber("inp-jokerSettleTextEffectOffsetY", "val-jokerSettleTextEffectOffsetY", "jokerSettleTextEffect.offsetY", { digits: 1 });
+    bindNumber("inp-jokerSettleTextEffectFirstCharDelayMS", "val-jokerSettleTextEffectFirstCharDelayMS", "jokerSettleTextEffect.firstCharDelayMS", { integer: true });
+    bindNumber("inp-jokerSettleTextEffectCharIntervalMS", "val-jokerSettleTextEffectCharIntervalMS", "jokerSettleTextEffect.charIntervalMS", { integer: true });
+    bindNumber("inp-jokerSettleTextEffectCharIntervalReductionMS", "val-jokerSettleTextEffectCharIntervalReductionMS", "jokerSettleTextEffect.charIntervalReductionMS", { integer: true });
+    bindNumber("inp-jokerSettleTextEffectCharScaleDurationMS", "val-jokerSettleTextEffectCharScaleDurationMS", "jokerSettleTextEffect.charScaleDurationMS", { integer: true });
+    bindNumber("inp-jokerSettleTextEffectCharMaxScale", "val-jokerSettleTextEffectCharMaxScale", "jokerSettleTextEffect.charMaxScale", { digits: 2 });
+    bindNumber("inp-jokerSettleTextEffectCharStableScale", "val-jokerSettleTextEffectCharStableScale", "jokerSettleTextEffect.charStableScale", { digits: 2 });
+    bindNumber("inp-jokerSettleTextEffectSwingPivotY", "val-jokerSettleTextEffectSwingPivotY", "jokerSettleTextEffect.swingPivotY", { digits: 1 });
+    bindNumber("inp-jokerSettleTextEffectSwingMaxAngleDeg", "val-jokerSettleTextEffectSwingMaxAngleDeg", "jokerSettleTextEffect.swingMaxAngleDeg", { digits: 1 });
+    bindNumber("inp-jokerSettleTextEffectSwingFrequency", "val-jokerSettleTextEffectSwingFrequency", "jokerSettleTextEffect.swingFrequency", { digits: 2 });
+    bindNumber("inp-jokerSettleTextEffectSwingDamping", "val-jokerSettleTextEffectSwingDamping", "jokerSettleTextEffect.swingDamping", { digits: 2 });
+    bindNumber("inp-jokerSettleTextEffectSwingDurationMS", "val-jokerSettleTextEffectSwingDurationMS", "jokerSettleTextEffect.swingDurationMS", { integer: true });
+    bindNumber("inp-jokerSettleTextEffectStayDurationMS", "val-jokerSettleTextEffectStayDurationMS", "jokerSettleTextEffect.stayDurationMS", { integer: true });
+    bindNumber("inp-jokerSettleTextEffectFadeDurationMS", "val-jokerSettleTextEffectFadeDurationMS", "jokerSettleTextEffect.fadeDurationMS", { integer: true });
+    bindNumber("inp-jokerSettleTextEffectShrinkAnchorY", "val-jokerSettleTextEffectShrinkAnchorY", "jokerSettleTextEffect.shrinkAnchorY", { digits: 2 });
+    bindToggle("inp-jokerSettleTextEffectShadowEnabled", "val-jokerSettleTextEffectShadowEnabled", "jokerSettleTextEffect.shadowEnabled");
+    bindColor("inp-jokerSettleTextEffectShadowColor", "val-jokerSettleTextEffectShadowColor", "jokerSettleTextEffect.shadowColor");
+    bindNumber("inp-jokerSettleTextEffectShadowAlpha", "val-jokerSettleTextEffectShadowAlpha", "jokerSettleTextEffect.shadowAlpha", { digits: 2 });
+    bindNumber("inp-jokerSettleTextEffectShadowDistance", "val-jokerSettleTextEffectShadowDistance", "jokerSettleTextEffect.shadowDistance", { digits: 1 });
+    bindNumber("inp-jokerSettleTextEffectShadowAngleDeg", "val-jokerSettleTextEffectShadowAngleDeg", "jokerSettleTextEffect.shadowAngleDeg", { digits: 1 });
+    bindNumber("inp-jokerSettleTextEffectShadowBlur", "val-jokerSettleTextEffectShadowBlur", "jokerSettleTextEffect.shadowBlur", { digits: 1 });
+    bindToggle("inp-jokerSettleTextEffectBgBlockEnabled", "val-jokerSettleTextEffectBgBlockEnabled", "jokerSettleTextEffect.bgBlockEnabled");
+    bindColor("inp-jokerSettleTextEffectBgBlockColor", "val-jokerSettleTextEffectBgBlockColor", "jokerSettleTextEffect.bgBlockColor");
+    bindNumber("inp-jokerSettleTextEffectBgBlockInitAngleDeg", "val-jokerSettleTextEffectBgBlockInitAngleDeg", "jokerSettleTextEffect.bgBlockInitAngleDeg", { digits: 1 });
+    bindNumber("inp-jokerSettleTextEffectBgBlockEndAngleDeg", "val-jokerSettleTextEffectBgBlockEndAngleDeg", "jokerSettleTextEffect.bgBlockEndAngleDeg", { digits: 1 });
+    bindNumber("inp-jokerSettleTextEffectBgBlockDurationMS", "val-jokerSettleTextEffectBgBlockDurationMS", "jokerSettleTextEffect.bgBlockDurationMS", { integer: true });
+
+    const jokerBgBlockScaleCurveMount = document.getElementById("mount-jokerBgBlockScaleCurve");
+    if (jokerBgBlockScaleCurveMount && !jokerBgBlockScaleCurvePanel) {
+      jokerBgBlockScaleCurvePanel = buildCurvePanel(jokerBgBlockScaleCurveMount, CONFIG.jokerSettleTextEffect.bgBlockScaleCurve, {
+        label: "红色方块大小缩放曲线",
+        onChange: () => {
+          notify("jokerSettleTextEffect.bgBlockScaleCurve", CONFIG.jokerSettleTextEffect.bgBlockScaleCurve);
+        }
+      });
+
+      syncers.push(() => {
+        if (jokerBgBlockScaleCurvePanel) {
+          jokerBgBlockScaleCurvePanel.setCurve(CONFIG.jokerSettleTextEffect.bgBlockScaleCurve);
+        }
+      });
+    }
+
+    const jokerBgBlockFadeCurveMount = document.getElementById("mount-jokerBgBlockFadeCurve");
+    if (jokerBgBlockFadeCurveMount && !jokerBgBlockFadeCurvePanel) {
+      jokerBgBlockFadeCurvePanel = buildCurvePanel(jokerBgBlockFadeCurveMount, CONFIG.jokerSettleTextEffect.bgBlockFadeCurve, {
+        label: "红色方块透明度淡出曲线",
+        onChange: () => {
+          notify("jokerSettleTextEffect.bgBlockFadeCurve", CONFIG.jokerSettleTextEffect.bgBlockFadeCurve);
+        }
+      });
+
+      syncers.push(() => {
+        if (jokerBgBlockFadeCurvePanel) {
+          jokerBgBlockFadeCurvePanel.setCurve(CONFIG.jokerSettleTextEffect.bgBlockFadeCurve);
+        }
+      });
+    }
 
     bindToggle("inp-playPileSettleTextEffectEnabled", "val-playPileSettleTextEffectEnabled", "playPileSettleTextEffect.enabled");
     bindNumber("inp-playPileSettleTextEffectFontSize", "val-playPileSettleTextEffectFontSize", "playPileSettleTextEffect.fontSize", { integer: true });
@@ -1621,6 +1714,8 @@ export function setupControlPanel(
       dragSpringCurvePanel?.destroy();
       bgBlockFadeCurvePanel?.destroy();
       bgBlockScaleCurvePanel?.destroy();
+      jokerBgBlockFadeCurvePanel?.destroy();
+      jokerBgBlockScaleCurvePanel?.destroy();
       playCardMoveCurvePanel?.destroy();
       removeHistoryShortcuts();
       removeHierarchyHistory();

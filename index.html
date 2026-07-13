@@ -2763,106 +2763,562 @@
             <!-- 启用效果 -->
             <div class="panel-row" style="background: rgba(255, 170, 0, 0.10); font-weight: bold; color: #ffaa00; border-top: 1px solid rgba(255, 170, 0, 0.25); border-bottom: 1px solid rgba(255, 170, 0, 0.25); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>启用效果</span>
-              <span style="font-size:11px;font-weight:normal;color:#ffd48a;">复用手牌专区总开关</span>
-            </div>
-
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>是否启用 · 卡牌常态阴影</span>
-                <span id="val-jokerFxShadow">开</span>
-              </div>
-              <label style="display:flex;align-items:center;gap:6px;">
-                <input id="inp-jokerFxShadow" type="checkbox" />
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#ffd48a;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandJokerEffects" style="color: #ffaa00;">开</span>
+                <input id="inp-expandJokerEffects" type="checkbox" checked style="margin:0;" />
               </label>
             </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>是否启用 · 常态呼吸晃动</span>
-                <span id="val-jokerFxBreathing">开</span>
+            <div id="sect-jokerEffects-params">
+              <div class="panel-row" style="color: rgba(255,255,255,0.55); font-size: 11px; line-height: 1.4;">
+                <span>复用手牌专区总开关：改手牌参数 = 同步改小丑参数。</span>
               </div>
-              <label style="display:flex;align-items:center;gap:6px;">
-                <input id="inp-jokerFxBreathing" type="checkbox" />
-              </label>
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>是否启用 · 常态伪3D倾斜呼吸晃动</span>
-                <span id="val-jokerFxIdleTilt">开</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>是否启用 · 卡牌常态阴影</span>
+                  <span id="val-jokerFxShadow">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-jokerFxShadow" type="checkbox" />
+                </label>
               </div>
-              <label style="display:flex;align-items:center;gap:6px;">
-                <input id="inp-jokerFxIdleTilt" type="checkbox" />
-              </label>
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>是否启用 · 鼠标触碰碰撞范围</span>
-                <span id="val-jokerFxHoverHit">开</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>是否启用 · 常态呼吸晃动</span>
+                  <span id="val-jokerFxBreathing">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-jokerFxBreathing" type="checkbox" />
+                </label>
               </div>
-              <label style="display:flex;align-items:center;gap:6px;">
-                <input id="inp-jokerFxHoverHit" type="checkbox" />
-              </label>
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>是否启用 · 鼠标触碰小弹性缩放</span>
-                <span id="val-jokerFxHoverScale">开</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>是否启用 · 常态伪3D倾斜呼吸晃动</span>
+                  <span id="val-jokerFxIdleTilt">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-jokerFxIdleTilt" type="checkbox" />
+                </label>
               </div>
-              <label style="display:flex;align-items:center;gap:6px;">
-                <input id="inp-jokerFxHoverScale" type="checkbox" />
-              </label>
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>是否启用 · 鼠标呼吸晃动（触碰与回落）</span>
-                <span id="val-jokerFxHoverBreathing">开</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>是否启用 · 鼠标触碰碰撞范围</span>
+                  <span id="val-jokerFxHoverHit">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-jokerFxHoverHit" type="checkbox" />
+                </label>
               </div>
-              <label style="display:flex;align-items:center;gap:6px;">
-                <input id="inp-jokerFxHoverBreathing" type="checkbox" />
-              </label>
-            </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>是否启用 · 卡牌鼠标悬停伪3D倾斜</span>
-                <span id="val-jokerFxMouse3DTilt">开</span>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>是否启用 · 鼠标触碰小弹性缩放</span>
+                  <span id="val-jokerFxHoverScale">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-jokerFxHoverScale" type="checkbox" />
+                </label>
               </div>
-              <label style="display:flex;align-items:center;gap:6px;">
-                <input id="inp-jokerFxMouse3DTilt" type="checkbox" />
-              </label>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>是否启用 · 鼠标呼吸晃动（触碰与回落）</span>
+                  <span id="val-jokerFxHoverBreathing">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-jokerFxHoverBreathing" type="checkbox" />
+                </label>
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>是否启用 · 卡牌鼠标悬停伪3D倾斜</span>
+                  <span id="val-jokerFxMouse3DTilt">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-jokerFxMouse3DTilt" type="checkbox" />
+                </label>
+              </div>
             </div>
 
             <!-- 布局（最小必要；数值独立于手牌间距） -->
             <div class="panel-row" style="background: rgba(255, 170, 0, 0.10); font-weight: bold; color: #ffaa00; border-top: 1px solid rgba(255, 170, 0, 0.25); border-bottom: 1px solid rgba(255, 170, 0, 0.25); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>布局</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#ffd48a;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandJokerLayout" style="color: #ffaa00;">开</span>
+                <input id="inp-expandJokerLayout" type="checkbox" checked style="margin:0;" />
+              </label>
             </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>槽位数量</span>
-                <span id="val-jokerSlotCount">5</span>
+            <div id="sect-jokerLayout-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>槽位数量</span>
+                  <span id="val-jokerSlotCount">5</span>
+                </div>
+                <input id="inp-jokerSlotCount" type="number" step="1" min="0" max="10" />
               </div>
-              <input id="inp-jokerSlotCount" type="number" step="1" min="0" max="10" />
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>中心水平间距 (px)</span>
+                  <span id="val-jokerCardSpacing">120</span>
+                </div>
+                <input id="inp-jokerCardSpacing" type="number" step="1" min="40" max="300" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>基准 Y (世界坐标)</span>
+                  <span id="val-jokerBaseY">90</span>
+                </div>
+                <input id="inp-jokerBaseY" type="number" step="1" min="20" max="400" />
+              </div>
             </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>中心水平间距 (px)</span>
-                <span id="val-jokerCardSpacing">120</span>
-              </div>
-              <input id="inp-jokerCardSpacing" type="number" step="1" min="40" max="300" />
+            <!-- 【小丑】小丑牌的结算效果（对应卡牌逻辑：出牌堆结算效果） -->
+            <div class="panel-row" style="background: rgba(255, 51, 51, 0.10); font-weight: bold; color: #ff5555; border-top: 1px solid rgba(255, 51, 51, 0.25); border-bottom: 1px solid rgba(255, 51, 51, 0.25); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>【小丑】小丑牌的结算效果</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#ffb0b0;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandJokerSettleEffect" style="color: #ff5555;">开</span>
+                <input id="inp-expandJokerSettleEffect" type="checkbox" checked style="margin:0;" />
+              </label>
             </div>
 
-            <div class="panel-row">
-              <div class="panel-row-header">
-                <span>基准 Y (世界坐标)</span>
-                <span id="val-jokerBaseY">90</span>
+            <div id="sect-jokerSettleEffect-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用结算效果</span>
+                  <span id="val-jokerSettleEffectEnabled">开</span>
+                </div>
+                <input id="inp-jokerSettleEffectEnabled" type="checkbox" />
               </div>
-              <input id="inp-jokerBaseY" type="number" step="1" min="20" max="400" />
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>第一张结算停留间隔 (ms)</span>
+                  <span id="val-jokerSettleEffectFirstIntervalMS">300</span>
+                </div>
+                <input id="inp-jokerSettleEffectFirstIntervalMS" type="number" step="10" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>后续每张减少时间间隔 (ms)</span>
+                  <span id="val-jokerSettleEffectIntervalReductionMS">60</span>
+                </div>
+                <input id="inp-jokerSettleEffectIntervalReductionMS" type="number" step="5" min="0" max="1000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>最后一张结算停留间隔 (ms)</span>
+                  <span id="val-jokerSettleEffectLastIntervalMS">150</span>
+                </div>
+                <input id="inp-jokerSettleEffectLastIntervalMS" type="number" step="10" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阶段1缩放目标</span>
+                  <span id="val-jokerSettleEffectS1">0.92</span>
+                </div>
+                <input id="inp-jokerSettleEffectS1" type="number" step="0.01" min="0.5" max="2" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阶段1时间 (ms)</span>
+                  <span id="val-jokerSettleEffectT1">120</span>
+                </div>
+                <input id="inp-jokerSettleEffectT1" type="number" step="10" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阶段2缩放目标</span>
+                  <span id="val-jokerSettleEffectS2">1.20</span>
+                </div>
+                <input id="inp-jokerSettleEffectS2" type="number" step="0.01" min="0.5" max="2" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阶段2时间 (ms)</span>
+                  <span id="val-jokerSettleEffectT2">160</span>
+                </div>
+                <input id="inp-jokerSettleEffectT2" type="number" step="10" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阶段3缩放目标</span>
+                  <span id="val-jokerSettleEffectS3">0.95</span>
+                </div>
+                <input id="inp-jokerSettleEffectS3" type="number" step="0.01" min="0.5" max="2" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阶段3时间 (ms)</span>
+                  <span id="val-jokerSettleEffectT3">140</span>
+                </div>
+                <input id="inp-jokerSettleEffectT3" type="number" step="10" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阶段4缩放目标</span>
+                  <span id="val-jokerSettleEffectS4">1.10</span>
+                </div>
+                <input id="inp-jokerSettleEffectS4" type="number" step="0.01" min="0.5" max="2" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阶段4时间 (ms)</span>
+                  <span id="val-jokerSettleEffectT4">120</span>
+                </div>
+                <input id="inp-jokerSettleEffectT4" type="number" step="10" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阶段5缩放目标</span>
+                  <span id="val-jokerSettleEffectS5">1.00</span>
+                </div>
+                <input id="inp-jokerSettleEffectS5" type="number" step="0.01" min="0.5" max="2" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阶段5时间 (ms)</span>
+                  <span id="val-jokerSettleEffectT5">100</span>
+                </div>
+                <input id="inp-jokerSettleEffectT5" type="number" step="10" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阶段1顺时针旋转 (度)</span>
+                  <span id="val-jokerSettleEffectR1">0.5</span>
+                </div>
+                <input id="inp-jokerSettleEffectR1" type="number" step="0.1" min="-90" max="90" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阶段2逆时针旋转 (度)</span>
+                  <span id="val-jokerSettleEffectR2">-4.0</span>
+                </div>
+                <input id="inp-jokerSettleEffectR2" type="number" step="0.1" min="-90" max="90" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阶段3顺时针旋转 (度)</span>
+                  <span id="val-jokerSettleEffectR3">0.8</span>
+                </div>
+                <input id="inp-jokerSettleEffectR3" type="number" step="0.1" min="-90" max="90" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阶段4逆时针旋转 (度)</span>
+                  <span id="val-jokerSettleEffectR4">-1.5</span>
+                </div>
+                <input id="inp-jokerSettleEffectR4" type="number" step="0.1" min="-90" max="90" />
+              </div>
+            </div>
+
+            <!-- 【小丑】结算数字效果（对应文字视效：出牌堆结算数字） -->
+            <div class="panel-row" style="background: rgba(255, 51, 51, 0.10); font-weight: bold; color: #ff5555; border-top: 1px solid rgba(255, 51, 51, 0.25); border-bottom: 1px solid rgba(255, 51, 51, 0.25); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>【小丑】结算数字效果</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#ffb0b0;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandJokerSettleText" style="color: #ff5555;">开</span>
+                <input id="inp-expandJokerSettleText" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+
+            <div id="sect-jokerSettleText-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用效果</span>
+                  <span id="val-jokerSettleTextEffectEnabled">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-jokerSettleTextEffectEnabled" type="checkbox" />
+                </label>
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>默认倍率加成</span>
+                  <span id="val-jokerSettleTextEffectDefaultMultBonus">10</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectDefaultMultBonus" type="number" step="1" min="0" max="999" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>文字字号</span>
+                  <span id="val-jokerSettleTextEffectFontSize">36</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectFontSize" type="number" step="1" min="10" max="100" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>单字间距</span>
+                  <span id="val-jokerSettleTextEffectLetterSpacing">2.0</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectLetterSpacing" type="number" step="0.5" min="-10" max="50" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>文字颜色</span>
+                  <span id="val-jokerSettleTextEffectColor">#ffd700</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectColor" type="color" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>Y轴偏移 (相对中心)</span>
+                  <span id="val-jokerSettleTextEffectOffsetY">-110.0</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectOffsetY" type="number" step="5" min="-300" max="100" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>第一个字延迟 (ms)</span>
+                  <span id="val-jokerSettleTextEffectFirstCharDelayMS">0</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectFirstCharDelayMS" type="number" step="10" min="0" max="1000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>字间隔时间 (ms)</span>
+                  <span id="val-jokerSettleTextEffectCharIntervalMS">120</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectCharIntervalMS" type="number" step="10" min="0" max="1000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>后续字间隔减少 (ms)</span>
+                  <span id="val-jokerSettleTextEffectCharIntervalReductionMS">20</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectCharIntervalReductionMS" type="number" step="5" min="0" max="200" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>单字变大时长 (ms)</span>
+                  <span id="val-jokerSettleTextEffectCharScaleDurationMS">240</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectCharScaleDurationMS" type="number" step="10" min="0" max="1000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>单字最大缩放</span>
+                  <span id="val-jokerSettleTextEffectCharMaxScale">1.10</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectCharMaxScale" type="number" step="0.05" min="0.5" max="3" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>单字稳定缩放</span>
+                  <span id="val-jokerSettleTextEffectCharStableScale">1.00</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectCharStableScale" type="number" step="0.05" min="0.5" max="2" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>不倒翁圆心Y偏移</span>
+                  <span id="val-jokerSettleTextEffectSwingPivotY">100.0</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectSwingPivotY" type="number" step="10" min="10" max="300" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>不倒翁最大角度 (度)</span>
+                  <span id="val-jokerSettleTextEffectSwingMaxAngleDeg">20.0</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectSwingMaxAngleDeg" type="number" step="1" min="0" max="90" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>不倒翁摆动频率</span>
+                  <span id="val-jokerSettleTextEffectSwingFrequency">3.00</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectSwingFrequency" type="number" step="0.1" min="0.5" max="10" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>不倒翁摆动阻尼</span>
+                  <span id="val-jokerSettleTextEffectSwingDamping">3.50</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectSwingDamping" type="number" step="0.1" min="0" max="10" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>不倒翁摆动时间 (ms)</span>
+                  <span id="val-jokerSettleTextEffectSwingDurationMS">1200</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectSwingDurationMS" type="number" step="50" min="100" max="5000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>摆平停留时间 (ms)</span>
+                  <span id="val-jokerSettleTextEffectStayDurationMS">500</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectStayDurationMS" type="number" step="50" min="0" max="3000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>消失渐变时间 (ms)</span>
+                  <span id="val-jokerSettleTextEffectFadeDurationMS">300</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectFadeDurationMS" type="number" step="50" min="0" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>变小锚点Y比例</span>
+                  <span id="val-jokerSettleTextEffectShrinkAnchorY">0.20</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectShrinkAnchorY" type="number" step="0.05" min="-0.5" max="1.5" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用阴影</span>
+                  <span id="val-jokerSettleTextEffectShadowEnabled">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-jokerSettleTextEffectShadowEnabled" type="checkbox" />
+                </label>
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影颜色</span>
+                  <span id="val-jokerSettleTextEffectShadowColor">#000000</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectShadowColor" type="color" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影不透明度</span>
+                  <span id="val-jokerSettleTextEffectShadowAlpha">0.40</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectShadowAlpha" type="number" step="0.05" min="0" max="1" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影距离</span>
+                  <span id="val-jokerSettleTextEffectShadowDistance">4.0</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectShadowDistance" type="number" step="0.5" min="0" max="50" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影方向角度 (度)</span>
+                  <span id="val-jokerSettleTextEffectShadowAngleDeg">45.0</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectShadowAngleDeg" type="number" step="5" min="0" max="360" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影模糊半径</span>
+                  <span id="val-jokerSettleTextEffectShadowBlur">2.0</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectShadowBlur" type="number" step="0.5" min="0" max="20" />
+              </div>
+            </div>
+
+            <!-- 红色背景小方块衬托效果 -->
+            <div class="panel-row" style="background: rgba(255, 51, 51, 0.10); font-weight: bold; color: #ff5555; border-top: 1px solid rgba(255, 51, 51, 0.25); border-bottom: 1px solid rgba(255, 51, 51, 0.25); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>红色背景小方块衬托效果</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#ffb0b0;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandJokerSettleBgBlock" style="color: #ff5555;">开</span>
+                <input id="inp-expandJokerSettleBgBlock" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+
+            <div id="sect-jokerSettleBgBlock-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用背景方块</span>
+                  <span id="val-jokerSettleTextEffectBgBlockEnabled">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-jokerSettleTextEffectBgBlockEnabled" type="checkbox" />
+                </label>
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>方块颜色</span>
+                  <span id="val-jokerSettleTextEffectBgBlockColor">#ff3333</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectBgBlockColor" type="color" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>初始旋转角度</span>
+                  <span id="val-jokerSettleTextEffectBgBlockInitAngleDeg">-15.0</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectBgBlockInitAngleDeg" type="number" step="1" min="-360" max="360" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>消失旋转角度</span>
+                  <span id="val-jokerSettleTextEffectBgBlockEndAngleDeg">15.0</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectBgBlockEndAngleDeg" type="number" step="1" min="-360" max="360" />
+              </div>
+
+              <div class="panel-row-header" style="padding: 6px 12px 0;">
+                <span>大小缩放变化曲线 (横轴=时间, 纵轴=大小 startScale→endScale)</span>
+              </div>
+              <div id="mount-jokerBgBlockScaleCurve" style="padding: 6px 12px;"></div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>方块存在时间 (ms)</span>
+                  <span id="val-jokerSettleTextEffectBgBlockDurationMS">600</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectBgBlockDurationMS" type="number" step="50" min="0" max="30000" />
+              </div>
+
+              <div class="panel-row-header" style="padding: 6px 12px 0;">
+                <span>透明度淡出曲线 (横轴=时间, 纵轴=淡出进度)</span>
+              </div>
+              <div id="mount-jokerBgBlockFadeCurve" style="padding: 6px 12px;"></div>
             </div>
 
           </details>

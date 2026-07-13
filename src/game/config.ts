@@ -480,6 +480,63 @@ export interface RuntimeConfig {
     bgBlockScaleCurve: BezierCurveConfig;
   };
   /**
+   * 【小丑】小丑牌的结算效果
+   * 与 playPileSettleEffect 同构：逐张弹性震荡 + 间隔节奏。
+   * 区别：小丑不上下移，直接在原位触发结算。
+   */
+  jokerSettleEffect: {
+    enabled: boolean;
+    firstIntervalMS: number;
+    intervalReductionMS: number;
+    lastIntervalMS: number;
+    s1: number; t1: number;
+    s2: number; t2: number;
+    s3: number; t3: number;
+    s4: number; t4: number;
+    s5: number; t5: number;
+    r1: number; r2: number; r3: number; r4: number;
+  };
+  /**
+   * 【小丑】小丑牌的结算数字效果（含红色背景小方块）
+   * 与 playPileSettleTextEffect 同构，默认红底；额外提供 defaultMultBonus（默认 +10）。
+   */
+  jokerSettleTextEffect: {
+    enabled: boolean;
+    /** 每张小丑结算时增加的倍率（弹字显示为 "+N"）。 */
+    defaultMultBonus: number;
+    fontSize: number;
+    letterSpacing: number;
+    color: number;
+    offsetY: number;
+    firstCharDelayMS: number;
+    charIntervalMS: number;
+    charIntervalReductionMS: number;
+    charScaleDurationMS: number;
+    charMaxScale: number;
+    charStableScale: number;
+    swingPivotY: number;
+    swingMaxAngleDeg: number;
+    swingFrequency: number;
+    swingDamping: number;
+    swingDurationMS: number;
+    stayDurationMS: number;
+    fadeDurationMS: number;
+    shrinkAnchorY: number;
+    shadowEnabled: boolean;
+    shadowColor: number;
+    shadowAlpha: number;
+    shadowDistance: number;
+    shadowAngleDeg: number;
+    shadowBlur: number;
+    bgBlockEnabled: boolean;
+    bgBlockColor: number;
+    bgBlockInitAngleDeg: number;
+    bgBlockEndAngleDeg: number;
+    bgBlockDurationMS: number;
+    bgBlockFadeCurve: BezierCurveConfig;
+    bgBlockScaleCurve: BezierCurveConfig;
+  };
+  /**
    * 卡牌移动旋转（velocity-based tilt）
    *
    * 物理直觉：想象一根钉子垂直于牌面插进卡牌的中上部（轴点）。当钉子带动卡牌移动时，
@@ -753,6 +810,11 @@ export interface RuntimeConfig {
       playPileSettleEffect: boolean;
       playPileSettleText: boolean;
       playPileSettleBgBlock: boolean;
+      jokerEffects: boolean;
+      jokerLayout: boolean;
+      jokerSettleEffect: boolean;
+      jokerSettleText: boolean;
+      jokerSettleBgBlock: boolean;
       chipsBounce: boolean;
       multBounce: boolean;
       handNameBounce: boolean;
@@ -1352,6 +1414,74 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       p2: { x: 0.25, y: 1.0 },
     }) as BezierCurveConfig,
   }),
+  // 小丑结算：默认与出牌堆结算同构；倍率弹字默认 +10，背景方块默认红色。
+  jokerSettleEffect: Object.freeze({
+    enabled: true,
+    firstIntervalMS: 300,
+    intervalReductionMS: 60,
+    lastIntervalMS: 150,
+    s1: 0.92,
+    t1: 120,
+    s2: 1.20,
+    t2: 160,
+    s3: 0.95,
+    t3: 140,
+    s4: 1.10,
+    t4: 120,
+    s5: 1.00,
+    t5: 100,
+    r1: 0.5,
+    r2: -4.0,
+    r3: 0.8,
+    r4: -1.5,
+  }),
+  jokerSettleTextEffect: Object.freeze({
+    enabled: true,
+    defaultMultBonus: 10,
+    fontSize: 36,
+    letterSpacing: 2,
+    color: 0xffd700,
+    offsetY: -110,
+    firstCharDelayMS: 0,
+    charIntervalMS: 120,
+    charIntervalReductionMS: 20,
+    charScaleDurationMS: 240,
+    charMaxScale: 1.1,
+    charStableScale: 1.0,
+    swingPivotY: 100,
+    swingMaxAngleDeg: 20,
+    swingFrequency: 3,
+    swingDamping: 3.5,
+    swingDurationMS: 1200,
+    stayDurationMS: 500,
+    fadeDurationMS: 300,
+    shrinkAnchorY: 0.2,
+    shadowEnabled: true,
+    shadowColor: 0x000000,
+    shadowAlpha: 0.4,
+    shadowDistance: 4,
+    shadowAngleDeg: 45,
+    shadowBlur: 2,
+    bgBlockEnabled: true,
+    bgBlockColor: 0xff3333, // 红色背景小方块（对应倍率红）
+    bgBlockInitAngleDeg: -15,
+    bgBlockEndAngleDeg: 15,
+    bgBlockDurationMS: 600,
+    bgBlockFadeCurve: Object.freeze({
+      enabled: true,
+      startScale: 0,
+      endScale: 1,
+      p1: { x: 0.4, y: 0.05 },
+      p2: { x: 0.8, y: 0.4 },
+    }) as BezierCurveConfig,
+    bgBlockScaleCurve: Object.freeze({
+      enabled: true,
+      startScale: 0,
+      endScale: 1.5,
+      p1: { x: 0.1, y: 0.85 },
+      p2: { x: 0.25, y: 1.0 },
+    }) as BezierCurveConfig,
+  }),
   cardOvershoot: Object.freeze({
     enabled: true,
     // 归位/发牌（Tween 路径，距离驱动）：
@@ -1465,6 +1595,11 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       playPileSettleEffect: true,
       playPileSettleText: true,
       playPileSettleBgBlock: true,
+      jokerEffects: true,
+      jokerLayout: true,
+      jokerSettleEffect: true,
+      jokerSettleText: true,
+      jokerSettleBgBlock: true,
       chipsBounce: true,
       multBounce: true,
       handNameBounce: true,
@@ -1773,6 +1908,20 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
         p2: { ...src.playPileSettleTextEffect.bgBlockScaleCurve.p2 },
       } : undefined as any,
     },
+    jokerSettleEffect: { ...src.jokerSettleEffect },
+    jokerSettleTextEffect: {
+      ...src.jokerSettleTextEffect,
+      bgBlockFadeCurve: src.jokerSettleTextEffect.bgBlockFadeCurve ? {
+        ...src.jokerSettleTextEffect.bgBlockFadeCurve,
+        p1: { ...src.jokerSettleTextEffect.bgBlockFadeCurve.p1 },
+        p2: { ...src.jokerSettleTextEffect.bgBlockFadeCurve.p2 },
+      } : undefined as any,
+      bgBlockScaleCurve: src.jokerSettleTextEffect.bgBlockScaleCurve ? {
+        ...src.jokerSettleTextEffect.bgBlockScaleCurve,
+        p1: { ...src.jokerSettleTextEffect.bgBlockScaleCurve.p1 },
+        p2: { ...src.jokerSettleTextEffect.bgBlockScaleCurve.p2 },
+      } : undefined as any,
+    },
     cardMoveRotation: { ...src.cardMoveRotation },
     cardVisuals: {
       ...src.cardVisuals,
@@ -2048,6 +2197,34 @@ export function applyConfig(source: unknown): void {
         : merged.playPileSettleTextEffect.bgBlockScaleCurve,
     };
   }
+  if (incoming.jokerSettleEffect) {
+    merged.jokerSettleEffect = {
+      ...merged.jokerSettleEffect,
+      ...incoming.jokerSettleEffect,
+    };
+  }
+  if (incoming.jokerSettleTextEffect) {
+    merged.jokerSettleTextEffect = {
+      ...merged.jokerSettleTextEffect,
+      ...incoming.jokerSettleTextEffect,
+      bgBlockFadeCurve: incoming.jokerSettleTextEffect.bgBlockFadeCurve
+        ? {
+            ...merged.jokerSettleTextEffect.bgBlockFadeCurve,
+            ...incoming.jokerSettleTextEffect.bgBlockFadeCurve,
+            p1: { ...(merged.jokerSettleTextEffect.bgBlockFadeCurve?.p1 ?? {}), ...(incoming.jokerSettleTextEffect.bgBlockFadeCurve.p1 ?? {}) },
+            p2: { ...(merged.jokerSettleTextEffect.bgBlockFadeCurve?.p2 ?? {}), ...(incoming.jokerSettleTextEffect.bgBlockFadeCurve.p2 ?? {}) },
+          }
+        : merged.jokerSettleTextEffect.bgBlockFadeCurve,
+      bgBlockScaleCurve: incoming.jokerSettleTextEffect.bgBlockScaleCurve
+        ? {
+            ...merged.jokerSettleTextEffect.bgBlockScaleCurve,
+            ...incoming.jokerSettleTextEffect.bgBlockScaleCurve,
+            p1: { ...(merged.jokerSettleTextEffect.bgBlockScaleCurve?.p1 ?? {}), ...(incoming.jokerSettleTextEffect.bgBlockScaleCurve.p1 ?? {}) },
+            p2: { ...(merged.jokerSettleTextEffect.bgBlockScaleCurve?.p2 ?? {}), ...(incoming.jokerSettleTextEffect.bgBlockScaleCurve.p2 ?? {}) },
+          }
+        : merged.jokerSettleTextEffect.bgBlockScaleCurve,
+    };
+  }
   if (incoming.cardVisuals) {
     merged.cardVisuals = {
       ...merged.cardVisuals,
@@ -2158,6 +2335,8 @@ export function applyConfig(source: unknown): void {
   CONFIG.playPileLiftEffect = merged.playPileLiftEffect;
   CONFIG.playPileSettleEffect = merged.playPileSettleEffect;
   CONFIG.playPileSettleTextEffect = merged.playPileSettleTextEffect;
+  CONFIG.jokerSettleEffect = merged.jokerSettleEffect;
+  CONFIG.jokerSettleTextEffect = merged.jokerSettleTextEffect;
   CONFIG.cardVisuals = merged.cardVisuals;
   CONFIG.playPile = merged.playPile;
   CONFIG.scoreCurve = merged.scoreCurve;
@@ -2385,6 +2564,34 @@ export function applyShippingDefaults(source: unknown): void {
             p2: { ...(activeDefaultConfig.playPileSettleTextEffect.bgBlockScaleCurve?.p2 ?? {}), ...(incoming.playPileSettleTextEffect.bgBlockScaleCurve.p2 ?? {}) },
           }
         : activeDefaultConfig.playPileSettleTextEffect.bgBlockScaleCurve,
+    };
+  }
+  if (incoming.jokerSettleEffect) {
+    activeDefaultConfig.jokerSettleEffect = {
+      ...activeDefaultConfig.jokerSettleEffect,
+      ...incoming.jokerSettleEffect,
+    };
+  }
+  if (incoming.jokerSettleTextEffect) {
+    activeDefaultConfig.jokerSettleTextEffect = {
+      ...activeDefaultConfig.jokerSettleTextEffect,
+      ...incoming.jokerSettleTextEffect,
+      bgBlockFadeCurve: incoming.jokerSettleTextEffect.bgBlockFadeCurve
+        ? {
+            ...activeDefaultConfig.jokerSettleTextEffect.bgBlockFadeCurve,
+            ...incoming.jokerSettleTextEffect.bgBlockFadeCurve,
+            p1: { ...(activeDefaultConfig.jokerSettleTextEffect.bgBlockFadeCurve?.p1 ?? {}), ...(incoming.jokerSettleTextEffect.bgBlockFadeCurve.p1 ?? {}) },
+            p2: { ...(activeDefaultConfig.jokerSettleTextEffect.bgBlockFadeCurve?.p2 ?? {}), ...(incoming.jokerSettleTextEffect.bgBlockFadeCurve.p2 ?? {}) },
+          }
+        : activeDefaultConfig.jokerSettleTextEffect.bgBlockFadeCurve,
+      bgBlockScaleCurve: incoming.jokerSettleTextEffect.bgBlockScaleCurve
+        ? {
+            ...activeDefaultConfig.jokerSettleTextEffect.bgBlockScaleCurve,
+            ...incoming.jokerSettleTextEffect.bgBlockScaleCurve,
+            p1: { ...(activeDefaultConfig.jokerSettleTextEffect.bgBlockScaleCurve?.p1 ?? {}), ...(incoming.jokerSettleTextEffect.bgBlockScaleCurve.p1 ?? {}) },
+            p2: { ...(activeDefaultConfig.jokerSettleTextEffect.bgBlockScaleCurve?.p2 ?? {}), ...(incoming.jokerSettleTextEffect.bgBlockScaleCurve.p2 ?? {}) },
+          }
+        : activeDefaultConfig.jokerSettleTextEffect.bgBlockScaleCurve,
     };
   }
   if (incoming.cardVisuals) {

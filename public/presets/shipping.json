@@ -352,6 +352,85 @@
       },
       "bgBlockEndScale": 0.45
     },
+    "jokerSettleEffect": {
+      "enabled": true,
+      "firstIntervalMS": 300,
+      "intervalReductionMS": 60,
+      "lastIntervalMS": 800,
+      "s1": 0.92,
+      "t1": 80,
+      "s2": 1.25,
+      "t2": 80,
+      "s3": 0.95,
+      "t3": 70,
+      "s4": 1.1,
+      "t4": 60,
+      "s5": 1,
+      "t5": 50,
+      "r1": 2,
+      "r2": -7,
+      "r3": 4.2,
+      "r4": -1.5
+    },
+    "jokerSettleTextEffect": {
+      "enabled": true,
+      "defaultMultBonus": 10,
+      "fontSize": 36,
+      "letterSpacing": -3.5,
+      "color": 16777215,
+      "offsetY": 100,
+      "firstCharDelayMS": 0,
+      "charIntervalMS": 120,
+      "charIntervalReductionMS": 20,
+      "charScaleDurationMS": 240,
+      "charMaxScale": 1.15,
+      "charStableScale": 1,
+      "swingPivotY": 100,
+      "swingMaxAngleDeg": 20,
+      "swingFrequency": 3,
+      "swingDamping": 4,
+      "swingDurationMS": 350,
+      "stayDurationMS": 550,
+      "fadeDurationMS": 350,
+      "shrinkAnchorY": 0.2,
+      "shadowEnabled": true,
+      "shadowColor": 0,
+      "shadowAlpha": 0.4,
+      "shadowDistance": 4,
+      "shadowAngleDeg": 90,
+      "shadowBlur": 0,
+      "bgBlockEnabled": true,
+      "bgBlockColor": 16724787,
+      "bgBlockInitAngleDeg": 34,
+      "bgBlockEndAngleDeg": 28,
+      "bgBlockDurationMS": 1200,
+      "bgBlockFadeCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 1,
+        "p1": {
+          "x": 0.42,
+          "y": 0
+        },
+        "p2": {
+          "x": 1,
+          "y": 1
+        }
+      },
+      "bgBlockScaleCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 0.5,
+        "p1": {
+          "x": 0.1,
+          "y": 0.85
+        },
+        "p2": {
+          "x": 0.604030299533696,
+          "y": 0.9924276380422041
+        }
+      }
+    },
     "cardMoveRotation": {
       "enabled": true,
       "showPivot": false,
@@ -388,16 +467,21 @@
         "drawFlip": false,
         "discard": false,
         "discardFlip": false,
-        "handSwap": true,
+        "handSwap": false,
         "handSort": false,
         "playHandSwap": false,
         "playPileDisplacement": false,
         "playCardMove": false,
         "playCardMoveControl": false,
         "playPileLiftEffect": false,
-        "playPileSettleEffect": false,
-        "playPileSettleText": false,
-        "playPileSettleBgBlock": false,
+        "playPileSettleEffect": true,
+        "playPileSettleText": true,
+        "playPileSettleBgBlock": true,
+        "jokerEffects": false,
+        "jokerLayout": true,
+        "jokerSettleEffect": true,
+        "jokerSettleText": true,
+        "jokerSettleBgBlock": false,
         "chipsBounce": false,
         "multBounce": false,
         "handNameBounce": false,
@@ -860,7 +944,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "60"
+              "text": "8223"
             }
           },
           {
@@ -1147,7 +1231,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "对子"
+              "text": "葫芦"
             }
           },
           {

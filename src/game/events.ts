@@ -27,7 +27,7 @@ export type GameEvents = {
   // 流程：play:start
   //   → 阶段 1+2：play:cardEjected（每张牌出发）× N → play:pileFormed（全部落定）
   //   → 阶段 3：play:lifted
-  //   → 阶段 4：play:settled（此时 totalScore 已经更新）
+  //   → 阶段 4：手牌结算（筹码）→ 小丑结算（倍率）→ play:settled（此时 totalScore 已经更新）
   //   → 阶段 5：play:discarded
   //   → play:end
   "play:start": { cards: readonly CardData[]; result: ScoreResult };
@@ -36,6 +36,9 @@ export type GameEvents = {
   "play:lifted": { views: readonly CardView[] };
   "play:settled": { result: ScoreResult; totalScore: number };
   "play:cardSettleTextTriggered": { card: CardView; chips: number };
+  /** 小丑结算：某张小丑触发倍率弹字瞬间（用于 HUD 倍率数字累加 + 弹弹动画）。 */
+  "play:jokerSettleTextTriggered": { card: CardView; mult: number };
+  "play:jokersSettled": { jokers: readonly CardView[]; totalMultBonus: number; result: ScoreResult };
   "play:discarded": { cards: readonly CardData[] };
   "play:end": { result: ScoreResult; totalScore: number };
 };

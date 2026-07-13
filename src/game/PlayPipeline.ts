@@ -21,14 +21,15 @@ import type { GameEvents } from "./events";
  *   - 不直接访问 GameController 的内部状态，所有依赖都通过构造参数注入；
  *     这使 PlayPipeline 易于单测，也避免循环依赖。
  *
- * 5 阶段对应需求：
+ * 阶段对应需求：
  *   1. 逐张出牌：选中牌按 handIndex 从左到右依次飞往出牌堆槽位，错开发车；
  *                每张牌发车前调一次 layoutHand({force:true}) 让剩余手牌挤位。
  *   2. 出牌堆排布：第一张居中（n=1 时），多张时整堆中位对齐手牌堆中位；
  *                  每张牌落位时按位置插值得到不同过冲幅度（首尾大、中间小）。
  *   3. 整堆上抬：所有牌落定后一起向上一次过冲（钩子：未来抬阴影）。
- *   4. 结算：内缩 → 过大弹两次（钩子：每次弹瞬间触发"+xxx"爆字 + 加分到 totalScore）。
- *   5. 下移 + 丢牌：整堆下移收阴影 → 从左到右逐张飞出。
+ *   4a. 手牌结算：逐张弹性震荡 + 筹码弹字（蓝色背景方块）。
+ *   4b. 小丑结算：顶部小丑逐张弹性震荡 + 倍率弹字（红色背景方块，默认 +10）；无上下移。
+ *   5. 下移 + 预期分迁移 + 丢牌：整堆下移 → 分数迁移 → 从左到右逐张飞出。
  */
 export interface PlayPipelineDeps {
   tween: TweenManager;
@@ -49,6 +50,11 @@ export interface PlayPipelineDeps {
    * 调用时机：阶段 1 内每张牌发车的瞬间——这样剩余手牌能立刻挤位填空。
    */
   removeFromHand: (view: CardView) => void;
+  /**
+   * 读取当前顶部小丑列表（从左到右顺序）。
+   * 小丑结算阶段会按此顺序逐张触发倍率结算视效。
+   */
+  getJokers?: () => readonly CardView[];
   /**
    * 分数迁移效果。在整堆卡牌下移后、飞往弃牌堆前，将预期分数迁移到回合分上。
    */
@@ -261,11 +267,8 @@ export class PlayPipeline {
     }
     bus.emit("play:lifted", { views: selected });
 
-    // ── 阶段 4：结算（内缩 + 过大弹） ─────────────────────────
-    // 实际加分发生在结算"开始"时——视觉过程中分数已经在 HUD 上变化，
-    // 配合未来的"逐牌爆字"会更顺：开始算 → 一张张爆 → 总分跳完。
-    const totalScore = this.deps.applyScore(result);
-    
+    // ── 阶段 4a：手牌结算（内缩 + 过大弹 / 逐张弹性 + 筹码弹字） ──
+    // 注意：最终入账延后到小丑结算之后（倍率可能被小丑修改）。
     const settleEffectCfg = CONFIG.playPileSettleEffect;
     if (settleEffectCfg && settleEffectCfg.enabled) {
       const scoringCards = result.scoringCards ?? [];
@@ -305,7 +308,63 @@ export class PlayPipeline {
         bounceDurationMS: cfg.bounceDurationMS,
       });
     }
-    bus.emit("play:settled", { result, totalScore });
+
+    // ── 阶段 4b：小丑牌结算（不上下移，直接原地结算倍率） ────
+    // 与手牌结算视效同构（弹性震荡 + 逐字弹字 + 背景方块），区别：
+    //   1) 小丑不抬升/下移；
+    //   2) 增加倍率而非筹码；
+    //   3) 文字默认 "+10"，背景小方块默认红色。
+    let finalResult: ScoreResult = {
+      ...result,
+      scoringCards: result.scoringCards,
+    };
+    let totalJokerMultBonus = 0;
+    const jokerSettleCfg = CONFIG.jokerSettleEffect;
+    const jokers = this.deps.getJokers?.() ?? [];
+    if (jokerSettleCfg && jokerSettleCfg.enabled && jokers.length > 0) {
+      const textCfg = CONFIG.jokerSettleTextEffect;
+      const multBonus = Math.max(0, textCfg?.defaultMultBonus ?? 10);
+
+      for (let i = 0; i < jokers.length; i++) {
+        const joker = jokers[i]!;
+
+        await PlayPileFx.animateCardSettle(this.deps.tween, joker, jokerSettleCfg, () => {
+          if (textCfg && textCfg.enabled && joker.parent) {
+            TextFx.createSettleText(joker.parent, this.deps.tween, joker, multBonus, textCfg);
+          }
+          bus.emit("play:jokerSettleTextTriggered", { card: joker, mult: multBonus });
+        });
+
+        totalJokerMultBonus += multBonus;
+
+        let interval = jokerSettleCfg.firstIntervalMS - i * jokerSettleCfg.intervalReductionMS;
+        interval = Math.max(0, interval);
+        if (i === jokers.length - 1) {
+          interval = jokerSettleCfg.lastIntervalMS;
+        }
+        if (interval > 0) {
+          await sleep(interval);
+        }
+      }
+
+      // 倍率入账后重算最终得分：totalChips × (手牌倍率 + 小丑倍率加成)
+      const finalMult = result.mult + totalJokerMultBonus;
+      finalResult = {
+        ...result,
+        mult: finalMult,
+        score: result.totalChips * finalMult,
+        scoringCards: result.scoringCards,
+      };
+      bus.emit("play:jokersSettled", {
+        jokers,
+        totalMultBonus: totalJokerMultBonus,
+        result: finalResult,
+      });
+    }
+
+    // 手牌 + 小丑结算全部完成后，才把最终分数写入 totalScore。
+    const totalScore = this.deps.applyScore(finalResult);
+    bus.emit("play:settled", { result: finalResult, totalScore });
 
     // ── 阶段 5：下移 + 丢牌 ──────────────────────────────────
     // 5a: 整堆下移（与阶段 3 对称，回到出牌堆基线 y）。
@@ -342,9 +401,9 @@ export class PlayPipeline {
       );
     }
 
-    // ====== 新增：在卡牌下移后、飞出前，间隔一段时间后，同时刻触发结算，并进行分数迁移 ======
+    // ====== 在卡牌下移后、飞出前：预期分迁移（使用含小丑倍率的最终 result） ======
     if (this.deps.animateScoreTransfer) {
-      await this.deps.animateScoreTransfer(result);
+      await this.deps.animateScoreTransfer(finalResult);
     }
 
     // 5b: 从左到右逐张丢弃到弃牌堆。每张错开「弃牌时间间隔」。
@@ -425,7 +484,7 @@ export class PlayPipeline {
     }
 
     bus.emit("play:discarded", { cards: selected.map((v) => v.data) });
-    bus.emit("play:end", { result, totalScore });
+    bus.emit("play:end", { result: finalResult, totalScore });
 
     return { totalScore, views: selected };
   }
