@@ -1,6 +1,6 @@
 {
   "type": "runtime-control-preset",
-  "version": 3,
+  "version": 4,
   "name": "shipping",
   "config": {
     "world": {
@@ -202,9 +202,19 @@
     },
     "handSwap": {
       "enabled": true,
-      "riseDurationMS": 60,
-      "springDurationMS": 50,
+      "riseDurationMS": 70,
+      "springDurationMS": 170,
       "overshootPx": 28
+    },
+    "handSort": {
+      "enabled": true,
+      "riseDurationMS": 60,
+      "springDurationMS": 110,
+      "overshootPx": 31,
+      "refDistancePx": 65,
+      "durationPower": 0.8,
+      "minRiseDurationMS": 60,
+      "maxRiseDurationMS": 120
     },
     "playHandSwap": {
       "enabled": true,
@@ -379,11 +389,12 @@
         "discard": false,
         "discardFlip": false,
         "handSwap": false,
+        "handSort": false,
         "playHandSwap": false,
         "playPileDisplacement": false,
         "playCardMove": false,
         "playCardMoveControl": false,
-        "playPileLiftEffect": true,
+        "playPileLiftEffect": false,
         "playPileSettleEffect": false,
         "playPileSettleText": false,
         "playPileSettleBgBlock": false,
@@ -391,27 +402,17 @@
         "multBounce": false,
         "handNameBounce": false,
         "evalScoreBounce": false,
-        "evalScoreText": true,
+        "evalScoreText": false,
         "mouseOffset": true
       },
       "selectMoveEnabled": true,
       "selectRiseY": 26,
-      "selectMoveDurationMS": 100,
-      "selectMoveCurve": {
-        "enabled": true,
-        "startScale": 0,
-        "endScale": 1,
-        "p1": {
-          "x": 0.18,
-          "y": 0.85
-        },
-        "p2": {
-          "x": 0.32,
-          "y": 1
-        }
-      },
-      "selectMoveOvershoot": 6,
-      "selectMoveStiffness": 43,
+      "selectMoveStartSpeed": 800,
+      "selectMoveOvershoot": 7,
+      "selectMoveStiffness": 8,
+      "selectFallStartSpeed": 1040,
+      "selectFallOvershoot": 7,
+      "selectFallStiffness": 8,
       "breathingEnabled": true,
       "breathingSpeed": 0.003,
       "breathingAmplitude": 0.4,
@@ -492,6 +493,20 @@
           "x": 0.58,
           "y": 1
         }
+      },
+      "selectMoveDurationMS": 100,
+      "selectMoveCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 1,
+        "p1": {
+          "x": 0.18,
+          "y": 0.85
+        },
+        "p2": {
+          "x": 0.32,
+          "y": 1
+        }
       }
     },
     "playPile": {
@@ -569,6 +584,20 @@
       "decreaseDurationMS": 500,
       "stayDurationMS": 800
     },
+    "joker": {
+      "slotCount": 5,
+      "cardSpacing": 120,
+      "baseY": 90,
+      "effects": {
+        "shadow": true,
+        "breathing": true,
+        "idleTilt": true,
+        "hoverHit": true,
+        "hoverScale": true,
+        "hoverBreathing": true,
+        "mouse3DTilt": true
+      }
+    },
     "uiNodes": {
       "hud.leftPanel.background": {
         "parentId": "hud.leftPanel",
@@ -641,11 +670,11 @@
           {
             "type": "transform",
             "data": {
-              "x": 108,
-              "y": 32,
+              "x": 120,
+              "y": 30,
               "rotation": 0,
-              "scaleX": 0.9999999999999998,
-              "scaleY": 0.9999999999999998
+              "scaleX": 1,
+              "scaleY": 1
             }
           },
           {
@@ -653,47 +682,6 @@
             "data": {
               "text": "至少得分"
             }
-          },
-          {
-            "type": "shadow",
-            "data": {
-              "color": "#000000",
-              "alpha": 0.5,
-              "angle": 45,
-              "distance": 4,
-              "scaleX": 1,
-              "scaleY": 1,
-              "skewX": 0,
-              "skewY": 0
-            }
-          },
-          {
-            "type": "breathingText",
-            "data": {
-              "enabled": true,
-              "stagger": 470,
-              "cycle": 2000,
-              "loopGap": 900,
-              "amplitudeMin": 0,
-              "amplitudeMax": -6,
-              "curve": {
-                "enabled": true,
-                "startScale": 0,
-                "endScale": 1,
-                "p1": {
-                  "x": 0,
-                  "y": 0
-                },
-                "p2": {
-                  "x": 0.58,
-                  "y": 1
-                }
-              }
-            }
-          },
-          {
-            "type": "charLayer",
-            "data": {}
           }
         ]
       },
@@ -704,11 +692,11 @@
           {
             "type": "transform",
             "data": {
-              "x": 114,
-              "y": 59,
+              "x": 120,
+              "y": 55,
               "rotation": 0,
-              "scaleX": 0.9999999999999998,
-              "scaleY": 0.9999999999999998
+              "scaleX": 1,
+              "scaleY": 1
             }
           },
           {
@@ -716,47 +704,6 @@
             "data": {
               "text": "450"
             }
-          },
-          {
-            "type": "shadow",
-            "data": {
-              "color": "#000000",
-              "alpha": 0.4,
-              "angle": 45,
-              "distance": 4,
-              "scaleX": 1,
-              "scaleY": 1,
-              "skewX": 0,
-              "skewY": 0
-            }
-          },
-          {
-            "type": "breathingText",
-            "data": {
-              "enabled": true,
-              "stagger": 80,
-              "cycle": 700,
-              "loopGap": 750,
-              "amplitudeMin": 0,
-              "amplitudeMax": -8,
-              "curve": {
-                "enabled": true,
-                "startScale": 0,
-                "endScale": 1,
-                "p1": {
-                  "x": 0,
-                  "y": 0
-                },
-                "p2": {
-                  "x": 0.58,
-                  "y": 1
-                }
-              }
-            }
-          },
-          {
-            "type": "charLayer",
-            "data": {}
           }
         ]
       },
@@ -783,8 +730,8 @@
           {
             "type": "transform",
             "data": {
-              "x": 18,
-              "y": 131,
+              "x": 20,
+              "y": 140,
               "rotation": 0,
               "scaleX": 1,
               "scaleY": 1
@@ -793,17 +740,17 @@
         ]
       },
       "hud.scorePanel.scoreLabel": {
-        "parentId": "hud.scorePanel.roundScorePanel",
-        "siblingIndex": 1,
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 4,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 12,
-              "y": 21,
+              "x": 30,
+              "y": 150,
               "rotation": 0,
-              "scaleX": 0.9999999999999996,
-              "scaleY": 0.9999999999999996
+              "scaleX": 1,
+              "scaleY": 1
             }
           },
           {
@@ -815,65 +762,24 @@
         ]
       },
       "hud.scorePanel.scoreText": {
-        "parentId": "hud.scorePanel.roundScorePanel",
-        "siblingIndex": 2,
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 5,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 164,
-              "y": 7.99999999999997,
+              "x": 240,
+              "y": 150,
               "rotation": 0,
-              "scaleX": 0.9999999999999996,
-              "scaleY": 0.9999999999999996
+              "scaleX": 1,
+              "scaleY": 1
             }
           },
           {
             "type": "textStyle",
             "data": {
-              "text": "352"
+              "text": "0"
             }
-          },
-          {
-            "type": "shadow",
-            "data": {
-              "color": "#000000",
-              "alpha": 0.4,
-              "angle": 45,
-              "distance": 4,
-              "scaleX": 1,
-              "scaleY": 1,
-              "skewX": 0,
-              "skewY": 0
-            }
-          },
-          {
-            "type": "breathingText",
-            "data": {
-              "enabled": true,
-              "stagger": 80,
-              "cycle": 700,
-              "loopGap": 200,
-              "amplitudeMin": 0,
-              "amplitudeMax": -4,
-              "curve": {
-                "enabled": true,
-                "startScale": 0,
-                "endScale": 1,
-                "p1": {
-                  "x": 0,
-                  "y": 0
-                },
-                "p2": {
-                  "x": 0.58,
-                  "y": 1
-                }
-              }
-            }
-          },
-          {
-            "type": "charLayer",
-            "data": {}
           }
         ]
       },
@@ -884,75 +790,75 @@
           {
             "type": "transform",
             "data": {
-              "x": -19,
-              "y": -356,
+              "x": 0,
+              "y": 0,
               "rotation": 0,
               "scaleX": 1,
-              "scaleY": 2.02
+              "scaleY": 1
             }
           }
         ]
       },
       "hud.scorePanel.chipMultPanel": {
         "parentId": "hud.scorePanel",
-        "siblingIndex": 5,
+        "siblingIndex": 6,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 37,
-              "y": 565,
+              "x": 20,
+              "y": 220,
               "rotation": 0,
-              "scaleX": 0.9999999999999996,
-              "scaleY": 0.9999999999999996
+              "scaleX": 1,
+              "scaleY": 1
             }
           }
         ]
       },
       "hud.scorePanel.chipBg": {
-        "parentId": "hud.scorePanel.chipMultPanel",
-        "siblingIndex": 1,
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 7,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": -10.000000000000002,
-              "y": -267.00000000000017,
+              "x": 30,
+              "y": 230,
               "rotation": 0,
-              "scaleX": 1.0000000000000002,
-              "scaleY": 1.0000000000000002
+              "scaleX": 1,
+              "scaleY": 1
             }
           }
         ]
       },
       "hud.scorePanel.multBg": {
-        "parentId": "hud.scorePanel.chipMultPanel",
-        "siblingIndex": 2,
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 8,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 115.00000000000003,
-              "y": -267.00000000000017,
+              "x": 155,
+              "y": 230,
               "rotation": 0,
-              "scaleX": 1.0000000000000002,
-              "scaleY": 1.0000000000000002
+              "scaleX": 1,
+              "scaleY": 1
             }
           }
         ]
       },
       "hud.scorePanel.chipsText": {
-        "parentId": "hud.scorePanel.chipMultPanel",
-        "siblingIndex": 3,
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 9,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 37.50000000000001,
-              "y": -237.00000000000017,
+              "x": 77.5,
+              "y": 260,
               "rotation": 0,
-              "scaleX": 1.4000000000000004,
-              "scaleY": 1.4000000000000004
+              "scaleX": 1,
+              "scaleY": 1
             }
           },
           {
@@ -970,58 +876,21 @@
           {
             "type": "charLayer",
             "data": {}
-          },
-          {
-            "type": "shadow",
-            "data": {
-              "color": "#000000",
-              "alpha": 0.4,
-              "angle": 45,
-              "distance": 4,
-              "scaleX": 1,
-              "scaleY": 1,
-              "skewX": 0,
-              "skewY": 0
-            }
-          },
-          {
-            "type": "breathingText",
-            "data": {
-              "enabled": true,
-              "stagger": 580,
-              "cycle": 4000,
-              "loopGap": 0,
-              "amplitudeMin": 2,
-              "amplitudeMax": -2,
-              "curve": {
-                "enabled": true,
-                "startScale": 0,
-                "endScale": 1,
-                "p1": {
-                  "x": 0,
-                  "y": 0
-                },
-                "p2": {
-                  "x": 0.58,
-                  "y": 1
-                }
-              }
-            }
           }
         ]
       },
       "hud.scorePanel.xLabel": {
-        "parentId": "hud.scorePanel.chipMultPanel",
-        "siblingIndex": 4,
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 10,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 100.00000000000001,
-              "y": -237.00000000000017,
+              "x": 140,
+              "y": 260,
               "rotation": 0,
-              "scaleX": 1.0000000000000002,
-              "scaleY": 1.0000000000000002
+              "scaleX": 1,
+              "scaleY": 1
             }
           },
           {
@@ -1033,17 +902,17 @@
         ]
       },
       "hud.scorePanel.multText": {
-        "parentId": "hud.scorePanel.chipMultPanel",
-        "siblingIndex": 5,
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 11,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 162.50000000000003,
-              "y": -237.00000000000017,
+              "x": 202.5,
+              "y": 260,
               "rotation": 0,
-              "scaleX": 1.4000000000000004,
-              "scaleY": 1.4000000000000004
+              "scaleX": 1,
+              "scaleY": 1
             }
           },
           {
@@ -1061,64 +930,27 @@
           {
             "type": "charLayer",
             "data": {}
-          },
-          {
-            "type": "shadow",
-            "data": {
-              "color": "#000000",
-              "alpha": 0.4,
-              "angle": 45,
-              "distance": 4,
-              "scaleX": 1,
-              "scaleY": 1,
-              "skewX": 0,
-              "skewY": 0
-            }
-          },
-          {
-            "type": "breathingText",
-            "data": {
-              "enabled": true,
-              "stagger": 580,
-              "cycle": 4000,
-              "loopGap": 0,
-              "amplitudeMin": 2,
-              "amplitudeMax": -2,
-              "curve": {
-                "enabled": true,
-                "startScale": 0,
-                "endScale": 1,
-                "p1": {
-                  "x": 0,
-                  "y": 0
-                },
-                "p2": {
-                  "x": 0.58,
-                  "y": 1
-                }
-              }
-            }
           }
         ]
       },
       "hud.scorePanel.handNameText": {
         "parentId": "hud.scorePanel",
-        "siblingIndex": 6,
+        "siblingIndex": 12,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 103,
-              "y": 232,
+              "x": 30,
+              "y": 310,
               "rotation": 0,
-              "scaleX": 2,
-              "scaleY": 2
+              "scaleX": 1,
+              "scaleY": 1
             }
           },
           {
             "type": "textStyle",
             "data": {
-              "text": "两对"
+              "text": "高牌"
             }
           },
           {
@@ -1130,64 +962,27 @@
           {
             "type": "charLayer",
             "data": {}
-          },
-          {
-            "type": "breathingText",
-            "data": {
-              "enabled": true,
-              "stagger": 410,
-              "cycle": 2100,
-              "loopGap": 0,
-              "amplitudeMin": 1,
-              "amplitudeMax": -1,
-              "curve": {
-                "enabled": true,
-                "startScale": 0,
-                "endScale": 1,
-                "p1": {
-                  "x": 0,
-                  "y": 0
-                },
-                "p2": {
-                  "x": 0.58,
-                  "y": 1
-                }
-              }
-            }
-          },
-          {
-            "type": "shadow",
-            "data": {
-              "color": "#000000",
-              "alpha": 1,
-              "angle": 44,
-              "distance": 2,
-              "scaleX": 1,
-              "scaleY": 1,
-              "skewX": 0,
-              "skewY": 0
-            }
           }
         ]
       },
       "hud.scorePanel.evalScoreText": {
         "parentId": "hud.scorePanel",
-        "siblingIndex": 7,
+        "siblingIndex": 13,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 121,
-              "y": 217,
+              "x": 30,
+              "y": 340,
               "rotation": 0,
-              "scaleX": 3,
-              "scaleY": 3
+              "scaleX": 1,
+              "scaleY": 1
             }
           },
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "15"
             }
           },
           {
@@ -1220,12 +1015,12 @@
       },
       "hud.scorePanel.infoPanel": {
         "parentId": "hud.scorePanel",
-        "siblingIndex": 4,
+        "siblingIndex": 14,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 60,
+              "x": 110,
               "y": 380,
               "rotation": 0,
               "scaleX": 1,
@@ -1235,17 +1030,17 @@
         ]
       },
       "hud.scorePanel.playLabel": {
-        "parentId": "hud.scorePanel.infoPanel",
-        "siblingIndex": 1,
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 15,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 19.999999999999986,
-              "y": 4.999999999999886,
+              "x": 130,
+              "y": 385,
               "rotation": 0,
-              "scaleX": 0.9999999999999998,
-              "scaleY": 0.9999999999999998
+              "scaleX": 1,
+              "scaleY": 1
             }
           },
           {
@@ -1257,52 +1052,39 @@
         ]
       },
       "hud.scorePanel.playsText": {
-        "parentId": "hud.scorePanel.infoPanel",
-        "siblingIndex": 2,
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 16,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 24.999999999999986,
-              "y": 29.999999999999943,
+              "x": 135,
+              "y": 410,
               "rotation": 0,
-              "scaleX": 0.9999999999999998,
-              "scaleY": 0.9999999999999998
+              "scaleX": 1,
+              "scaleY": 1
             }
           },
           {
             "type": "textStyle",
             "data": {
-              "text": "3"
-            }
-          },
-          {
-            "type": "shadow",
-            "data": {
-              "color": "#000000",
-              "alpha": 0.5,
-              "angle": 45,
-              "distance": 4,
-              "scaleX": 1,
-              "scaleY": 1,
-              "skewX": 0,
-              "skewY": 0
+              "text": "4"
             }
           }
         ]
       },
       "hud.scorePanel.discardLabel": {
-        "parentId": "hud.scorePanel.infoPanel",
-        "siblingIndex": 3,
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 17,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 94.99999999999999,
-              "y": 4.999999999999886,
+              "x": 205,
+              "y": 385,
               "rotation": 0,
-              "scaleX": 0.9999999999999998,
-              "scaleY": 0.9999999999999998
+              "scaleX": 1,
+              "scaleY": 1
             }
           },
           {
@@ -1314,42 +1096,29 @@
         ]
       },
       "hud.scorePanel.discardsText": {
-        "parentId": "hud.scorePanel.infoPanel",
-        "siblingIndex": 4,
+        "parentId": "hud.scorePanel",
+        "siblingIndex": 18,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 99.99999999999999,
-              "y": 29.999999999999943,
+              "x": 210,
+              "y": 410,
               "rotation": 0,
-              "scaleX": 0.9999999999999998,
-              "scaleY": 0.9999999999999998
+              "scaleX": 1,
+              "scaleY": 1
             }
           },
           {
             "type": "textStyle",
             "data": {
-              "text": "2"
-            }
-          },
-          {
-            "type": "shadow",
-            "data": {
-              "color": "#000000",
-              "alpha": 0.5,
-              "angle": 45,
-              "distance": 4,
-              "scaleX": 1,
-              "scaleY": 1,
-              "skewX": 0,
-              "skewY": 0
+              "text": "3"
             }
           }
         ]
       },
       "hud.scorePanel": {
-        "parentId": "hud.leftPanel",
+        "parentId": "hud",
         "siblingIndex": 1,
         "components": [
           {
@@ -1404,29 +1173,16 @@
       },
       "hud.playBtn": {
         "parentId": "hud",
-        "siblingIndex": 1,
+        "siblingIndex": 2,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 620,
-              "y": 610,
+              "x": 540,
+              "y": 600,
               "rotation": 0,
               "scaleX": 1,
               "scaleY": 1
-            }
-          },
-          {
-            "type": "shadow",
-            "data": {
-              "color": "#000000",
-              "alpha": 0.5,
-              "angle": 90,
-              "distance": 4,
-              "scaleX": 1,
-              "scaleY": 1,
-              "skewX": 0,
-              "skewY": 0
             }
           }
         ]
@@ -1471,29 +1227,124 @@
       },
       "hud.discardBtn": {
         "parentId": "hud",
-        "siblingIndex": 2,
+        "siblingIndex": 3,
         "components": [
           {
             "type": "transform",
             "data": {
-              "x": 800,
-              "y": 610,
+              "x": 700,
+              "y": 600,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.sortRankBtn.background": {
+        "parentId": "hud.sortRankBtn",
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 0,
+              "y": 0,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.sortRankBtn.label": {
+        "parentId": "hud.sortRankBtn",
+        "siblingIndex": 1,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 70,
+              "y": 20,
               "rotation": 0,
               "scaleX": 1,
               "scaleY": 1
             }
           },
           {
-            "type": "shadow",
+            "type": "textStyle",
             "data": {
-              "color": "#000000",
-              "alpha": 0.5,
-              "angle": 90,
-              "distance": 4,
+              "text": "点数"
+            }
+          }
+        ]
+      },
+      "hud.sortRankBtn": {
+        "parentId": "hud",
+        "siblingIndex": 4,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 540,
+              "y": 700,
+              "rotation": 0,
               "scaleX": 1,
-              "scaleY": 1,
-              "skewX": 0,
-              "skewY": 0
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.sortSuitBtn.background": {
+        "parentId": "hud.sortSuitBtn",
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 0,
+              "y": 0,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.sortSuitBtn.label": {
+        "parentId": "hud.sortSuitBtn",
+        "siblingIndex": 1,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 70,
+              "y": 20,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          },
+          {
+            "type": "textStyle",
+            "data": {
+              "text": "花色"
+            }
+          }
+        ]
+      },
+      "hud.sortSuitBtn": {
+        "parentId": "hud",
+        "siblingIndex": 5,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 700,
+              "y": 700,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
             }
           }
         ]
@@ -1528,10 +1379,10 @@
             "type": "transform",
             "data": {
               "x": 1160,
-              "y": 539.9999999999999,
+              "y": 540,
               "rotation": 0,
-              "scaleX": 0.9999999999999998,
-              "scaleY": 0.9999999999999998
+              "scaleX": 0.9999999999999999,
+              "scaleY": 0.9999999999999999
             }
           }
         ]

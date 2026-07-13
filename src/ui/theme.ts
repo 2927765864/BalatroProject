@@ -18,6 +18,10 @@ export const Theme = {
     redMult: 0xff3333,
     playBtn: 0x0088ff,
     discardBtn: 0xff3333,
+    /** 理牌「点数」按钮 */
+    sortRankBtn: 0x6b5ce7,
+    /** 理牌「花色」按钮 */
+    sortSuitBtn: 0xd47b2f,
     btnIdle: 0x444444,
     textWhite: 0xffffff,
     textSubtle: 0xaaaaaa,

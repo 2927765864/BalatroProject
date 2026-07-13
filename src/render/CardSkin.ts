@@ -64,6 +64,16 @@ export const CardAtlas = {
     defaultRow: 2,
     defaultCol: 0,
   },
+  /**
+   * 小丑牌图集：Jokers.png = 710×1520，按 10 列 × 16 行切片，每格 71×95
+   *（与 8BitDeck 单格尺寸一致，便于直接铺到 CardSkin 100×140 显示尺寸）。
+   * 索引：row-major，index = row * cols + col，左上角为 0。
+   */
+  joker: {
+    src: "../../resources/textures/Jokers.png",
+    cols: 10,
+    rows: 16,
+  },
 } as const;
 
 export type CardAtlasType = typeof CardAtlas;

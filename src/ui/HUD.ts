@@ -27,6 +27,10 @@ export interface HUDOptions {
   discards: number;
   onPlay: () => void;
   onDiscard: () => void;
+  /** 按点数理牌 */
+  onSortByRank: () => void;
+  /** 按花色理牌 */
+  onSortBySuit: () => void;
 }
 
 export class HUD extends UINode {
@@ -34,6 +38,8 @@ export class HUD extends UINode {
   readonly scorePanel: ScorePanel;
   readonly playBtn: Button;
   readonly discardBtn: Button;
+  readonly sortRankBtn: Button;
+  readonly sortSuitBtn: Button;
   readonly deckView: DeckView;
 
   private readonly worldWidth: number;
@@ -69,7 +75,7 @@ export class HUD extends UINode {
     this.scorePanel = new ScorePanel(opts.targetScore, opts.plays, opts.discards);
     this.addChild(this.scorePanel);
 
-    // 底部按钮
+    // 底部按钮：出牌 / 弃牌
     this.playBtn = new Button({
       id: "hud.playBtn",
       displayName: "出牌按钮",
@@ -91,6 +97,29 @@ export class HUD extends UINode {
       onClick: opts.onDiscard,
     });
     this.addChild(this.discardBtn);
+
+    // 理牌按钮：点数 / 花色（位于出牌、弃牌正下方）
+    this.sortRankBtn = new Button({
+      id: "hud.sortRankBtn",
+      displayName: "点数理牌按钮",
+      text: "点数",
+      width: 140,
+      height: 40,
+      activeColor: Theme.colors.sortRankBtn,
+      onClick: opts.onSortByRank,
+    });
+    this.addChild(this.sortRankBtn);
+
+    this.sortSuitBtn = new Button({
+      id: "hud.sortSuitBtn",
+      displayName: "花色理牌按钮",
+      text: "花色",
+      width: 140,
+      height: 40,
+      activeColor: Theme.colors.sortSuitBtn,
+      onClick: opts.onSortBySuit,
+    });
+    this.addChild(this.sortSuitBtn);
 
     // 牌堆
     this.deckView = new DeckView(52);
@@ -125,6 +154,13 @@ export class HUD extends UINode {
     this._mode = mode;
     const { worldWidth, worldHeight } = this;
 
+    // 主按钮 60h + 间距 8 + 理牌按钮 40h → 底部区域总高约 108。
+    // 主按钮顶边放在 worldHeight - 120，理牌按钮顶边 = 主按钮底 + 8。
+    const mainBtnH = 60;
+    const btnGap = 8;
+    const mainBtnY = worldHeight - 120;
+    const sortBtnY = mainBtnY + mainBtnH + btnGap;
+
     if (mode === "minimal") {
       // 隐藏完整 UI 部件
       this.leftPanel.visible = false;
@@ -132,10 +168,11 @@ export class HUD extends UINode {
 
       // 按钮居中：以屏幕宽度的中线为中心，左右对称排布。
       const centerX = worldWidth / 2;
-      const bottomY = worldHeight - 80;
       // 两个 140×60 按钮，中间留 40px 间距 → 总宽 320，左右各偏 160。
-      this.playBtn.position.set(centerX - 160, bottomY - 30);
-      this.discardBtn.position.set(centerX + 20, bottomY - 30);
+      this.playBtn.position.set(centerX - 160, mainBtnY);
+      this.discardBtn.position.set(centerX + 20, mainBtnY);
+      this.sortRankBtn.position.set(centerX - 160, sortBtnY);
+      this.sortSuitBtn.position.set(centerX + 20, sortBtnY);
 
       // 手牌区域：避开右下角牌堆所在水平区间，整体围绕屏幕水平中线居中。
       // 牌堆位于 (worldWidth-120, worldHeight-180)，半宽 ≈ 60，
@@ -149,9 +186,10 @@ export class HUD extends UINode {
       this.scorePanel.visible = true;
 
       const playAreaCenterX = this.sidebarWidth + (worldWidth - this.sidebarWidth) / 2;
-      const bottomY = worldHeight - 80;
-      this.playBtn.position.set(playAreaCenterX - 160, bottomY - 30);
-      this.discardBtn.position.set(playAreaCenterX + 20, bottomY - 30);
+      this.playBtn.position.set(playAreaCenterX - 160, mainBtnY);
+      this.discardBtn.position.set(playAreaCenterX + 20, mainBtnY);
+      this.sortRankBtn.position.set(playAreaCenterX - 160, sortBtnY);
+      this.sortSuitBtn.position.set(playAreaCenterX + 20, sortBtnY);
 
       this.handAreaLeft = this.sidebarWidth;
       this.handAreaRight = worldWidth - 40;

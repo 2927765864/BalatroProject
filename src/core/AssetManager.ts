@@ -2,11 +2,11 @@
  * 资源管理
  *
  * 当前职责：
- *   - 加载两张精灵图（卡牌正面 8BitDeck / 卡牌反面 Enhancers）
- *   - 按 CardAtlas 中声明的行列切成子纹理，并提供按 (rank, suit) / (row, col)
- *     的查询接口
+ *   - 加载三张精灵图（卡牌正面 8BitDeck / 卡牌反面 Enhancers / 小丑牌 Jokers）
+ *   - 按 CardAtlas 中声明的行列切成子纹理，并提供按 (rank, suit) / (row, col) /
+ *     jokerIndex 的查询接口
  *
- * 后续若再加图集（如小丑牌、特效），按同样的"加载 + 切片 + 索引"模式扩展即可。
+ * 后续若再加图集（如特效），按同样的"加载 + 切片 + 索引"模式扩展即可。
  *
  * 设计要点：
  *   - 切出的 Texture 共享同一个 source（GPU 上只上传一次贴图）。
@@ -29,6 +29,11 @@ const BACK_URL = new URL(
   import.meta.url,
 ).href;
 
+const JOKER_URL = new URL(
+  "../../resources/textures/Jokers.png",
+  import.meta.url,
+).href;
+
 const NUMBER_FONT_URL = new URL(
   "../../resources/fonts/m6x11plus.ttf",
   import.meta.url,
@@ -47,6 +52,7 @@ export interface BackKey {
 export class AssetManager {
   private readonly frontByCardKey = new Map<string, Texture>();
   private readonly backByKey = new Map<string, Texture>();
+  private readonly jokerByIndex = new Map<number, Texture>();
   private loaded = false;
 
   /** 是否已经成功加载贴图。CardView/DeckView 在渲染前用它判断是否走精灵图分支。 */
@@ -54,7 +60,7 @@ export class AssetManager {
     return this.loaded;
   }
 
-  /** 加载并切分两张精灵图。重复调用幂等。 */
+  /** 加载并切分精灵图。重复调用幂等。 */
   async loadAll(): Promise<void> {
     if (this.loaded) return;
 
@@ -71,17 +77,26 @@ export class AssetManager {
         },
       };
 
-      const [frontTex, backTex] = (await Promise.all([
+      const [frontTex, backTex, jokerTex] = (await Promise.all([
         Assets.load({ src: FRONT_URL, ...pixelLoadOpts }),
         Assets.load({ src: BACK_URL, ...pixelLoadOpts }),
-      ])) as [Texture, Texture];
+        Assets.load({ src: JOKER_URL, ...pixelLoadOpts }),
+      ])) as [Texture, Texture, Texture];
 
       // 双保险：有的 PIXI 版本会忽略 data，所以这里再强制写一次 source.scaleMode。
       this.applyPixelSampling(frontTex);
       this.applyPixelSampling(backTex);
+      this.applyPixelSampling(jokerTex);
+
+      // ImageSource 默认 autoGarbageCollect=true；即便 App 关了 GCSystem，
+      // 也显式关掉，防止图集 source 被意外 unload 后 batch BindGroup 悬空。
+      frontTex.source.autoGarbageCollect = false;
+      backTex.source.autoGarbageCollect = false;
+      jokerTex.source.autoGarbageCollect = false;
 
       this.sliceFront(frontTex);
       this.sliceBack(backTex);
+      this.sliceJokers(jokerTex);
 
       this.loaded = true;
     } catch (err) {
@@ -102,6 +117,19 @@ export class AssetManager {
     return this.backByKey.get(
       this.backKey(CardAtlas.back.defaultRow, CardAtlas.back.defaultCol),
     );
+  }
+
+  /**
+   * 拿一张小丑牌贴图。index 为 row-major 0 基索引（0 = 左上角第一张）。
+   * 越界或未加载时返回 undefined。
+   */
+  getJoker(index: number): Texture | undefined {
+    return this.jokerByIndex.get(index);
+  }
+
+  /** 小丑图集总格数（cols × rows）。 */
+  get jokerCount(): number {
+    return CardAtlas.joker.cols * CardAtlas.joker.rows;
   }
 
   /** 列出所有背面格子，给 ControlPanel 做选择器用。 */
@@ -193,6 +221,21 @@ export class AssetManager {
         const frame = new Rectangle(c * sw, r * sh, sw, sh);
         const tex = new Texture({ source: source.source, frame });
         this.backByKey.set(this.backKey(r, c), tex);
+      }
+    }
+  }
+
+  /** 按 10×16 网格切小丑图集，索引 = row * cols + col（左上角为 0）。 */
+  private sliceJokers(source: Texture): void {
+    const { cols, rows } = CardAtlas.joker;
+    const sw = source.width / cols;
+    const sh = source.height / rows;
+
+    for (let r = 0; r < rows; r += 1) {
+      for (let c = 0; c < cols; c += 1) {
+        const frame = new Rectangle(c * sw, r * sh, sw, sh);
+        const tex = new Texture({ source: source.source, frame });
+        this.jokerByIndex.set(r * cols + c, tex);
       }
     }
   }

@@ -11,6 +11,7 @@ import {
 } from "pixi.js";
 import type { CardData } from "@domain/types";
 import { assets } from "@core/AssetManager";
+import { deferDestroyTexture } from "@core/DeferredTextureDestroy";
 import { CONFIG, isDrawingCards } from "@game/config";
 import { sampleCurve } from "@/debug/BezierCurveEditor";
 import { uiHierarchy } from "@ui/hierarchy";
@@ -49,6 +50,36 @@ export enum CardState {
   Hovered = "hovered",     // 被触碰态：鼠标在卡牌上游走，无点击/拖拽
   Dragging = "dragging",   // 拖拽态：只要鼠标处于按下状态，即进入拖拽态
   Selected = "selected",   // 点击选中态：在时间阈值内快速抬起鼠标左键进入
+}
+
+/**
+ * 卡牌角色：
+ *   - hand  ：普通手牌（可选中、拖拽、出牌/弃牌/理牌）
+ *   - joker ：小丑牌（复用手牌视效 + 拖拽排序/选中弹起；禁用出牌/弃牌/点数花色理牌）
+ */
+export type CardRole = "hand" | "joker";
+
+/**
+ * 小丑牌可复用的手牌视效专区 key。
+ * 与 CONFIG.joker.effects 字段一一对应。
+ */
+export type JokerReusableFx =
+  | "shadow"
+  | "breathing"
+  | "idleTilt"
+  | "hoverHit"
+  | "hoverScale"
+  | "hoverBreathing"
+  | "mouse3DTilt";
+
+export interface CardViewOptions {
+  /** 默认 "hand"。 */
+  role?: CardRole;
+  /**
+   * 小丑图集 row-major 索引（仅 role="joker" 时有效）。
+   * 0 = 左上角第一张。
+   */
+  jokerIndex?: number;
 }
 
 /**
@@ -173,15 +204,13 @@ export class CardView extends Container {
   private outOvershootProgress = 0;     // 0 → 1
   private outOvershootStartScale = 1.0; // 离开瞬间的 currentScale
 
-  // 慢点击/拖拽结束后，鼠标仍停留在卡上时，cardState 会被还原为 Hovered，
-  // 但此时拖拽缩放（dragScaleMul）仍在从 1.15 平滑回落到 1.0；如果 hoverScale 通道立即
-  // 重新进入"放大分支"，会与 dragScaleMul 的回落叠加出现"卡牌回落途中顿一下"的观感。
-  //
-  // 用此标志在 pointerup 时压下 hoverScale 的"放大欲望"——updateHoverScale 看到该标志即按
-  // "未悬停"处理（走平滑回缩分支，与 dragScaleMul 同步回到 1.0），直到下列任一时机解除：
-  //   (a) dragScale "out" 动画结束（卡牌完全回落到 1.0）——此时让 hoverScale 自然恢复放大；
-  //   (b) 鼠标真正离开卡牌后又重新进入（新的 pointerover）；
-  //   (c) 鼠标从卡上离开（pointerout）——保险清理。
+  // 松手后若 dragScaleMul 仍偏高：先压下 hoverScale 再放大，避免与 drag 缩放回落叠加顿挫。
+  // 由 restartHoverScaleEntrance() 在 dragScaleMul > 1.02 时置 true；同时会把 progress 打回 0。
+  // 解除时机：
+  //   (a) dragScale "out" 动画结束 → 以 progress=0 重新入场弹性；
+  //   (b) 新的 pointerover；
+  //   (c) pointerout。
+  // 注意：只设本标志而不重置 progress 时，短按几乎看不出重播（progress 仍≈1）。
   private suppressHoverScaleUntilReenter = false;
 
   // 鼠标触碰呼吸晃动（独立通道）：
@@ -199,9 +228,15 @@ export class CardView extends Container {
   private hoverWobbleRot = 0;         // 当前帧 hover 通道 Z 旋转输出
 
   // 鼠标在卡牌本地坐标系下的位置（以左上角为 0,0；如果鼠标不在卡上则为 null）。
-  // 由 onHoverMove 写入，updateMouse3DTilt 消费。
+  // 由 pointer 事件 / 每帧 global→local 刷新写入，updateMouse3DTilt 消费。
   public mouseLocalX: number | null = null;
   public mouseLocalY: number | null = null;
+
+  // 最近一次指针的全局坐标（event.global）。用于选中上移/下移等「卡在动、鼠标不动」的帧：
+  // 没有新的 pointermove 时，仍能每帧把全局点投影到卡牌本地，保持伪 3D 倾斜连续。
+  private lastPointerGlobalX = 0;
+  private lastPointerGlobalY = 0;
+  private hasLastPointerGlobal = false;
 
   private breathingY = 0;
   private wobbleRot = 0;
@@ -383,14 +418,70 @@ export class CardView extends Container {
     return super.addChild(...children);
   }
 
+  /**
+   * 卡牌角色。joker 与 hand 共享同一套 CardView 视效管线与拖拽/选中交互，
+   * 仅在效果门控（isVisualEnabled）与业务语义（不出牌/不弃牌）上区分。
+   */
+  readonly role: CardRole;
+  /** 小丑图集索引；hand 角色下为 -1。图集贴图按此索引固定，与槽位顺序无关。 */
+  readonly jokerIndex: number;
+
   constructor(
     readonly data: CardData,
     private readonly callbacks: CardViewCallbacks,
-    private readonly shadowContainer?: Container
+    private readonly shadowContainer?: Container,
+    options?: CardViewOptions,
   ) {
     super();
+    this.role = options?.role ?? "hand";
+    this.jokerIndex = options?.jokerIndex ?? -1;
     this.draw();
     this.bindEvents();
+  }
+
+  /** 是否为小丑牌（可拖拽排序/选中弹起，但不参与出牌/弃牌/点数花色理牌）。 */
+  get isJoker(): boolean {
+    return this.role === "joker";
+  }
+
+  /**
+   * 视效是否启用。
+   *   - hand：只看手牌专区自身开关；
+   *   - joker：手牌开关 AND CONFIG.joker.effects[key]（参数值仍读手牌配置）。
+   */
+  private isVisualEnabled(key: JokerReusableFx): boolean {
+    const cv = CONFIG.cardVisuals;
+    let handOn = true;
+    switch (key) {
+      case "shadow":
+        // 常态阴影目前没有独立 enabled 字段，始终视为开启。
+        handOn = true;
+        break;
+      case "breathing":
+        handOn = !!cv?.breathingEnabled;
+        break;
+      case "idleTilt":
+        handOn = !!cv?.idleTiltEnabled;
+        break;
+      case "hoverHit":
+        handOn = !!cv?.hoverHitEnabled;
+        break;
+      case "hoverScale":
+        handOn = !!cv?.hoverScaleEnabled;
+        break;
+      case "hoverBreathing":
+        handOn = !!cv?.hoverBreathingEnabled;
+        break;
+      case "mouse3DTilt":
+        handOn = !!cv?.mouse3DTiltEnabled;
+        break;
+      default:
+        handOn = true;
+    }
+    if (this.role !== "joker") return handOn;
+    const jokerFx = CONFIG.joker?.effects;
+    const jokerOn = jokerFx ? (jokerFx[key] ?? true) : true;
+    return handOn && jokerOn;
   }
 
   /** 运行时美术参数变化后，保留位置/交互状态，只重建内部绘制节点。 */
@@ -415,11 +506,11 @@ export class CardView extends Container {
       this.contentContainer = null;
     }
     if (this.cardTexture) {
-      this.cardTexture.destroy(true);
+      deferDestroyTexture(this.cardTexture);
       this.cardTexture = null;
     }
     if (this.cardBackTexture) {
-      this.cardBackTexture.destroy(true);
+      deferDestroyTexture(this.cardBackTexture);
       this.cardBackTexture = null;
     }
     // 美术参数变化会重建 mesh：翻面通道里指向旧贴图的状态必须清掉，避免引用已销毁纹理。
@@ -450,11 +541,11 @@ export class CardView extends Container {
       this.contentContainer = null;
     }
     if (this.cardTexture) {
-      this.cardTexture.destroy(true);
+      deferDestroyTexture(this.cardTexture);
       this.cardTexture = null;
     }
     if (this.cardBackTexture) {
-      this.cardBackTexture.destroy(true);
+      deferDestroyTexture(this.cardBackTexture);
       this.cardBackTexture = null;
     }
     if (this.pivotMarker) {
@@ -488,9 +579,14 @@ export class CardView extends Container {
 
     // 3. 绘制卡面元素。drawSprite/drawProcedural 内部用 this.addChild，
     //    会被重定向到 contentContainer。
-    const tex = CONFIG.cardArt.useSprites && assets.isReady
-      ? assets.getFront(this.data.rank, this.data.suit)
-      : undefined;
+    // 小丑：始终用 Jokers 图集（与 cardArt.useSprites 解耦——小丑没有程序化美术）。
+    // 手牌：useSprites 时用 8BitDeck 正面 (rank, suit)。
+    let tex: Texture | undefined;
+    if (this.role === "joker" && this.jokerIndex >= 0 && assets.isReady) {
+      tex = assets.getJoker(this.jokerIndex);
+    } else if (CONFIG.cardArt.useSprites && assets.isReady) {
+      tex = assets.getFront(this.data.rank, this.data.suit);
+    }
 
     if (tex) {
       this.drawSprite(tex);
@@ -564,13 +660,16 @@ export class CardView extends Container {
         frame: new Rectangle(0, 0, W, H),
         resolution: renderer.resolution,
         antialias: true,
+        textureSourceOptions: { autoGarbageCollect: false },
       });
+      tex.source.autoGarbageCollect = false;
       const old = this.cardTexture;
       this.cardTexture = tex;
       if (this.tiltMesh) {
         this.tiltMesh.texture = tex;
       }
-      if (old && old !== tex) old.destroy(true);
+      // 延迟销毁旧烤纹理，避免 WebGPU batch BindGroup 仍引用 source 时崩溃。
+      if (old && old !== tex) deferDestroyTexture(old);
     } catch (err) {
       console.warn(`[CardView] bakeCardTexture 失败：`, err);
     }
@@ -641,7 +740,9 @@ export class CardView extends Container {
         frame: new Rectangle(0, 0, W, H),
         resolution: renderer.resolution,
         antialias: true,
+        textureSourceOptions: { autoGarbageCollect: false },
       });
+      tex.source.autoGarbageCollect = false;
       this.cardBackTexture = tex;
       return tex;
     } catch (err) {
@@ -831,6 +932,12 @@ export class CardView extends Container {
 
   updateShadow(): void {
     if (!this.shadowGraphics) return;
+
+    // 小丑牌可关闭阴影；手牌始终绘制（cardShadow 无独立 enabled）。
+    if (!this.isVisualEnabled("shadow")) {
+      this.shadowGraphics.visible = false;
+      return;
+    }
 
     const width = CardSkin.width;
     const height = CardSkin.height;
@@ -1201,6 +1308,13 @@ export class CardView extends Container {
     this.dragData = event;
     this.dragStartTime = Date.now();
     this.dragMaxDistance = 0;
+    this.cachePointerGlobal(event);
+    // 按下瞬间立刻刷新本地坐标：拖拽态不再关闭伪 3D 倾斜，需保持有效 mouseLocal。
+    {
+      const localPos = event.getLocalPosition(this);
+      this.mouseLocalX = localPos.x;
+      this.mouseLocalY = localPos.y;
+    }
 
     // 按下鼠标左键即刻进入拖拽态（按照需求：只要鼠标处于按下状态，就会进入拖拽态）
     this.isDragging = true;
@@ -1275,6 +1389,10 @@ export class CardView extends Container {
 
   private onPointerMove(event: FederatedPointerEvent): void {
     if (!this.dragData) return;
+
+    this.cachePointerGlobal(event);
+    // 拖拽中也持续更新本地坐标，保证伪 3D 倾斜与选中位移可叠加。
+    this.refreshMouseLocalFromGlobal();
 
     // 当前鼠标在父容器坐标中的位置。
     let curX = 0;
@@ -1515,6 +1633,14 @@ export class CardView extends Container {
       } else {
         this.cardState = this.isMouseOver ? CardState.Hovered : CardState.Normal;
       }
+
+      // 短按选中 / 取消选中：鼠标通常未离开，没有新的 pointerover。
+      // 必须强制把 hoverScale progress 打回 0，才能重播入场弹性（仅设 suppress 不够——
+      // 短按时 progress 几乎没降，松手后仍停在稳态）。
+      // forceImmediate：短按 dragScale 抬升有限，与弹性入场可叠加，立即重播更跟手。
+      if (this.isMouseOver) {
+        this.restartHoverScaleEntrance({ forceImmediate: true });
+      }
       this.callbacks.onDragEnd?.(this);
     } else {
       // 超过时间或距离阈值松手：这是一次"慢点击/拖拽"，不构成有效点击操作。
@@ -1526,12 +1652,9 @@ export class CardView extends Container {
           ? CardState.Hovered
           : CardState.Normal;
 
-      // 鼠标仍停留在卡上 → cardState 已被还原为 Hovered/Selected，
-      // 但拖拽缩放 dragScaleMul 还要花一段时间从 1.15 平滑回落到 1.0。
-      // 此处压下 hoverScale 的再放大动画，避免与 dragScaleMul 回落叠加产生顿挫。
-      // 标志在下次 pointerover（鼠标真正重新进入卡牌）或 pointerout（鼠标离开卡牌）时解除。
+      // 长按/拖拽松手：重置 progress；若 dragScale 仍高则先 suppress，待 out 完成再入场。
       if (this.isMouseOver) {
-        this.suppressHoverScaleUntilReenter = true;
+        this.restartHoverScaleEntrance();
       }
       this.callbacks.onDragEnd?.(this);
     }
@@ -1550,9 +1673,58 @@ export class CardView extends Container {
    * 这个本地坐标恰好就是原始未变形矩形的 (x, y)——直接使用即可。
    */
   private onHoverMove(event: FederatedPointerEvent): void {
+    this.cachePointerGlobal(event);
     const localPos = event.getLocalPosition(this);
     this.mouseLocalX = localPos.x;
     this.mouseLocalY = localPos.y;
+  }
+
+  /** 缓存指针全局坐标，供选中位移等「无 pointermove」帧刷新本地坐标。 */
+  private cachePointerGlobal(event: FederatedPointerEvent): void {
+    this.lastPointerGlobalX = event.global.x;
+    this.lastPointerGlobalY = event.global.y;
+    this.hasLastPointerGlobal = true;
+  }
+
+  /**
+   * 用缓存的全局指针位置投影到卡牌本地坐标。
+   * 在 isMouseOver 或 isDragging 时调用：卡牌 selectMove 上移/下移时鼠标可能不动，
+   * 必须每帧重算，伪 3D 倾斜才不会在动画结束后才突然校正。
+   */
+  private refreshMouseLocalFromGlobal(): void {
+    if (!this.hasLastPointerGlobal) return;
+    if (!this.isMouseOver && !this.isDragging) return;
+    const local = this.toLocal({
+      x: this.lastPointerGlobalX,
+      y: this.lastPointerGlobalY,
+    });
+    this.mouseLocalX = local.x;
+    this.mouseLocalY = local.y;
+  }
+
+  /**
+   * 强制重播触碰弹性缩放入场。
+   *
+   * 短按选中/取消选中后鼠标常不离开，没有新 pointerover；若只设 suppress 而不把
+   * progress 打回 0，短按期间 progress 几乎不降，松手后仍停在稳态 → 看不到弹性。
+   *
+   * @param opts.forceImmediate 为 true 时立即入场（短按选中/取消：与 dragScale 可叠加）。
+   *   默认 false：若 dragScaleMul > 1.02 先 suppress，等 dragScale out 完成后再入场
+   *   （长按/拖拽松手，避免双重放大顿挫；out 结束时 updateDragScale 会清 suppress 并呼吸）。
+   */
+  private restartHoverScaleEntrance(opts?: { forceImmediate?: boolean }): void {
+    this.hoverScaleProgress = 0;
+    this.hoverScaleSettled = false;
+    this.outOvershootActive = false;
+    this.outOvershootProgress = 0;
+
+    const immediate = opts?.forceImmediate === true || this.dragScaleMul <= 1.02;
+    if (immediate) {
+      this.suppressHoverScaleUntilReenter = false;
+      this.triggerHoverBreathing();
+    } else {
+      this.suppressHoverScaleUntilReenter = true;
+    }
   }
 
   /**
@@ -1594,12 +1766,17 @@ export class CardView extends Container {
     // 1b. 鼠标触碰呼吸晃动（独立通道，叠加在常态之上）
     this.updateHoverBreathing(dtMS);
 
+    // 1c. 选中上移/下移等外部 tween 改卡位时，鼠标可能不动 → 无 pointermove。
+    //     每帧用缓存的全局坐标重投影到本地，保证伪 3D 倾斜与位移动画可叠加、不跳变。
+    this.refreshMouseLocalFromGlobal();
+
     // 2. 鼠标悬停小弹性缩放
     this.updateHoverScale(dtMS);
 
     // 3. 卡牌伪3D倾斜：真实鼠标悬停时按鼠标位置倾斜；未悬停时由"常态伪3D倾斜呼吸晃动"
     //    通过虚拟鼠标产生缓慢的圆周倾斜。两种来源共用同一套投影公式与同一份目标角偏移，
     //    悬停一旦激活，呼吸态会自然让位（同 target，靠插值平滑切换）。
+    //    倾斜与选中态/短按拖拽态兼容：只要鼠标在牌上就持续更新（见 updateMouse3DTilt 门控）。
     this.updateMouse3DTilt(dtMS);
 
     // 3b. 抓牌翻面（绕竖中轴线翻面：背面 → 一条线 → 正面）。独立通道，仅在发牌后短暂激活。
@@ -2043,7 +2220,8 @@ export class CardView extends Container {
       this.dragScaleMul = this.dragScaleToMul;
       this.dragScaleAnim = null;
       if (wasOut) {
-        // 卡牌完全回落：解除"长按松手后的 hoverScale 抑制"，并触发一次鼠标呼吸晃动。
+        // 卡牌完全回落：解除 pointerup 后的 hoverScale 抑制（短按选中/取消或长按），
+        // 并触发一次鼠标呼吸晃动。
         this.suppressHoverScaleUntilReenter = false;
         this.triggerHoverBreathing();
       }
@@ -2067,8 +2245,9 @@ export class CardView extends Container {
       this.dragScaleMul = this.dragScaleToMul;
       this.dragScaleAnim = null;
       // "退出拖拽缩放"动画刚刚完成：卡牌从放大态完全回落到 1.0 的瞬间，
-      // (1) 解除"长按松手后的 hoverScale 抑制"——让 hoverScale 从这一刻起自然地按 cardState
-      //     重新放大（若鼠标仍在卡上）。
+      // (1) 解除 pointerup 后的 hoverScale 抑制（短按选中/取消选中，或长按/慢点击）——
+      //     让 hoverScale 从这一刻起按 cardState 重新入场放大（若鼠标仍在卡上），
+      //     从而重播触碰弹性缩放。
       // (2) 触发一次"鼠标触碰呼吸晃动"——这是"鼠标呼吸晃动（触碰与回落）"专区的第二个触发点。
       //     与 pointerover 共用同一参数集，因此动画风格与"鼠标进入卡牌时"完全一致。
       if (wasOut) {
@@ -2091,8 +2270,8 @@ export class CardView extends Container {
    */
   private triggerHoverBreathing(): void {
     const conf = CONFIG.cardVisuals;
-    if (!conf?.hoverBreathingEnabled) return;
-    if ((conf.hoverBreathingDurationMS ?? 0) <= 0) return;
+    if (!this.isVisualEnabled("hoverBreathing")) return;
+    if ((conf?.hoverBreathingDurationMS ?? 0) <= 0) return;
     this.hoverBreathingActive = true;
     this.hoverBreathingProgress = 0;
     this.hoverBreathTime = 0;
@@ -2101,7 +2280,7 @@ export class CardView extends Container {
 
   private updateBreathing(dtMS: number): void {
     const visualConf = CONFIG.cardVisuals;
-    if (!visualConf || !visualConf.breathingEnabled) {
+    if (!visualConf || !this.isVisualEnabled("breathing")) {
       this.breathingY = 0;
       this.wobbleRot = 0;
       return;
@@ -2129,18 +2308,19 @@ export class CardView extends Container {
    */
   private updateHoverBreathing(dtMS: number): void {
     const conf = CONFIG.cardVisuals;
+    const hoverBreathingOn = this.isVisualEnabled("hoverBreathing");
 
     // 总开关关闭、拖拽中或未激活：直接清零 hover 通道，但不影响常态呼吸。
     if (
       !conf ||
-      !conf.hoverBreathingEnabled ||
+      !hoverBreathingOn ||
       this.cardState === CardState.Dragging ||
       !this.hoverBreathingActive
     ) {
       this.hoverBreathingY = 0;
       this.hoverWobbleRot = 0;
       // 关闭/中断时顺便复位 active，避免下次开启后残留脉冲。
-      if (!conf?.hoverBreathingEnabled) {
+      if (!hoverBreathingOn) {
         this.hoverBreathingActive = false;
       }
       return;
@@ -2176,7 +2356,7 @@ export class CardView extends Container {
 
   private updateHoverScale(dtMS: number): void {
     const visualConf = CONFIG.cardVisuals;
-    if (!visualConf || !visualConf.hoverScaleEnabled) {
+    if (!visualConf || !this.isVisualEnabled("hoverScale")) {
       this.currentScale = 1.0;
       this.hoverScaleProgress = 0;
       this.hoverScaleSettled = false;
@@ -2188,8 +2368,9 @@ export class CardView extends Container {
     }
 
     // 如果鼠标在这个牌上游走 (Hovered) 或者是点击选中态且有鼠标悬停 (Selected + isMouseOver)。
-    // 但若 pointerup 后压下了"抑制再次放大"标志（用于长按/慢点击松手后的平滑回落），
-    // 则即便 cardState=Hovered 也按未悬停处理，从而走平滑回缩分支、与 dragScaleMul 同步回到 1.0。
+    // 但若 pointerup 后压下了"抑制再次放大"标志（短按选中/取消选中，或长按/慢点击松手），
+    // 则即便 cardState=Hovered/Selected 也按未悬停处理：走平滑回缩分支、与 dragScaleMul
+    // 同步回到 1.0；待 suppress 解除后再重新入场，从而重播触碰弹性缩放。
     const isHovered =
       !this.suppressHoverScaleUntilReenter &&
       (this.cardState === CardState.Hovered || (this.isMouseOver && this.cardState === CardState.Selected));
@@ -2348,30 +2529,27 @@ export class CardView extends Container {
     const W = CardSkin.width;
     const H = CardSkin.height;
 
-    // 仅在常态 / Hovered / Selected 触发；Dragging 时关闭
-    const isEffectState =
-      this.cardState === CardState.Normal ||
-      this.cardState === CardState.Hovered ||
-      this.cardState === CardState.Selected;
-
-    // 1) 真实鼠标触发的 3D 倾斜（最高优先级）
+    // 真实鼠标 3D 倾斜：只要鼠标在牌上且有有效本地坐标就开启。
+    // 不再因 Dragging / Selected / 选中位移动画关闭——选中上移与倾斜、弹性缩放应可叠加。
+    // （按下短按也会进 Dragging，旧逻辑会把倾斜清零，松手/动画结束后才恢复 → 生硬跳变。）
+    // 小丑牌通过 isVisualEnabled 叠加 CONFIG.joker.effects 门控。
     const hoverActive =
       !!visualConf &&
-      !!visualConf.mouse3DTiltEnabled &&
-      this.cardState !== CardState.Dragging &&
-      isEffectState &&
+      this.isVisualEnabled("mouse3DTilt") &&
       this.isMouseOver &&
       this.mouseLocalX !== null &&
       this.mouseLocalY !== null;
 
-    // 2) 常态伪 3D 倾斜呼吸（仅当 hover 未激活时起效，状态机仍需是 Normal/Hovered/Selected 且非拖拽）
-    //    注：状态机里 Hovered 必伴随 isMouseOver=true，所以 idle 实际只发生在 Normal/Selected 且鼠标不在卡上。
+    // 常态伪 3D 倾斜呼吸：仅当真实悬停未激活、且非拖拽时起效。
+    // 拖拽中牌跟手，呼吸倾斜会与拖拽位姿打架，故仍排除 isDragging。
     const idleActive =
       !hoverActive &&
       !!visualConf &&
-      !!visualConf.idleTiltEnabled &&
-      this.cardState !== CardState.Dragging &&
-      isEffectState;
+      this.isVisualEnabled("idleTilt") &&
+      !this.isDragging &&
+      (this.cardState === CardState.Normal ||
+        this.cardState === CardState.Hovered ||
+        this.cardState === CardState.Selected);
 
     // 推进常态倾斜呼吸的相位（即便当前未激活也持续走时，避免重新激活时相位跳变）
     if (visualConf) {
@@ -2648,7 +2826,8 @@ export class CardView extends Container {
     this.hitArea = {
       contains(x: number, y: number): boolean {
         const cv = CONFIG.cardVisuals;
-        if (!cv.hoverHitEnabled) {
+        // 小丑牌额外受 joker.effects.hoverHit 门控；关闭时退化为固定矩形。
+        if (!self.isVisualEnabled("hoverHit")) {
           // 关闭迟滞：退化为与卡面等大的固定矩形（仍然显式提供，避免 Pixi 走 children-bounds 路径
           // 受 mesh 角点偏移污染）。
           return x >= 0 && x <= W && y >= 0 && y <= H;
@@ -2669,8 +2848,10 @@ export class CardView extends Container {
       if (this.cardState === CardState.Normal) {
         this.cardState = CardState.Hovered;
       }
-      // 鼠标真正重新进入卡牌：解除"长按松手后的 hoverScale 抑制"，允许下一次正常放大。
+      // 鼠标真正重新进入卡牌：解除 hoverScale 抑制，允许下一次正常放大。
       this.suppressHoverScaleUntilReenter = false;
+      // 用缓存全局点立刻刷新本地坐标，避免等 pointermove 才恢复倾斜。
+      this.refreshMouseLocalFromGlobal();
       if (this.isDragging) return;
       // 触发"鼠标触碰呼吸晃动"（独立通道，一次性脱手脉冲）。
       // 每次进入都重置进度与相位，重新从满幅度起跳，可打断上一次未播完的脉冲。
@@ -2683,17 +2864,21 @@ export class CardView extends Container {
       if (this.cardState === CardState.Hovered) {
         this.cardState = CardState.Normal;
       }
-      this.mouseLocalX = null;
-      this.mouseLocalY = null;
-      // 鼠标离开卡牌：抑制标志自然失效（cardState 已经不是 Hovered，updateHoverScale 也会走回缩分支）。
-      // 显式清掉，避免下次进入时还残留。
+      // 拖拽中牌跟手，hit-test 可能短暂判定离开；保留 mouseLocal，由 refresh 继续更新，
+      // 避免按下/拖拽期间伪 3D 倾斜被清零后突然跳回。
+      if (!this.isDragging) {
+        this.mouseLocalX = null;
+        this.mouseLocalY = null;
+      }
+      // 鼠标离开卡牌：抑制标志自然失效。
       this.suppressHoverScaleUntilReenter = false;
       if (this.isDragging) return;
       this.callbacks.onHoverOut(this);
     });
 
     this.on("pointermove", (event) => {
-      if (!this.isDragging && this.isMouseOver) {
+      // 拖拽中也更新本地坐标（倾斜与位移/缩放通道兼容）。
+      if (this.isMouseOver || this.isDragging) {
         this.onHoverMove(event);
       }
     });

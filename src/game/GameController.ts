@@ -8,6 +8,7 @@ import { Easing } from "@tween/Easing";
 import { Deck } from "@domain/Deck";
 import { calculateScore } from "@domain/Scoring";
 import type { CardData, ScoreResult, HandTypeName } from "@domain/types";
+import { SUITS } from "@domain/types";
 import { CardView, CardState } from "@render/CardView";
 import { computeHandLayout } from "@render/HandLayout";
 import { HUD, type HUDMode } from "@ui/HUD";
@@ -16,6 +17,9 @@ import { CardFx } from "@fx/CardFx";
 import { GameConfig, setDrawingCards } from "./config";
 import type { GameEvents } from "./events";
 import { PlayPipeline } from "./PlayPipeline";
+
+/** 理牌模式：按点数 或 按花色。 */
+export type HandSortMode = "rank" | "suit";
 
 /**
  * 游戏总控
@@ -86,6 +90,12 @@ export class GameController {
   /** id -> CardView 缓存，复用同一份 view（牌只是回到牌堆，不销毁）。 */
   private readonly viewByCardId = new Map<string, CardView>();
 
+  /**
+   * 当前装备的小丑牌视图（默认前 5 张图集槽位）。
+   * 与 hand 独立：不参与出牌/弃牌/理牌，但走同一套 CardView 视效管线。
+   */
+  private jokers: CardView[] = [];
+
   constructor(private readonly app: App) {
     this.store = new Store<GameState>({
       hand: [],
@@ -118,6 +128,8 @@ export class GameController {
       discards: GameConfig.rules.discards,
       onPlay: () => { void this.playSelected(); },
       onDiscard: () => this.discardSelected(),
+      onSortByRank: () => this.sortHand("rank"),
+      onSortBySuit: () => this.sortHand("suit"),
     });
     this.hud.zIndex = Layers.UI;
     this.app.worldRoot.addChild(this.hud);
@@ -248,9 +260,263 @@ export class GameController {
       },
     });
 
+    // 顶部小丑槽：前 5 张图集（与手牌视效管线共享参数）。
+    this.initJokers();
+
     // 首抽 8 张
     this.drawToFull();
     this.updateButtons();
+  }
+
+  // --- 小丑牌 -------------------------------------------------
+
+  /**
+   * 初始化 / 重建顶部小丑槽。
+   * 默认读取图集前 CONFIG.joker.slotCount 张（0..n-1），水平居中、等间距摆放。
+   * 复用手牌拖拽排序 / 选中弹起；不出牌、不弃牌、不参与点数花色理牌。
+   * 视效由 joker.effects 门控。公开以便 ControlPanel 修改 slotCount 后即时重建。
+   */
+  initJokers(): void {
+    // 清理旧实例（热重载 / 再次 start 防御）
+    for (const v of this.jokers) {
+      if (v.parent) v.parent.removeChild(v);
+      v.destroy({ children: true });
+    }
+    this.jokers = [];
+
+    const count = Math.max(0, Math.floor(GameConfig.joker?.slotCount ?? 5));
+    for (let i = 0; i < count; i += 1) {
+      const data: CardData = {
+        id: `joker-${i}`,
+        rank: "A",
+        suit: "♠",
+        value: 14,
+        chips: 0,
+      };
+      const view = new CardView(
+        data,
+        {
+          // 选中只作用于小丑自身（弹起视效），不进 store.selected，避免污染出牌计分。
+          onClick: (v) => this.toggleJokerSelection(v),
+          onHoverIn: () => {},
+          onHoverOut: () => {},
+          onDragStart: (v) => {
+            this.tween.killOf(v);
+            v.isSwapAnimating = false;
+            v.isSelectAnimating = false;
+            v.zIndex = 9999;
+            v.isReturning = false;
+          },
+          onDragging: (v) => {
+            // 与手牌相同：用视觉中线 view.x 判定换位时机。
+            this.reorderJokersWhileDragging(v, v.x);
+          },
+          onDragEnd: (v) => {
+            // 松手用鼠标逻辑位置再兜底一次换位（快速甩动场景）。
+            this.reorderJokersWhileDragging(v, v.dragLogicalX);
+            v.isReturning = true;
+            this.layoutJokers();
+          },
+        },
+        this.shadowLayer,
+        { role: "joker", jokerIndex: i },
+      );
+      // 顶部条 zIndex 基准略高于普通手牌（0..n），拖拽时仍会抬到 9999。
+      view.zIndex = 50 + i;
+      this.cardLayer.addChild(view);
+      this.jokers.push(view);
+    }
+    // 新建实例：先写好 layout 元数据并瞬移到位（尚无「从别处飞入」语义）。
+    this.snapJokersToLayout();
+  }
+
+  /** 仅写 layout 元数据 + 瞬移到槽位（重建 / 首次生成用）。 */
+  private snapJokersToLayout(): void {
+    const list = this.jokers;
+    const n = list.length;
+    if (n <= 0) return;
+
+    const spacing = GameConfig.joker?.cardSpacing ?? 120;
+    const baseY = GameConfig.joker?.baseY ?? 90;
+    const rise = GameConfig.cardVisuals.selectRiseY ?? 30;
+    const centerX = GameConfig.world.width / 2;
+    const startX = centerX - ((n - 1) * spacing) / 2;
+
+    list.forEach((view, i) => {
+      this.tween.killOf(view);
+      view.isSwapAnimating = false;
+      view.isSelectAnimating = false;
+      view.handIndex = i;
+      view.handCount = n;
+      view.zIndex = 50 + i;
+      view.layoutX = startX + i * spacing;
+      view.layoutY = view.selected ? baseY - rise : baseY;
+      view.layoutRotation = 0;
+      view.x = view.layoutX;
+      view.y = view.layoutY;
+      view.rotation = 0;
+    });
+  }
+
+  /**
+   * 按 CONFIG.joker 重新计算顶部小丑槽位姿。
+   * 动画路径与 layoutHand 同构（swapMove / moveToWithOvershoot / select 豁免）。
+   * 公开以便 ControlPanel 改 spacing / baseY / slotCount 后即时生效。
+   */
+  layoutJokers(opts?: {
+    swapFor?: ReadonlySet<CardView>;
+    force?: boolean;
+  }): void {
+    const list = this.jokers;
+    const n = list.length;
+    if (n <= 0) return;
+
+    const spacing = GameConfig.joker?.cardSpacing ?? 120;
+    const baseY = GameConfig.joker?.baseY ?? 90;
+    const rise =
+      GameConfig.cardVisuals.selectRiseY ?? 30;
+    // 水平居中：以整个世界宽度中线为锚。
+    const centerX = GameConfig.world.width / 2;
+    const totalSpan = (n - 1) * spacing;
+    const startX = centerX - totalSpan / 2;
+
+    list.forEach((view, i) => {
+      view.zIndex = view.isDragging ? 9999 : 50 + i;
+      view.handIndex = i;
+      view.handCount = n;
+
+      const slot = {
+        x: startX + i * spacing,
+        y: view.selected ? baseY - rise : baseY,
+        rotation: 0,
+      };
+      view.layoutX = slot.x;
+      view.layoutY = slot.y;
+      view.layoutRotation = slot.rotation;
+
+      if (view.isDragging) return;
+
+      if (view.isSelectAnimating) return;
+
+      if (opts?.swapFor?.has(view)) {
+        CardFx.swapMove(this.tween, view, slot);
+        return;
+      }
+
+      // force=true 时无视 swap 弹性豁免（与 layoutHand 一致）。
+      if (!opts?.force && view.isSwapAnimating) {
+        if (this.tween.hasTweenFor(view)) return;
+        view.isSwapAnimating = false;
+      }
+
+      CardFx.moveToWithOvershoot(
+        this.tween,
+        view,
+        slot,
+        GameConfig.animation.moveDurationMS,
+      );
+    });
+  }
+
+  /**
+   * 小丑拖拽换位：与 reorderHandWhileDragging 同构，操作 this.jokers 数组。
+   */
+  private reorderJokersWhileDragging(view: CardView, dragCenter: number): void {
+    const list = this.jokers;
+    const i = list.indexOf(view);
+    if (i < 0) return;
+
+    let newIndex = i;
+    const swapFor = new Set<CardView>();
+
+    const isStillSwapping = (v: CardView): boolean => {
+      if (!v.isSwapAnimating) return false;
+      if (this.tween.hasTweenFor(v)) return true;
+      v.isSwapAnimating = false;
+      return false;
+    };
+
+    while (newIndex > 0) {
+      const left = list[newIndex - 1]!;
+      if (isStillSwapping(left)) break;
+      if (dragCenter < left.layoutX) {
+        swapFor.add(left);
+        newIndex -= 1;
+      } else {
+        break;
+      }
+    }
+
+    while (newIndex < list.length - 1) {
+      const right = list[newIndex + 1]!;
+      if (isStillSwapping(right)) break;
+      if (dragCenter > right.layoutX) {
+        swapFor.add(right);
+        newIndex += 1;
+      } else {
+        break;
+      }
+    }
+
+    if (newIndex === i) return;
+
+    const next = list.slice();
+    next.splice(i, 1);
+    next.splice(newIndex, 0, view);
+    this.jokers = next;
+
+    this.layoutJokers({ swapFor });
+  }
+
+  /**
+   * 小丑选中弹起：复用手牌 selectMove 参数，但不写入 store.selected、不触发计分。
+   */
+  private toggleJokerSelection(view: CardView): void {
+    if (!view.isJoker) return;
+    // 出牌流程中仍允许悬停/拖拽排序；选中弹起与手牌一致：流程锁期间不切换。
+    if (this.isPlaying) return;
+
+    let direction: "rise" | "fall" | null = null;
+    if (view.selected) {
+      view.selected = false;
+      direction = "fall";
+    } else {
+      view.selected = true;
+      direction = "rise";
+    }
+
+    const cv = GameConfig.cardVisuals;
+    const useSelectFx =
+      cv.selectMoveEnabled !== false && direction !== null;
+    if (useSelectFx) {
+      this.tween.killOf(view);
+      view.isSelectAnimating = true;
+    }
+
+    this.layoutJokers({ force: true });
+
+    if (useSelectFx && direction) {
+      const target = {
+        x: view.layoutX,
+        y: view.layoutY,
+        rotation: view.layoutRotation,
+      };
+      const isRise = direction === "rise";
+      CardFx.selectMove(this.tween, view, target, direction, {
+        startSpeed: isRise
+          ? (cv.selectMoveStartSpeed ?? 600)
+          : (cv.selectFallStartSpeed ?? cv.selectMoveStartSpeed ?? 500),
+        overshoot: isRise
+          ? (cv.selectMoveOvershoot ?? 0)
+          : (cv.selectFallOvershoot ?? cv.selectMoveOvershoot ?? 0),
+        stiffness: isRise
+          ? (cv.selectMoveStiffness ?? 10)
+          : (cv.selectFallStiffness ?? cv.selectMoveStiffness ?? 10),
+        onSettle: () => {
+          view.isSelectAnimating = false;
+        },
+      });
+    }
   }
 
   // --- 抽牌 / 布局 -------------------------------------------------
@@ -362,6 +628,10 @@ export class GameController {
       }
     } finally {
       setDrawingCards(false);
+      // drawToFull 是 async：start() 里若未 await，会在手牌仍为空时提前 updateButtons，
+      // 把理牌按钮关掉且不再刷新。这里在抽牌结束（或 early-return）后统一刷新一次，
+      // 确保手牌满后「点数 / 花色」立即可用，不依赖先选中牌。
+      this.updateButtons();
     }
   }
 
@@ -422,12 +692,21 @@ export class GameController {
    *                     而非默认的 moveToWithOvershoot（距离驱动归位手感）。
    *                     不在集合中、且未被 isDragging/isSelectAnimating 跳过的牌仍走
    *                     moveToWithOvershoot，保证发牌/松手归位等其它场景行为不变。
+   * @param opts.sortFor 可选——本次重排是「点数/花色理牌」触发的，集合中的牌走
+   *                     CardFx.sortMove（距离自适应速度的 rise→spring）。
+   *                     调用前 hand 数组已按最终顺序排好，本函数开头写的 zIndex
+   *                     已是最终显示层序（落点靠左下层、靠右上层）。
    * @param opts.force   可选——true 时无视 view.isSwapAnimating 的豁免，对所有牌强制
    *                     重排。用于"手牌数量变化"等必须立刻整齐对齐的场景（抽牌、出牌、
    *                     弃牌、回合重置等）。拖拽中的 onDragging 重排不应传 true，
    *                     否则会打断正在播放的 swap 弹性。默认 false。
    */
-  layoutHand(opts?: { swapFor?: ReadonlySet<CardView>; force?: boolean; speedRatio?: number }): void {
+  layoutHand(opts?: {
+    swapFor?: ReadonlySet<CardView>;
+    sortFor?: ReadonlySet<CardView>;
+    force?: boolean;
+    speedRatio?: number;
+  }): void {
     const hand = this.store.getState().hand;
     const slots = computeHandLayout(hand, {
       areaLeft: this.hud.handAreaLeft,
@@ -441,7 +720,9 @@ export class GameController {
     const handCount = hand.length;
     hand.forEach((view, i) => {
       // 用 zIndex 保证右边的牌盖住左边的（卡牌层启用 sortableChildren）。
-      // 处于拖拽态的卡牌，其显示应该置于所有卡牌上
+      // 处于拖拽态的卡牌，其显示应该置于所有卡牌上。
+      // 理牌场景：hand 已按最终顺序排好 → 此处 zIndex 立刻等于最终落点层序，
+      // 动画开始前就排好显示顺序，避免到位后再切 zIndex 的生硬跳变。
       view.zIndex = view.isDragging ? 9999 : i;
       // 写入手牌位置元数据：供 CardView 内"鼠标悬停伪3D倾斜左右梯度"按 i/(n-1) 计算每张卡的强度倍率。
       view.handIndex = i;
@@ -458,17 +739,28 @@ export class GameController {
         return;
       }
 
+      // 「点数/花色理牌」分支：走距离自适应速度的 sortMove（远牌更快）。
+      // 放在 isSelectAnimating 豁免之前：理牌 force 场景需要立刻接管所有牌
+      // （包括正在选中过弹的牌），由 TweenManager 同字段互斥自然打断旧动画。
+      // 同步清零 isSelectAnimating，避免后续帧再被选中豁免卡住。
+      if (opts?.sortFor?.has(view)) {
+        view.isSelectAnimating = false;
+        CardFx.sortMove(this.tween, view, slot);
+        return;
+      }
+
       // 正在播放"选中/取消选中位移过弹动画"的牌：交给 CardFx.selectMove 自己跑两段补间。
       // 这里只更新 layoutX/Y/Rotation 元数据，不再下发普通 moveTo（避免 TweenManager
       // 同字段冲突踢掉过弹段）。
       //
-      // 自愈兜底：若标志为 true 但实际已无活跃 tween（异常中断且未清旗），
-      // 视为残留并清零，落入下方常规重排，避免被永久豁免。
+      // 【重要】标志为 true 时一律跳过，即使当前尚无活跃 tween。
+      // 原因：toggleSelection 的顺序是「置位 isSelectAnimating → layoutHand → selectMove」。
+      // 若在"尚无 tween"时自愈清旗并走 moveToWithOvershoot，会与随后启动的 selectMove 竞态；
+      // 更糟的是 CardView 快速点击路径在 onClick 之后还会立刻调 onDragEnd→layoutHand，
+      // 若此时标志已被清掉，归位动画会直接互斥掉 selectMove——表现为选中参数"完全不起作用"。
+      // 残留标志的清理由 selectMove.onSettle / onDragStart.killOf 路径负责。
       if (view.isSelectAnimating) {
-        if (this.tween.hasTweenFor(view)) {
-          return;
-        }
-        view.isSelectAnimating = false;
+        return;
       }
 
       // 「手动理牌换位让位」分支：本次 layoutHand 由 reorderHandWhileDragging 触发，
@@ -480,7 +772,7 @@ export class GameController {
       }
 
       // 「swap 弹性豁免」分支：view 当前正在播放 swapMove 的 rise→spring 弹性动画，
-      // 且本帧不在 swapFor 中（说明拖拽牌已不再覆盖它）。如果继续走下面的
+      // 且本帧不在 swapFor/sortFor 中（说明拖拽牌已不再覆盖它）。如果继续走下面的
       // moveToWithOvershoot，会通过 TweenManager 同字段互斥停掉 rise 阶段；
       // 让它自己跑完 rise→spring，最终位置已经是新 slot，不会错位。
       // opts.force=true 时（手牌数量变化等强制对齐场景）跳过此豁免。
@@ -523,6 +815,65 @@ export class GameController {
         opts?.speedRatio ?? 1.0
       );
     });
+  }
+
+  /**
+   * 按点数或花色理牌。
+   *
+   * 流程：
+   *   1. 根据 mode 计算每张牌的最终下标（稳定排序，相等键保留相对顺序）；
+   *   2. 立刻写回 hand 数组；
+   *   3. layoutHand：先按最终下标写 zIndex（落点靠左下层、靠右上层），
+   *      再让每张需要移动的牌走 CardFx.sortMove（距离越大速度越大）。
+   *
+   * 排序规则：
+   *   - rank：主键 value 降序（A…2，大的在左、小的在右），次键花色顺序（♠♥♣♦）；
+   *   - suit：主键花色顺序（♠♥♣♦），次键 value 升序。
+   */
+  sortHand(mode: HandSortMode): void {
+    if (this.isPlaying) return;
+
+    const hand = this.store.getState().hand;
+    if (hand.length <= 1) return;
+
+    // 拖拽进行中不理牌：拖拽牌由鼠标主导位置，强行改 hand 序会和松手归位打架。
+    if (hand.some((v) => v.isDragging)) return;
+
+    const suitIndex = (suit: string): number => {
+      const i = SUITS.indexOf(suit as (typeof SUITS)[number]);
+      return i >= 0 ? i : 0;
+    };
+
+    const sorted = hand.slice().sort((a, b) => {
+      if (mode === "rank") {
+        // 降序：点数大的靠左，小的靠右（A … 2）
+        const dv = b.data.value - a.data.value;
+        if (dv !== 0) return dv;
+        return suitIndex(a.data.suit) - suitIndex(b.data.suit);
+      }
+      const ds = suitIndex(a.data.suit) - suitIndex(b.data.suit);
+      if (ds !== 0) return ds;
+      return a.data.value - b.data.value;
+    });
+
+    // 已是目标顺序：无需动画，但仍可刷新一次按钮态。
+    const unchanged = sorted.every((v, i) => v === hand[i]);
+    if (unchanged) {
+      this.updateButtons();
+      return;
+    }
+
+    this.store.setState({ hand: sorted });
+
+    // 所有最终位置相对当前视觉位置有变化的牌都参与 sortMove。
+    // 用当前 view 坐标与即将写入的 layout 目标比距离即可，但此时 layout 尚未算好；
+    // 简单起见：全部纳入 sortFor，sortMove 对 dist≈0 的牌会直接置位返回。
+    const sortFor = new Set(sorted);
+
+    // force=true：打断进行中的 swap/选中等弹性，立刻按新序开跑。
+    // zIndex 在 layoutHand 入口按最终下标写好，动画开跑前显示层序已正确。
+    this.layoutHand({ sortFor, force: true });
+    this.updateButtons();
   }
 
   /**
@@ -656,30 +1007,42 @@ export class GameController {
     this.bus.emit("card:selectionChanged", { selected });
 
     // 先标记，让 layoutHand 跳过对该牌的普通 tween 写入；
-    // 标记必须在 layoutHand() 之前置位。
+    // 标记必须在 layoutHand() 之前置位（且 layoutHand 不得在"尚无 tween"时清旗）。
     const cv = GameConfig.cardVisuals;
     const useSelectFx =
       cv.selectMoveEnabled !== false && direction !== null;
     if (useSelectFx) {
+      // 先停掉残留 tween（其 onStop 可能把 isSelectAnimating 清成 false），
+      // 再置位标志，避免旧 settle 冲掉本次选中动画的豁免。
+      this.tween.killOf(view);
       view.isSelectAnimating = true;
     }
 
     // 选中/取消选中：需要其它牌立即对齐到新基线（被选中的牌弹起后腾出/腾回位置），
     // 用 force 跳过 swap 弹性豁免，避免视觉错位。
+    // 本牌因 isSelectAnimating=true 被跳过，不会下发 moveTo。
     this.layoutHand({ force: true });
 
     // 取出该牌经 layoutHand 写好的目标位姿，启动选中/取消选中过弹动画。
+    // 上移（rise）与下移（fall）使用各自独立的启动速度 / 过冲 / 刚度参数。
     if (useSelectFx && direction) {
       const target = {
         x: view.layoutX,
         y: view.layoutY,
         rotation: view.layoutRotation,
       };
+      const isRise = direction === "rise";
+      // 上移/下移参数独立；旧 preset 缺下移字段时回退到上移参数或合理默认值。
       CardFx.selectMove(this.tween, view, target, direction, {
-        durationMS: cv.selectMoveDurationMS,
-        curve: cv.selectMoveCurve,
-        overshoot: cv.selectMoveOvershoot,
-        stiffness: cv.selectMoveStiffness,
+        startSpeed: isRise
+          ? (cv.selectMoveStartSpeed ?? 600)
+          : (cv.selectFallStartSpeed ?? cv.selectMoveStartSpeed ?? 500),
+        overshoot: isRise
+          ? (cv.selectMoveOvershoot ?? 0)
+          : (cv.selectFallOvershoot ?? cv.selectMoveOvershoot ?? 0),
+        stiffness: isRise
+          ? (cv.selectMoveStiffness ?? 10)
+          : (cv.selectFallStiffness ?? cv.selectMoveStiffness ?? 10),
         onSettle: () => {
           view.isSelectAnimating = false;
         },
@@ -742,7 +1105,7 @@ export class GameController {
   }
 
   private updateButtons(): void {
-    const { selected, plays, discards } = this.store.getState();
+    const { selected, plays, discards, hand } = this.store.getState();
     const hasSelection = selected.length > 0;
     // 出牌期间所有按钮均 disable，避免在流程播放中再次触发出牌/弃牌。
     const allowAction = !this.isPlaying;
@@ -750,6 +1113,10 @@ export class GameController {
     const unlimited = GameConfig.rules.unlimitedActions;
     this.hud.playBtn.setEnabled(allowAction && hasSelection && (unlimited || plays > 0));
     this.hud.discardBtn.setEnabled(allowAction && hasSelection && (unlimited || discards > 0));
+    // 理牌：出牌流程中禁用；手牌 ≥ 2 张才有意义。
+    const canSort = allowAction && hand.length > 1;
+    this.hud.sortRankBtn.setEnabled(canSort);
+    this.hud.sortSuitBtn.setEnabled(canSort);
   }
 
   // --- 出牌 / 弃牌 -------------------------------------------------
@@ -885,7 +1252,7 @@ export class GameController {
   }
 
   /**
-   * 重新绘制所有已缓存的 CardView。
+   * 重新绘制所有已缓存的 CardView（含手牌 + 小丑）。
    * 保留 CardView 实例本身，避免运行时调颜色/圆角时销毁交互对象导致手牌闪没。
    */
   refreshHandArt(): void {
@@ -894,8 +1261,12 @@ export class GameController {
     for (const view of this.viewByCardId.values()) {
       view.refreshArt();
     }
+    for (const view of this.jokers) {
+      view.refreshArt();
+    }
     // 开发面板手动 refresh：强制对齐所有牌，不豁免正在弹性的牌。
     this.layoutHand({ force: true });
+    this.layoutJokers();
   }
 
   private async recycleSelected(): Promise<void> {

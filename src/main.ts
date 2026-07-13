@@ -102,6 +102,16 @@ async function bootstrap(): Promise<void> {
         game.layoutHand({ force: true });
       }
 
+      // 小丑槽布局（间距 / 基准 Y / 槽位数）。
+      // slotCount 变化需要重建实例；其余只重排位姿即可。
+      if (key === "*" || key.startsWith("joker.")) {
+        if (key === "*" || key === "joker.slotCount") {
+          game.initJokers();
+        } else {
+          game.layoutJokers();
+        }
+      }
+
       // 无限出牌/弃牌开关：剩余次数为 0 时按钮处于 disable，
       // 切到开启后需要立刻刷新按钮使其可用（反向亦然）。
       if (key === "*" || key === "rules.unlimitedActions") {
@@ -110,7 +120,7 @@ async function bootstrap(): Promise<void> {
 
       // 选中弹起像素改值：当前已选中牌的 y 是上次 layoutHand 写好的旧值，
       // 需要重新摆位让它们以新高度对齐（普通 moveTo 平滑过渡）。
-      // 其余 selectMove 参数（时长/曲线/过弹/刚度）只影响下次触发的动画，
+      // 其余 select 上移/下移参数（启动速度/过冲/刚度）只影响下次触发的动画，
       // 即时读 CONFIG 即可，不需要主动 apply。
       if (key === "*" || key === "cardVisuals.selectRiseY") {
         game.layoutHand({ force: true });

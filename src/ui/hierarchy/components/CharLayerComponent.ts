@@ -317,11 +317,12 @@ export class CharLayerComponent extends UIComponent {
     // 触发重烤，阴影会停在静态快照。这里在动画期间周期性通知宿主视觉变化，
     // 让 ShadowComponent 重烤，使阴影跟随。
     //
-    // 注意：不每帧都通知。generateTexture 是较重的 GPU 操作，每帧高频重烤
-    // 既费性能，也会放大"销毁/烤纹理与渲染并发"的竞态。这里节流到约 30fps，
-    // 视觉上足够跟手；动画结束那一帧必定补发一次，让阴影落回稳态。
+    // 注意：不每帧都通知。generateTexture 是较重的 GPU 操作；呼吸文字 isActive
+    // 常为 true，若按 30fps 持续重烤 + 立刻 destroy 旧 RT，会与 WebGPU batch
+    // BindGroup 竞态，待机一段时间后极易黑屏。节流到约 10fps，并配合
+    // DeferredTextureDestroy 延迟释放。动画结束那一帧必定补发一次。
     const anyActive = effectsSnapshot.some((e) => e.isActive());
-    const SHADOW_REBAKE_INTERVAL = 33; // ms，约 30fps
+    const SHADOW_REBAKE_INTERVAL = 100; // ms，约 10fps
     if (anyActive) {
       if (now - this.lastShadowNotify >= SHADOW_REBAKE_INTERVAL) {
         this.host.notifyVisualChanged();

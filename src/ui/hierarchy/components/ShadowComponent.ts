@@ -41,6 +41,7 @@ import {
   Rectangle,
   type Renderer,
 } from "pixi.js";
+import { deferDestroyTexture } from "@core/DeferredTextureDestroy";
 import { UIComponent, type SerializedComponent } from "../UIComponent";
 import { uiHierarchy } from "../UIHierarchy";
 import { attachDragScrub } from "@/debug/dragScrub";
@@ -96,14 +97,6 @@ export class ShadowComponent extends UIComponent {
   private sprite: Sprite | null = null;
   /** 上一次烤的纹理；换新前显式销毁，避免 GPU 内存累积。 */
   private texture: Texture | null = null;
-  /**
-   * 待销毁的旧纹理队列。
-   * 高频重烤（动画期间每帧跟随）时，若烤完立刻 destroy(true) 旧纹理，
-   * 渲染管线本帧可能仍引用着它的 textureSource → 取到 null 崩溃黑屏。
-   * 这里把旧纹理推迟到下一次重烤 / detach 时再销毁，确保它已不被任何
-   * 渲染指令引用。
-   */
-  private pendingDestroy: Texture[] = [];
   /** 烤出来时 region 的 (x, y, w, h)，用于把 sprite 摆回正确位置以及做缩放枢轴。 */
   private regionOffsetX = 0;
   private regionOffsetY = 0;
@@ -194,11 +187,10 @@ export class ShadowComponent extends UIComponent {
       this.sprite.destroy({ children: false, texture: false });
       this.sprite = null;
     }
-    this.flushPendingDestroy();
-    if (this.texture) {
-      this.texture.destroy(true);
-      this.texture = null;
-    }
+    // 延迟销毁：避免 WebGPU batch BindGroup 仍引用该 textureSource 时立刻
+    // destroy 导致 resources=null → 下一帧 textureSource1 空引用黑屏。
+    deferDestroyTexture(this.texture);
+    this.texture = null;
   }
 
   apply(): void {
@@ -299,35 +291,20 @@ export class ShadowComponent extends UIComponent {
         frame: region,
         resolution: renderer.resolution,
         antialias: true,
+        textureSourceOptions: { autoGarbageCollect: false },
       });
+      tex.source.autoGarbageCollect = false;
     } catch (err) {
       console.warn(`[ShadowComponent] generateTexture 失败：`, err);
       return false;
     }
 
-    // 先把上一轮"待销毁"的旧纹理真正释放——此刻它们已经过了至少一帧，
-    // 不再被任何渲染指令引用，destroy 安全。
-    this.flushPendingDestroy();
-
     const oldTex = this.texture;
     this.texture = tex;
     sprite.texture = tex;
-    // 旧纹理不立即销毁（本帧渲染可能仍引用），推迟到下次重烤 / detach。
-    if (oldTex && oldTex !== tex) this.pendingDestroy.push(oldTex);
+    // 旧纹理延迟数帧销毁，等 batch BindGroup 换绑完成后再释放 GPU 资源。
+    if (oldTex && oldTex !== tex) deferDestroyTexture(oldTex);
     return true;
-  }
-
-  /** 真正销毁待释放的旧纹理。仅在确定它们已不被渲染引用时调用。 */
-  private flushPendingDestroy(): void {
-    if (this.pendingDestroy.length === 0) return;
-    for (const t of this.pendingDestroy) {
-      try {
-        t.destroy(true);
-      } catch {
-        // 已被销毁或无效，忽略。
-      }
-    }
-    this.pendingDestroy.length = 0;
   }
 
   /**

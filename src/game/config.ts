@@ -10,7 +10,7 @@
  *   - 想新增参数 = 在 DEFAULT_CONFIG 里加一项，再在面板 HTML + bind 一行即可。
  */
 
-export const CONFIG_VERSION = 3;
+export const CONFIG_VERSION = 4;
 
 /**
  * 单个 UI 节点的可持久化数据。
@@ -288,6 +288,51 @@ export interface RuntimeConfig {
      * 否则视觉上会撞到下一张牌的位置造成穿插错觉。
      */
     overshootPx: number;
+  };
+  /**
+   * 卡牌换位【理牌】
+   *
+   * 触发场景：玩家点击 HUD「点数 / 花色」按钮 → GameController 按规则重排 hand 数组 →
+   * 立刻按最终下标写 zIndex（落点靠左下层、靠右上层）→ 每张牌走 CardFx.sortMove 到位。
+   *
+   * 动画形态与 handSwap 同构（rise → 过冲 → spring），但时长按移动距离自适应：
+   *   riseMS = clamp(riseDurationMS * (dist / refDistancePx)^durationPower, minRiseMS, maxRiseMS)
+   *   - durationPower = 0：固定时长 → 速度严格 ∝ 距离（远牌明显更快）
+   *   - durationPower = 1：时长 ∝ 距离 → 速度恒定
+   *   建议 0~0.35，既保证远牌更快，又避免极近距离拖沓、极远距离瞬移。
+   *
+   * spring 段保持固定 springDurationMS，保证过冲回弹手感一致。
+   */
+  handSort: {
+    /** 总开关。关闭后理牌走单段补间，无过冲。 */
+    enabled: boolean;
+    /**
+     * rise 段基准时长（ms）：当移动距离 = refDistancePx 时使用此值。
+     * 建议 100~160。
+     */
+    riseDurationMS: number;
+    /** spring 段时长（ms，固定，不过距离缩放）。建议 80~140。 */
+    springDurationMS: number;
+    /**
+     * 过冲幅度（像素，沿运动方向投影）。
+     * 理牌可跨越多格，过冲可比手动换位略大一点。建议 10~20。
+     */
+    overshootPx: number;
+    /**
+     * 基准距离（像素）：移动距离等于此值时，rise 段使用完整 riseDurationMS。
+     * 建议 ≈ handLayout.cardSpacing（默认 65）。
+     */
+    refDistancePx: number;
+    /**
+     * 距离→时长幂次（0~1）。
+     * riseMS ∝ (dist/ref)^durationPower；速度 ∝ dist^(1-durationPower)。
+     * 0 = 固定时长（远牌最快），1 = 恒速。建议 0.15~0.3。
+     */
+    durationPower: number;
+    /** rise 段时长下限（ms），避免极短距离瞬移或过快。建议 40~80。 */
+    minRiseDurationMS: number;
+    /** rise 段时长上限（ms），避免极远距离拖沓。建议 180~320。 */
+    maxRiseDurationMS: number;
   };
   /** 【出牌】手牌换位 */
   playHandSwap: {
@@ -672,6 +717,7 @@ export interface RuntimeConfig {
       discard: boolean;
       discardFlip: boolean;
       handSwap: boolean;
+      handSort: boolean;
       playHandSwap: boolean;
       playPileDisplacement: boolean;
       playCardMove: boolean;
@@ -688,45 +734,58 @@ export interface RuntimeConfig {
     };
 
     /**
-     * 选中与取消卡牌的位移效果（两段补间：到位 → 过弹 → 阻尼回弹）
+     * 选中与取消卡牌的位移效果（两段补间：启动速度减速过冲 → 刚度回弹）
      *
-     * 触发：toggleSelection 翻转 view.selected 时（仅对那张牌）。
-     * 模型：
-     *   第一段 rise/fall：当前 y → (基准 y - rise ∓ overshoot)，用 selectMoveCurve 作为缓动，
-     *                    时长 = selectMoveDurationMS。
-     *   第二段 spring：上一段终点 → 基准 y，用 cubicOut 收敛，时长 = round(1000 / selectMoveStiffness)。
+     * 触发：快速点击手牌 → toggleSelection 翻转 view.selected（仅对那张牌）。
+     * 模型（与出牌堆抬升 / dropCardScoring 同构）：
+     *   第一段：当前位置 → 过冲点（target 沿 y 再越过 overshoot），
+     *          以 startSpeed 为初速度恒定减速到 0（Easing.quadOut），
+     *          时长 T = 2 * D / startSpeed（D = 起点→过冲点距离）。
+     *   第二段 spring：过冲点 → 真正落点，Easing.cubicOut 收敛，
+     *          时长 = round(1000 / stiffness)。
      *
-     * 注：动画期间该牌会被 layoutHand 跳过 tween 写入（仅写 layoutX/Y/Rotation 元数据），
-     * 直到两段动画都结束后才解除标记，避免普通重排 tween 把过弹动画踢掉。
+     * 上移（选中 rise）与下移（取消 fall）参数完全独立，可分别调手感。
+     *
+     * 注：动画期间该牌 isSelectAnimating=true，layoutHand 跳过对其下发 moveTo，
+     * 直到两段动画 onSettle 后才解除，避免普通重排 tween 把过弹动画踢掉。
      */
     selectMoveEnabled: boolean;
     /** 选中弹起高度（像素，世界坐标）。替代旧的 CardSkin.selectedRiseY。 */
     selectRiseY: number;
+
+    // ── 上移（选中 rise）────────────────────────────────
     /**
-     * 第一段位移时长（毫秒）。决定"到达目标高度（含过弹）"的速率：
-     * 时长越短，鼓起越爆裂；越长越温吞。
+     * 【上移】启动速度（像素/秒）。
+     * 从当前位置冲向过冲点时的初速度；配合 quadOut 恒定减速到 0。
+     * 物理关系：时长 T = 2 * D / startSpeed。建议 300~1200。
      */
-    selectMoveDurationMS: number;
+    selectMoveStartSpeed: number;
     /**
-     * 第一段速率曲线（贝塞尔）。曲线 y(t) 直接作为 ease：
-     * y(0)=0、y(1)=1 之间的形状决定 rise/fall 的加速感觉。
-     * enabled=false 时退化为 cubicOut。
-     */
-    selectMoveCurve: BezierCurveConfig;
-    /**
-     * 过弹幅度（像素）：第一段的终点会越过最终目标 selectMoveOvershoot 像素。
-     *   选中 rise：终点 y = (基准 y - selectRiseY) - selectMoveOvershoot（向上多走）
-     *   取消 fall：终点 y = (基准 y)               + selectMoveOvershoot（向下多走）
-     * 设为 0 等同于关掉过弹（不过仍会有第二段、瞬时完成）。
+     * 【上移】过冲幅度（像素）：第一段终点 y = (基准 y - selectRiseY) - overshoot。
+     * 设为 0 等同于关掉过冲（第一段直接到位，无第二段回弹）。
      */
     selectMoveOvershoot: number;
     /**
-     * 过弹回弹刚度（无单位，建议 3~30）。
-     * 用法：回弹段时长（ms）= round(1000 / selectMoveStiffness)。
-     * stiffness=10 → 100ms；stiffness=5 → 200ms；stiffness=20 → 50ms。
-     * 数值越大，从过弹点拉回目标越"硬"。
+     * 【上移】回弹刚度（无单位，建议 3~30）。
+     * 回弹段时长（ms）= round(1000 / stiffness)。数值越大回弹越"硬"。
      */
     selectMoveStiffness: number;
+
+    // ── 下移（取消选中 fall）────────────────────────────
+    /**
+     * 【下移】启动速度（像素/秒）。取消选中时从弹起位冲向过冲点（目标下方）。
+     * 建议可略低于上移，让落下稍柔和。
+     */
+    selectFallStartSpeed: number;
+    /**
+     * 【下移】过冲幅度（像素）：第一段终点 y = 基准 y + overshoot（向下多走）。
+     */
+    selectFallOvershoot: number;
+    /**
+     * 【下移】回弹刚度（无单位，建议 3~30）。
+     * 回弹段时长（ms）= round(1000 / stiffness)。
+     */
+    selectFallStiffness: number;
     // 1. 常态呼吸晃动
     breathingEnabled: boolean;
     breathingSpeed: number;
@@ -974,6 +1033,48 @@ export interface RuntimeConfig {
   evalScoreBounce: BounceAnimationConfig;
   evalScoreText: EvalScoreTextConfig;
   /**
+   * 小丑牌系统
+   *
+   * 设计原则：小丑牌 ≈ 可拖拽排序 / 可选中弹起、但无法出牌 / 弃牌 / 点数花色理牌 的「手牌」。
+   * 所有数值与手感参数完全复用手牌专区（cardVisuals / cardShadow / handSwap 等），
+   * 本节点只负责：
+   *   1) 布局（顶部槽位）；
+   *   2) 对「复用的手牌效果专区」再套一层总开关（effects.*）。
+   * 改手牌参数 → 小丑同步变化；关 effects.xxx → 仅小丑侧停用该效果。
+   */
+  joker: {
+    /** 顶部同时显示的槽位数（默认 5，对应图集前 5 张）。 */
+    slotCount: number;
+    /**
+     * 相邻小丑中心水平间距（像素）。
+     * 独立于 handLayout.cardSpacing：顶部一条直线排布，间距通常比手牌更宽。
+     */
+    cardSpacing: number;
+    /** 小丑中心的世界 Y（屏幕上方）。 */
+    baseY: number;
+    /**
+     * 可复用手牌效果的分项开关。
+     * true 时再与对应手牌专区自身的 enabled 做 AND（两边都开才真正生效）。
+     * 参数值一律读手牌配置，不在此处重复。
+     */
+    effects: {
+      /** 对应「卡牌常态阴影」专区（CONFIG.cardShadow）。 */
+      shadow: boolean;
+      /** 对应「常态呼吸晃动」专区（cardVisuals.breathing*）。 */
+      breathing: boolean;
+      /** 对应「常态伪3D倾斜呼吸晃动」专区（cardVisuals.idleTilt*）。 */
+      idleTilt: boolean;
+      /** 对应「鼠标触碰碰撞范围」专区（cardVisuals.hoverHit*）。 */
+      hoverHit: boolean;
+      /** 对应「鼠标触碰小弹性缩放」专区（cardVisuals.hoverScale*）。 */
+      hoverScale: boolean;
+      /** 对应「鼠标呼吸晃动（触碰与回落）」专区（cardVisuals.hoverBreathing*）。 */
+      hoverBreathing: boolean;
+      /** 对应「卡牌鼠标悬停伪3D倾斜」专区（cardVisuals.mouse3DTilt*）。 */
+      mouse3DTilt: boolean;
+    };
+  };
+  /**
    * UI 节点持久化表。键是 UINode.nodeId。
    * 由 UIHierarchy 维护：任何 transform 变化、组件增删、父子重排都会回写这里。
    * 老 preset 没这字段是合法的——首次启动后会被 hierarchy 自动填充。
@@ -1091,6 +1192,16 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     riseDurationMS: 110,
     springDurationMS: 110,
     overshootPx: 12,
+  }),
+  handSort: Object.freeze({
+    enabled: true,
+    riseDurationMS: 130,
+    springDurationMS: 110,
+    overshootPx: 14,
+    refDistancePx: 65,
+    durationPower: 0.2,
+    minRiseDurationMS: 60,
+    maxRiseDurationMS: 220,
   }),
   playHandSwap: Object.freeze({
     enabled: true,
@@ -1315,6 +1426,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       discard: true,
       discardFlip: true,
       handSwap: true,
+      handSort: true,
       playHandSwap: true,
       playPileDisplacement: true,
       playCardMove: true,
@@ -1331,17 +1443,14 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     }),
     selectMoveEnabled: true,
     selectRiseY: 30,
-    selectMoveDurationMS: 180,
-    selectMoveCurve: Object.freeze({
-      enabled: true,
-      startScale: 0,
-      endScale: 1,
-      // 类似 cubicOut 的"先快后慢"形状，第一段以较高初速度冲到过弹点。
-      p1: { x: 0.18, y: 0.85 },
-      p2: { x: 0.32, y: 1.0 },
-    }) as BezierCurveConfig,
+    // 上移：≈ 600 px/s，弹起 30+8px 时第一段约 127ms，偏干脆。
+    selectMoveStartSpeed: 600,
     selectMoveOvershoot: 8,
     selectMoveStiffness: 10,
+    // 下移：默认略慢、过冲略小，落下比弹起稍柔和。
+    selectFallStartSpeed: 500,
+    selectFallOvershoot: 6,
+    selectFallStiffness: 10,
     breathingEnabled: true,
     breathingSpeed: 0.002,
     breathingAmplitude: 3,
@@ -1469,6 +1578,21 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     decreaseDurationMS: 500,
     stayDurationMS: 0,
   }),
+  joker: Object.freeze({
+    slotCount: 5,
+    // 比手牌 spacing 略宽，顶部 5 张并排更透气。
+    cardSpacing: 120,
+    baseY: 90,
+    effects: Object.freeze({
+      shadow: true,
+      breathing: true,
+      idleTilt: true,
+      hoverHit: true,
+      hoverScale: true,
+      hoverBreathing: true,
+      mouse3DTilt: true,
+    }),
+  }),
   uiNodes: {},
 }) as RuntimeConfig;
 
@@ -1550,6 +1674,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     discard: { ...src.discard },
     discardFlip: { ...src.discardFlip },
     handSwap: { ...src.handSwap },
+    handSort: { ...src.handSort },
     playHandSwap: { ...src.playHandSwap },
     playPileDisplacement: { ...src.playPileDisplacement },
     playCardMove: { ...src.playCardMove },
@@ -1587,11 +1712,6 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
         p1: { ...src.cardVisuals.hoverScaleCurve.p1 },
         p2: { ...src.cardVisuals.hoverScaleCurve.p2 },
       } : undefined as any,
-      selectMoveCurve: src.cardVisuals.selectMoveCurve ? {
-        ...src.cardVisuals.selectMoveCurve,
-        p1: { ...src.cardVisuals.selectMoveCurve.p1 },
-        p2: { ...src.cardVisuals.selectMoveCurve.p2 },
-      } : undefined as any,
     },
     playPile: { ...src.playPile },
     scoreCurve: {
@@ -1604,6 +1724,10 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     handNameBounce: { ...src.handNameBounce },
     evalScoreBounce: { ...src.evalScoreBounce },
     evalScoreText: { ...src.evalScoreText },
+    joker: {
+      ...src.joker,
+      effects: { ...src.joker.effects },
+    },
     uiNodes: cloneUINodes(src.uiNodes),
   };
 }
@@ -1774,6 +1898,12 @@ export function applyConfig(source: unknown): void {
       ...incoming.handSwap,
     };
   }
+  if (incoming.handSort) {
+    merged.handSort = {
+      ...merged.handSort,
+      ...incoming.handSort,
+    };
+  }
   if (incoming.playHandSwap) {
     merged.playHandSwap = {
       ...merged.playHandSwap,
@@ -1858,14 +1988,6 @@ export function applyConfig(source: unknown): void {
             p2: { ...(merged.cardVisuals.hoverScaleCurve?.p2 ?? {}), ...(incoming.cardVisuals.hoverScaleCurve.p2 ?? {}) },
           }
         : merged.cardVisuals.hoverScaleCurve,
-      selectMoveCurve: incoming.cardVisuals.selectMoveCurve
-        ? {
-            ...merged.cardVisuals.selectMoveCurve,
-            ...incoming.cardVisuals.selectMoveCurve,
-            p1: { ...(merged.cardVisuals.selectMoveCurve?.p1 ?? {}), ...(incoming.cardVisuals.selectMoveCurve.p1 ?? {}) },
-            p2: { ...(merged.cardVisuals.selectMoveCurve?.p2 ?? {}), ...(incoming.cardVisuals.selectMoveCurve.p2 ?? {}) },
-          }
-        : merged.cardVisuals.selectMoveCurve,
     };
   }
   if (incoming.playPile) {
@@ -1912,6 +2034,18 @@ export function applyConfig(source: unknown): void {
       ...incoming.evalScoreText,
     };
   }
+  if (incoming.joker) {
+    merged.joker = {
+      ...merged.joker,
+      ...incoming.joker,
+      effects: incoming.joker.effects
+        ? {
+            ...merged.joker.effects,
+            ...incoming.joker.effects,
+          }
+        : merged.joker.effects,
+    };
+  }
   // uiNodes：preset 里没带就清空（让 hierarchy 自己重新捕获默认值），
   // 带了就整张表替换（这一表内部条目相互依赖，不适合按字段合并）。
   merged.uiNodes = cloneUINodes(incoming.uiNodes ?? {});
@@ -1933,6 +2067,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.discard = merged.discard;
   CONFIG.discardFlip = merged.discardFlip;
   CONFIG.handSwap = merged.handSwap;
+  CONFIG.handSort = merged.handSort;
   CONFIG.playHandSwap = merged.playHandSwap;
   CONFIG.playPileDisplacement = merged.playPileDisplacement;
   CONFIG.playCardMove = merged.playCardMove;
@@ -1948,6 +2083,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.handNameBounce = merged.handNameBounce;
   CONFIG.evalScoreBounce = merged.evalScoreBounce;
   CONFIG.evalScoreText = merged.evalScoreText;
+  CONFIG.joker = merged.joker;
   CONFIG.uiNodes = merged.uiNodes;
 }
 
@@ -2090,6 +2226,12 @@ export function applyShippingDefaults(source: unknown): void {
       ...incoming.handSwap,
     };
   }
+  if (incoming.handSort) {
+    activeDefaultConfig.handSort = {
+      ...activeDefaultConfig.handSort,
+      ...incoming.handSort,
+    };
+  }
   if (incoming.playHandSwap) {
     activeDefaultConfig.playHandSwap = {
       ...activeDefaultConfig.playHandSwap,
@@ -2174,14 +2316,6 @@ export function applyShippingDefaults(source: unknown): void {
             p2: { ...(activeDefaultConfig.cardVisuals.hoverScaleCurve?.p2 ?? {}), ...(incoming.cardVisuals.hoverScaleCurve.p2 ?? {}) },
           }
         : activeDefaultConfig.cardVisuals.hoverScaleCurve,
-      selectMoveCurve: incoming.cardVisuals.selectMoveCurve
-        ? {
-            ...activeDefaultConfig.cardVisuals.selectMoveCurve,
-            ...incoming.cardVisuals.selectMoveCurve,
-            p1: { ...(activeDefaultConfig.cardVisuals.selectMoveCurve?.p1 ?? {}), ...(incoming.cardVisuals.selectMoveCurve.p1 ?? {}) },
-            p2: { ...(activeDefaultConfig.cardVisuals.selectMoveCurve?.p2 ?? {}), ...(incoming.cardVisuals.selectMoveCurve.p2 ?? {}) },
-          }
-        : activeDefaultConfig.cardVisuals.selectMoveCurve,
     };
   }
   if (incoming.playPile) {
@@ -2226,6 +2360,18 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.evalScoreText = {
       ...activeDefaultConfig.evalScoreText,
       ...incoming.evalScoreText,
+    };
+  }
+  if (incoming.joker) {
+    activeDefaultConfig.joker = {
+      ...activeDefaultConfig.joker,
+      ...incoming.joker,
+      effects: incoming.joker.effects
+        ? {
+            ...activeDefaultConfig.joker.effects,
+            ...incoming.joker.effects,
+          }
+        : activeDefaultConfig.joker.effects,
     };
   }
   if (incoming.uiNodes) {

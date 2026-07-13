@@ -1,5 +1,9 @@
-import { Application, Container } from "pixi.js";
+import { Application, Container, UPDATE_PRIORITY } from "pixi.js";
 import { Scaler } from "./Scaler";
+import {
+  flushDeferredTextureDestroy,
+  tickDeferredTextureDestroy,
+} from "./DeferredTextureDestroy";
 
 /**
  * 引擎层封装
@@ -9,6 +13,7 @@ import { Scaler } from "./Scaler";
  *   - 维护 worldRoot：所有渲染内容挂在 worldRoot 下，便于统一缩放。
  *   - 接管 ticker 并暴露 onUpdate(dt) 钩子。
  *   - 接管 window resize 并触发 Scaler.apply。
+ *   - 延迟销毁 GPU 纹理，避免 WebGPU BindGroup 悬空引用导致黑屏。
  */
 export interface AppOptions {
   backgroundColor?: number;
@@ -26,6 +31,7 @@ export class App {
 
   private readonly updaters = new Set<UpdateCallback>();
   private initialized = false;
+  private renderGuardInstalled = false;
 
   constructor(private readonly opts: AppOptions = {}) {
     this.pixi = new Application();
@@ -55,22 +61,24 @@ export class App {
       roundPixels: false,
       // 关闭 PIXI 自动 GC（垃圾回收）。
       //
-      // 背景：PIXI v8 在纹理或可渲染对象"闲置约 60s"后会自动卸载其 GPU 资源。但本项目用
-      // generateTexture 烤了大量 RenderTexture（卡面 cardTexture、剪影 shadow 等），其 GPU
-      // TextureView 可能仍被 PIXI 内部的 batch BindGroup 缓存（getTextureBatchBindGroup 的
-      // 模块级 cachedGroups，该缓存在纹理销毁/卸载时不会失效）引用。一旦 GC 卸载了这种纹理，
-      // 下一帧渲染会在 BindGroupSystem._createBindGroup 读到 null source 而崩溃（黑屏 +
-      // Cannot read properties of null 'textureSource1'）——表现就是"待机约一分钟后突然黑屏"。
+      // 背景：PIXI v8 的 GCSystem 会卸载闲置资源。ImageSource（图集）默认
+      // autoGarbageCollect=true；Geometry/Buffer/ViewContainer 亦然。本项目还大量
+      // 使用 generateTexture 烤 RenderTexture。与 WebGPU batch BindGroup 缓存组合时，
+      // 过早 unload/destroy 会导致 BindGroup.resources 被置 null，下一帧崩溃黑屏：
+      //   Cannot read properties of null (reading 'textureSource1')
       //
-      // ⚠️ 自 PIXI v8.15.0 起 GC 被重构为统一的 GCSystem，由 gcActive 控制；纹理与可渲染
-      // 对象的回收都归它管。旧的 textureGCActive / renderableGCActive 已 deprecated：前者
-      // 会在 init 时打印 deprecation 警告，后者的 init 根本不读取（设了也无效）。因此这里
-      // 只保留 gcActive: false 即可彻底关闭自动回收，且不产生任何 deprecation 警告。
-      //
-      // 本游戏是单屏卡牌玩法，纹理生命周期已由各 View 手动管理（bakeCardTexture / refreshArt
-      // / destroy 都显式 destroy 旧纹理），不依赖 PIXI 的自动 GC，关闭它最稳妥且无副作用。
+      // 自 PIXI v8.15.0 起统一用 gcActive 控制；关闭后不依赖自动回收。
+      // 纹理释放由 View 侧 + DeferredTextureDestroy 显式管理。
       gcActive: false,
     });
+
+    // 双保险：即便别处重新打开了 gc，也立刻关掉。
+    try {
+      const gc = (this.pixi.renderer as unknown as { gc?: { enabled: boolean } }).gc;
+      if (gc) gc.enabled = false;
+    } catch {
+      // ignore
+    }
 
     const mount = this.opts.mountTo ?? document.body;
     mount.appendChild(this.pixi.canvas);
@@ -84,7 +92,13 @@ export class App {
       const dt = ticker.deltaTime;
       const dtMS = ticker.deltaMS;
       for (const fn of this.updaters) fn(dtMS, dt);
+      // 业务 update 之后、下一帧渲染之前推进延迟销毁计数。
+      // 真正的 destroy 发生在"若干帧之后"，确保 batch BindGroup 已换掉。
+      tickDeferredTextureDestroy();
     });
+
+    this.installRenderGuard();
+    document.addEventListener("visibilitychange", this.handleVisibility);
 
     window.addEventListener("resize", this.handleResize);
     this.initialized = true;
@@ -100,9 +114,73 @@ export class App {
     this.scaler.apply(this.pixi, this.worldRoot);
   };
 
+  /**
+   * 页面从后台恢复时，强制标记场景结构脏，避免复用挂起期间失效的
+   * WebGPU BindGroup / 指令集。
+   */
+  private readonly handleVisibility = (): void => {
+    if (document.visibilityState !== "visible") return;
+    this.forceSceneRebuild();
+  };
+
+  /**
+   * 给 ticker 的 render 包一层 try/catch：BindGroup 悬空一类错误不再永久黑屏，
+   * 而是强制重建指令集并跳过当帧，后续帧可自行恢复。
+   *
+   * 注意：TickerPlugin 在 init 时用 `ticker.add(this.render, this)` 登记的是当时的
+   * 函数引用，只改 `app.render` 不会生效，必须 remove 后再 add 包装函数。
+   */
+  private installRenderGuard(): void {
+    if (this.renderGuardInstalled) return;
+    const app = this.pixi;
+    const ticker = app.ticker;
+    // 先摘掉 TickerPlugin 挂上的原始 render。
+    ticker.remove(app.render, app);
+    const originalRender = app.render.bind(app);
+    const guardedRender = (): void => {
+      try {
+        originalRender();
+      } catch (err) {
+        console.error("[App] 渲染异常（已拦截，尝试恢复）:", err);
+        this.forceSceneRebuild();
+      }
+    };
+    app.render = guardedRender;
+    // LOW 与 TickerPlugin 默认优先级一致，保证业务 update 先跑。
+    ticker.add(guardedRender, app, UPDATE_PRIORITY.LOW);
+    this.renderGuardInstalled = true;
+  }
+
+  /** 递归标记 render group 结构变化，迫使下一次渲染重建 batch。 */
+  private forceSceneRebuild(): void {
+    try {
+      const stage = this.pixi.stage as unknown as {
+        renderGroup?: { structureDidChange: boolean };
+        parentRenderGroup?: { structureDidChange: boolean };
+        enableRenderGroup?: () => void;
+      };
+      stage.enableRenderGroup?.();
+      if (stage.renderGroup) stage.renderGroup.structureDidChange = true;
+      if (stage.parentRenderGroup) stage.parentRenderGroup.structureDidChange = true;
+
+      const walk = (node: { children?: unknown[]; renderGroup?: { structureDidChange: boolean }; parentRenderGroup?: { structureDidChange: boolean } }) => {
+        if (node.renderGroup) node.renderGroup.structureDidChange = true;
+        if (node.parentRenderGroup) node.parentRenderGroup.structureDidChange = true;
+        const kids = node.children;
+        if (!kids) return;
+        for (const c of kids) walk(c as typeof node);
+      };
+      walk(this.pixi.stage as never);
+    } catch {
+      // ignore
+    }
+  }
+
   destroy(): void {
     window.removeEventListener("resize", this.handleResize);
+    document.removeEventListener("visibilitychange", this.handleVisibility);
     this.updaters.clear();
+    flushDeferredTextureDestroy();
     this.pixi.destroy(true, { children: true });
   }
 }
