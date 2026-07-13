@@ -77,7 +77,7 @@ export class GameController {
    * 与 isPlaying 的区别：isPlaying 是整个出牌/弃牌"流程锁"（含补牌），在 finally 才解除；
    * 而本标志只覆盖"选中牌飞向出牌堆、剩余手牌向中间挤位让路"这一阶段。
    *
-   * 用途：layoutHand 中据此决定剩余手牌走 CardFx.swapMove（固定短时长 playHandSwap，
+   * 用途：layoutHand 中据此决定剩余手牌走 CardFx.swapMove（playHandSwap 物理挤位，
    * 利落挤位）。一旦进入补牌阶段（drawToFull），本标志已置回 false，发出的新牌就会
    * 正确走 moveToWithOvershoot（距离驱动时长），而不是被误判成"挤位"用 110ms 飞完，
    * 避免补牌"移动速度异常快"。
@@ -302,6 +302,8 @@ export class GameController {
           onHoverOut: () => {},
           onDragStart: (v) => {
             this.tween.killOf(v);
+            // 递增 gen，使任何残留 swap tween 的 onStop 不再误清后续状态。
+            v.swapAnimGen += 1;
             v.isSwapAnimating = false;
             v.isSelectAnimating = false;
             v.zIndex = 9999;
@@ -344,6 +346,7 @@ export class GameController {
 
     list.forEach((view, i) => {
       this.tween.killOf(view);
+      view.swapAnimGen += 1;
       view.isSwapAnimating = false;
       view.isSelectAnimating = false;
       view.handIndex = i;
@@ -429,16 +432,10 @@ export class GameController {
     let newIndex = i;
     const swapFor = new Set<CardView>();
 
-    const isStillSwapping = (v: CardView): boolean => {
-      if (!v.isSwapAnimating) return false;
-      if (this.tween.hasTweenFor(v)) return true;
-      v.isSwapAnimating = false;
-      return false;
-    };
-
+    // 与 reorderHandWhileDragging 一致：不把正在 swap 的邻牌当墙，
+    // 快速左右往返时逻辑序始终跟手；动画由 CardFx retarget 路径消化。
     while (newIndex > 0) {
       const left = list[newIndex - 1]!;
-      if (isStillSwapping(left)) break;
       if (dragCenter < left.layoutX) {
         swapFor.add(left);
         newIndex -= 1;
@@ -449,7 +446,6 @@ export class GameController {
 
     while (newIndex < list.length - 1) {
       const right = list[newIndex + 1]!;
-      if (isStillSwapping(right)) break;
       if (dragCenter > right.layoutX) {
         swapFor.add(right);
         newIndex += 1;
@@ -650,6 +646,8 @@ export class GameController {
           // Tween.onStop 在被打断时清旗，所以这里通常已经为 false。
           // 但为防御任何路径下的标志残留（例如 tween 未启动但标志已置位、或
           // 未来新增的动画忘记挂 onStop），在此显式清零作为最后一道保险。
+          // 递增 gen：保证旧 swap 回调不会与本次拖拽之后的新动画串扰。
+          view.swapAnimGen += 1;
           view.isSwapAnimating = false;
           view.isSelectAnimating = false;
           view.zIndex = 9999;
@@ -881,8 +879,10 @@ export class GameController {
    * 立即与该邻牌在 hand 数组中互换位置，并触发 layoutHand 让让位牌平滑移动到新槽位。
    *
    * 双重调用机制：
-   *   - 拖拽过程中（onDragging 每帧）：传入 `view.x`（已 lerp 平滑的实际渲染中线）。
+   *   - 拖拽过程中（onDragging）：传入 `view.x`（已 lerp 平滑的实际渲染中线）。
    *     这样"换位时机"严格对应卡片视觉中线真正滑过邻牌中线那一刻，手感明确不模糊。
+   *     除 pointermove 外，CardView.updateDragging 每帧也会回调一次，确保卡牌在
+   *     追赶鼠标的过程中（鼠标已停、牌还在 lerp）仍能持续跨越中线完成换位。
    *   - 松手瞬间（onDragEnd）：传入 `view.dragLogicalX`（= 鼠标位置 - 抓握偏移）。
    *     这是为了解决「快速甩动鼠标后立刻松手」时——由于 lerp/maxSpeed 限速，卡牌
    *     还没追上鼠标——基于 view.x 算出的最终落位会停留在「卡牌已滑过」而非「鼠标
@@ -901,16 +901,24 @@ export class GameController {
    *      为单帧只换一格而残留视觉错位。松手分支同样依赖这一点：鼠标可能远在 view.x
    *      右侧好几格，需要一次性补齐。
    *
-   *   3. swap 之后立即调用 layoutHand：
+   *   3. 邻牌即便正在播放 swap 动画也可再次被跨越（无「换位墙」）。
+   *      旧设计把 isSwapAnimating 邻牌当不可穿越的墙，是为了避免 rise 被反复打断
+   *      造成视觉变慢；但快速左右往返时会表现为「换位停住 / 严重延迟」。
+   *      现在改为：逻辑序始终跟手；被再次让位的牌立刻打断并用 handSwap 物理模型
+   *      （startSpeed / overshoot / stiffness）从当前位置重新开完整 rise→spring，
+   *      时长按当前距离重算，短距离不会变慢。
+   *
+   *   4. swap 之后立即调用 layoutHand：
    *      - 拖拽牌本身：layoutHand 会更新它的 zIndex / handIndex / layoutX/Y/Rotation
    *        元数据。
    *        · onDragging 路径：isDragging=true，跳过 TweenManager 写位置（鼠标主导）；
    *          新的 layoutX 即"松手回弹的目标点"。
    *        · onDragEnd 路径：调用方在本函数返回后立刻置 view.isReturning=true 并再调
    *          一次 layoutHand()，那时才让 TweenManager 把拖拽牌平滑送到新槽位。
-   *      - 被让位的相邻牌：layoutHand 会用 CardFx.swapMove 带它过去（rise + spring 弹性）。
+   *      - 被让位的相邻牌：layoutHand 会用 CardFx.swapMove 带它过去
+   *        （物理 rise + spring，可立刻打断重开）。
    *
-   *   4. 只看 x 不看 y：手牌区域是横向一字排开（带轻微弧形），换位仅由水平位置决定。
+   *   5. 只看 x 不看 y：手牌区域是横向一字排开（带轻微弧形），换位仅由水平位置决定。
    */
   private reorderHandWhileDragging(view: CardView, dragCenter: number): void {
     const hand = this.store.getState().hand;
@@ -922,32 +930,11 @@ export class GameController {
     // 而不是默认的 moveToWithOvershoot（短距离会被距离阈值短路为无过冲）。
     const swapFor = new Set<CardView>();
 
-    // 向左检查：拖拽牌中线 view.x 穿过左邻牌槽位中线 left.layoutX 时换位。
+    // 向左检查：拖拽牌中线穿过左邻牌槽位中线 left.layoutX 时换位。
     // 越过则交换，并继续向左追问新左邻；while 支持单次手势跨多格。
-    //
-    // 「正在 swap 动画中的邻牌视为不可跨越的墙」——与原版 Balatro 一致：换位
-    // 动画不可被打断。一张牌一旦开始让位，必须播完 rise→spring 才能再次参与
-    // 换位判定。这从根本上避免了"反复打断 → 牌停留在 rise 早段 → 视觉速度变慢
-    // 并与其它牌产生速度差"的 bug，同时也是更符合原版手感的设计。
-    //
-    // 注：只看 isSwapAnimating 而不看其它动画（如归位 moveToWithOvershoot、选中
-    // selectMove），避免把无关动画也变成"挡路墙"。
-    // 注：拖拽牌自己不需要这个保护（它不会进 swap 动画——它的位置由鼠标主导）。
-    // 注：此处读 isSwapAnimating 是安全的——onStop 提前清零的时序坑只在新一轮
-    // swapMove 调用 tm.add 触发字段互斥的瞬间出现；此处尚未启动任何新 tween，
-    // 标志反映的是当前真实状态。
-    // 「该牌仍在 swap 动画中」的判定带自愈：标志为 true 但 TweenManager 里实际
-    // 已无该牌的活跃 tween，视为残留标志，立即清零，不再当成"挡路墙"。
-    const isStillSwapping = (v: CardView): boolean => {
-      if (!v.isSwapAnimating) return false;
-      if (this.tween.hasTweenFor(v)) return true;
-      v.isSwapAnimating = false;
-      return false;
-    };
-
+    // 不把 isSwapAnimating 邻牌当墙——快速往返必须能立刻反向换位。
     while (newIndex > 0) {
       const left = hand[newIndex - 1]!;
-      if (isStillSwapping(left)) break;
       if (dragCenter < left.layoutX) {
         swapFor.add(left);
         newIndex -= 1;
@@ -959,7 +946,6 @@ export class GameController {
     // 向右检查：对称逻辑。
     while (newIndex < hand.length - 1) {
       const right = hand[newIndex + 1]!;
-      if (isStillSwapping(right)) break;
       if (dragCenter > right.layoutX) {
         swapFor.add(right);
         newIndex += 1;

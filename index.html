@@ -557,18 +557,10 @@
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>rise 段时长 (ms)</span>
-                  <span id="val-handSwapRiseDurationMS">110</span>
+                  <span>启动速度 (px/s)</span>
+                  <span id="val-handSwapStartSpeed">1400</span>
                 </div>
-                <input id="inp-handSwapRiseDurationMS" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>spring 段时长 (ms)</span>
-                  <span id="val-handSwapSpringDurationMS">110</span>
-                </div>
-                <input id="inp-handSwapSpringDurationMS" type="number" step="10" min="0" max="2000" />
+                <input id="inp-handSwapStartSpeed" type="number" step="50" min="1" max="10000" />
               </div>
 
               <div class="panel-row">
@@ -577,6 +569,14 @@
                   <span id="val-handSwapOvershootPx">12.0</span>
                 </div>
                 <input id="inp-handSwapOvershootPx" type="number" step="1" min="0" max="100" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>回弹刚度</span>
+                  <span id="val-handSwapStiffness">9.00</span>
+                </div>
+                <input id="inp-handSwapStiffness" type="number" step="0.5" min="0.1" max="100" />
               </div>
             </div>
 
@@ -679,18 +679,10 @@
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>rise 段时长 (ms)</span>
-                  <span id="val-playHandSwapRiseDurationMS">60</span>
+                  <span>启动速度 (px/s)</span>
+                  <span id="val-playHandSwapStartSpeed">2600</span>
                 </div>
-                <input id="inp-playHandSwapRiseDurationMS" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>spring 段时长 (ms)</span>
-                  <span id="val-playHandSwapSpringDurationMS">50</span>
-                </div>
-                <input id="inp-playHandSwapSpringDurationMS" type="number" step="10" min="0" max="2000" />
+                <input id="inp-playHandSwapStartSpeed" type="number" step="50" min="1" max="10000" />
               </div>
 
               <div class="panel-row">
@@ -699,6 +691,14 @@
                   <span id="val-playHandSwapOvershootPx">12.0</span>
                 </div>
                 <input id="inp-playHandSwapOvershootPx" type="number" step="1" min="0" max="100" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>回弹刚度</span>
+                  <span id="val-playHandSwapStiffness">20.00</span>
+                </div>
+                <input id="inp-playHandSwapStiffness" type="number" step="0.5" min="0.1" max="100" />
               </div>
             </div>
 

@@ -94,9 +94,15 @@ export class AssetManager {
       backTex.source.autoGarbageCollect = false;
       jokerTex.source.autoGarbageCollect = false;
 
+      // 小丑图集卡面是烤死的纯白底，会盖住 CardView 里的 faceColor 圆角底。
+      // 把手牌 8BitDeck 一样的透明底语义补上：纯白 → alpha=0，露出 CONFIG.cardArt.faceColor。
+      const jokerProcessed = this.makePureWhiteTransparent(jokerTex);
+      this.applyPixelSampling(jokerProcessed);
+      jokerProcessed.source.autoGarbageCollect = false;
+
       this.sliceFront(frontTex);
       this.sliceBack(backTex);
-      this.sliceJokers(jokerTex);
+      this.sliceJokers(jokerProcessed);
 
       this.loaded = true;
     } catch (err) {
@@ -237,6 +243,57 @@ export class AssetManager {
         const tex = new Texture({ source: source.source, frame });
         this.jokerByIndex.set(r * cols + c, tex);
       }
+    }
+  }
+
+  /**
+   * 把贴图中「纯白不透明」像素改为全透明。
+   *
+   * 用途：Jokers.png 的卡面底是烤死的 #FFFFFF，而手牌 8BitDeck 是透明底 +
+   * CardView.drawSprite 先铺 CONFIG.cardArt.faceColor。
+   * 打通纯白后，小丑与手牌共用同一条「卡面底色」路径；改 faceColor 会同时刷新。
+   *
+   * 仅匹配 RGB=255,255,255 且 A=255，避免误伤半透明抗锯齿边与灰色外缘描边。
+   * 处理失败（无 resource / 跨域 canvas taint 等）时原样返回，不阻断加载。
+   */
+  private makePureWhiteTransparent(source: Texture): Texture {
+    if (typeof document === "undefined") return source;
+
+    const w = Math.max(1, Math.round(source.width));
+    const h = Math.max(1, Math.round(source.height));
+    const resource = source.source?.resource as CanvasImageSource | undefined;
+    if (!resource) {
+      console.warn("[AssetManager] joker 贴图无 resource，跳过白底透明化");
+      return source;
+    }
+
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return source;
+
+      ctx.drawImage(resource, 0, 0, w, h);
+      const imageData = ctx.getImageData(0, 0, w, h);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        if (
+          data[i] === 255 &&
+          data[i + 1] === 255 &&
+          data[i + 2] === 255 &&
+          data[i + 3] === 255
+        ) {
+          data[i + 3] = 0;
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+
+      // skipCache=true：避免与原始 Assets 缓存的同 URL 纹理冲突。
+      return Texture.from(canvas, true);
+    } catch (err) {
+      console.warn("[AssetManager] joker 白底透明化失败，保留原图：", err);
+      return source;
     }
   }
 

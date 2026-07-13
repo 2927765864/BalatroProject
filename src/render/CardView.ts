@@ -153,6 +153,13 @@ export class CardView extends Container {
    */
   isSwapAnimating = false;
   /**
+   * swap 动画代数。每次启动 / 强制清零 swap 动画时递增。
+   * 用于区分「被新一次 swap 接管」与「真正被外部打断」：
+   * 旧 tween 的 onStop 若发现代数已变，不再清 isSwapAnimating，
+   * 避免新动画入口刚置 true、tm.add 互斥停掉旧 tween 时把新标志误清成 false。
+   */
+  swapAnimGen = 0;
+  /**
    * 当前是否处于出牌堆上移（计分抬起）效果中。
    * 开启后阴影会切换成拖拽阴影效果。
    */
@@ -1076,7 +1083,13 @@ export class CardView extends Container {
     }
   }
 
-  /** 精灵图分支：背景+正面贴图+1像素外描边，整体保持与程序化绘制相同的外尺寸。 */
+  /**
+   * 精灵图分支：背景+正面贴图+1像素外描边，整体保持与程序化绘制相同的外尺寸。
+   *
+   * 卡面底色（CONFIG.cardArt.faceColor）手牌 / 小丑共用：
+   *   - 手牌 8BitDeck 本身透明底，底色直接透出；
+   *   - 小丑 Jokers 图集在 AssetManager 加载时已把纯白底打成透明，语义与手牌一致。
+   */
   private drawSprite(tex: Texture): void {
     const { width, height } = CardSkin;
     const cornerRadius = CONFIG.cardArt.cornerRadius;
@@ -1088,7 +1101,7 @@ export class CardView extends Container {
     const innerH = height - pad * 2;
     const innerRadius = Math.max(0, cornerRadius);
 
-    // 白色底：尺寸与 sprite 完全一致，不再外扩到 100×140。
+    // 卡面底色：尺寸与 sprite 完全一致，不再外扩到 100×140。
     const bg = new Graphics();
     bg.roundRect(pad, pad, innerW, innerH, innerRadius);
     bg.fill({ color: faceColor });
@@ -1967,6 +1980,8 @@ export class CardView extends Container {
     if (this.inertiaPhase !== "none") {
       this.advanceInertiaPhase(dtMS);
       // 推进过冲段时不再额外做朝目标 lerp，避免和脚本写入打架。
+      // 仍通知上层：view.x 在过冲中持续变化，换位判定要跟视觉中线。
+      this.callbacks.onDragging?.(this, this.dragTargetX, this.dragTargetY);
       return;
     }
 
@@ -2029,6 +2044,11 @@ export class CardView extends Container {
         );
       }
     }
+
+    // 每帧同步换位判定：view.x 由 lerp 推进，即使 pointermove 停了（鼠标不动、
+    // 牌还在追），也能在视觉中线越过邻牌槽位时完成换位，避免只靠 pointermove
+    // 时出现的「卡牌过线了但顺序还没更新」的延迟感。
+    this.callbacks.onDragging?.(this, this.dragTargetX, this.dragTargetY);
   }
 
   /**

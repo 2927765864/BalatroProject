@@ -31,7 +31,7 @@
       "faceColor": 16777195,
       "outlineColor": 13092807,
       "back": {
-        "row": 2,
+        "row": 3,
         "col": 0
       }
     },
@@ -202,9 +202,9 @@
     },
     "handSwap": {
       "enabled": true,
-      "riseDurationMS": 70,
-      "springDurationMS": 170,
-      "overshootPx": 28
+      "startSpeed": 2600,
+      "overshootPx": 24,
+      "stiffness": 7.5
     },
     "handSort": {
       "enabled": true,
@@ -218,9 +218,9 @@
     },
     "playHandSwap": {
       "enabled": true,
-      "riseDurationMS": 60,
-      "springDurationMS": 50,
-      "overshootPx": 28
+      "startSpeed": 3100,
+      "overshootPx": 28,
+      "stiffness": 20
     },
     "playPileDisplacement": {
       "enabled": true,
@@ -388,7 +388,7 @@
         "drawFlip": false,
         "discard": false,
         "discardFlip": false,
-        "handSwap": false,
+        "handSwap": true,
         "handSort": false,
         "playHandSwap": false,
         "playPileDisplacement": false,
@@ -587,7 +587,7 @@
     "joker": {
       "slotCount": 5,
       "cardSpacing": 120,
-      "baseY": 90,
+      "baseY": 20,
       "effects": {
         "shadow": true,
         "breathing": true,

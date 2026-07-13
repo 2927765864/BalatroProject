@@ -97,7 +97,11 @@ export interface RuntimeConfig {
     useSprites: boolean;
     /** 卡牌可见外缘圆角半径（世界坐标）。改值后需要重绘 CardView + DeckView。 */
     cornerRadius: number;
-    /** 卡面底色（PixiJS 数字色）。改值后需要 refreshHandArt + refreshDeckArt。 */
+    /**
+     * 卡面底色（PixiJS 数字色）。手牌与小丑共用：
+     * 手牌 8BitDeck 透明底直接透出；小丑图集加载时已把纯白底打成透明。
+     * 改值后需要 refreshHandArt + refreshDeckArt。
+     */
     faceColor: number;
     /** 卡牌外缘 1 像素描边颜色（PixiJS 数字色）。改值后需要 refreshHandArt + refreshDeckArt。 */
     outlineColor: number;
@@ -264,30 +268,37 @@ export interface RuntimeConfig {
    * GameController.reorderHandWhileDragging 在 hand 数组中 splice 互换位置 →
    * 被让位的相邻牌走此动画到新槽位。
    *
-   * 与「归位/发牌（cardOvershoot 组 1）」和「拖拽急停（cardOvershoot 组 2）」完全独立：
-   * 换位距离总是 ≈ handLayout.cardSpacing（小且固定），无需距离/速度自适应——
-   * 固定时长 + 固定过冲幅度即可达到"利落 + 过冲 + 回弹"的视觉反馈。
+   * 与「归位/发牌（cardOvershoot 组 1）」和「拖拽急停（cardOvershoot 组 2）」完全独立。
    *
-   * 动画形态（与 selectMove 同构，仅作用轴向不同）：
-   *   rise   ：当前位置 → 沿目标方向越过 overshootPx 的"过冲点"（rotation 也在此段做到位）
+   * 物理模型（与 selectMove 同构，仅作用轴向不同）：
+   *   rise   ：当前位置 → 沿目标方向越过 overshootPx 的过冲点（rotation 在此段做到位）
+   *            初速度 startSpeed（px/s），Easing.quadOut 恒定减速到 0
+   *            时长 T = 2 * D / startSpeed（D = 起点→过冲点距离）
    *   spring ：过冲点 → 真正落点（只动 x/y）
+   *            时长 = round(1000 / stiffness)
    *
-   * 缓动曲线复用 cardOvershoot.tweenRiseCurve / tweenSpringCurve，
-   * 保持与归位/发牌的曲线观感一致；如果未来需要独立调整，再升级为独立曲线字段。
+   * 用「速度 / 过冲 / 刚度」而非固定时长：打断后立刻按当前剩余距离重算，
+   * 短距离自动变短、速度不锐减——快速左右往返时仍保持利落。
    */
   handSwap: {
     /** 总开关。关闭后让位走单段补间，无过冲。 */
     enabled: boolean;
-    /** rise 段时长（ms）：从当前位置加速越过目标到过冲点。建议 80~140。 */
-    riseDurationMS: number;
-    /** spring 段时长（ms）：从过冲点回弹到 target。建议 80~140。 */
-    springDurationMS: number;
+    /**
+     * rise 段初速度（px/s）。物理关系：时长 T = 2 * D / startSpeed。
+     * 建议 800~3000；越大越过目标越快。
+     */
+    startSpeed: number;
     /**
      * 过冲幅度（像素，沿运动方向投影）。
-     * 建议不超过 handLayout.cardSpacing 的 25%（默认 spacing=65 → 不超过 16），
-     * 否则视觉上会撞到下一张牌的位置造成穿插错觉。
+     * 建议不超过 handLayout.cardSpacing 的 25%~40%（默认 spacing=65 → 约 12~26），
+     * 过大视觉上会撞到下一张牌造成穿插错觉。
      */
     overshootPx: number;
+    /**
+     * 回弹刚度。spring 段时长（ms）= round(1000 / stiffness)。
+     * 数值越大回弹越"硬"/越快。建议 5~20。
+     */
+    stiffness: number;
   };
   /**
    * 卡牌换位【理牌】
@@ -334,12 +345,17 @@ export interface RuntimeConfig {
     /** rise 段时长上限（ms），避免极远距离拖沓。建议 180~320。 */
     maxRiseDurationMS: number;
   };
-  /** 【出牌】手牌换位 */
+  /**
+   * 【出牌】手牌换位（挤位阶段）
+   * 物理模型与 handSwap 相同：startSpeed / overshootPx / stiffness。
+   */
   playHandSwap: {
     enabled: boolean;
-    riseDurationMS: number;
-    springDurationMS: number;
+    /** rise 段初速度（px/s）。出牌挤位通常更快，建议 1500~4000。 */
+    startSpeed: number;
     overshootPx: number;
+    /** 回弹刚度；时长 ms = round(1000 / stiffness)。建议 10~25。 */
+    stiffness: number;
   };
   /** 【出牌】出牌堆的位移 */
   playPileDisplacement: {
@@ -1189,9 +1205,11 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
   }),
   handSwap: Object.freeze({
     enabled: true,
-    riseDurationMS: 110,
-    springDurationMS: 110,
+    // 约等价于旧默认 rise 110ms @ spacing 65 + overshoot 12：v0 ≈ 2*77/0.11 ≈ 1400
+    startSpeed: 1400,
     overshootPx: 12,
+    // spring 110ms → stiffness ≈ 1000/110 ≈ 9
+    stiffness: 9,
   }),
   handSort: Object.freeze({
     enabled: true,
@@ -1205,9 +1223,10 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
   }),
   playHandSwap: Object.freeze({
     enabled: true,
-    riseDurationMS: 60,
-    springDurationMS: 50,
+    // 约等价于旧默认 rise 60ms / spring 50ms
+    startSpeed: 2600,
     overshootPx: 12,
+    stiffness: 20,
   }),
   playPileDisplacement: Object.freeze({
     enabled: true,
@@ -1597,6 +1616,48 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
 }) as RuntimeConfig;
 
 /**
+ * 将旧版「固定时长」handSwap / playHandSwap 配置迁移为物理模型。
+ * 旧字段：riseDurationMS / springDurationMS
+ * 新字段：startSpeed / stiffness（overshootPx 共用）
+ *
+ * 换算（用「一格间距 + 过冲」作为典型 rise 距离，近似还原旧手感）：
+ *   startSpeed ≈ 2 * (spacing + overshoot) / (riseMS/1000)
+ *   stiffness  ≈ 1000 / springMS
+ *
+ * 若已有 startSpeed+stiffness 则原样返回（去掉遗留时长字段）。
+ */
+function migrateSwapPhysicsCfg(
+  raw: Record<string, unknown>,
+  spacingPx: number
+): RuntimeConfig["handSwap"] {
+  const enabled = raw.enabled !== false;
+  const overshootPx = Math.max(0, Number(raw.overshootPx ?? 12));
+
+  const hasPhysics =
+    raw.startSpeed != null &&
+    raw.stiffness != null &&
+    Number.isFinite(Number(raw.startSpeed)) &&
+    Number.isFinite(Number(raw.stiffness));
+
+  if (hasPhysics) {
+    return {
+      enabled,
+      startSpeed: Math.max(1, Number(raw.startSpeed)),
+      overshootPx,
+      stiffness: Math.max(0.001, Number(raw.stiffness)),
+    };
+  }
+
+  const riseMS = Math.max(1, Number(raw.riseDurationMS ?? 110));
+  const springMS = Math.max(1, Number(raw.springDurationMS ?? 110));
+  const D = Math.max(1, spacingPx + overshootPx);
+  const startSpeed = Math.max(1, Math.round((2 * D) / (riseMS / 1000)));
+  const stiffness = Math.max(0.001, Math.round((1000 / springMS) * 100) / 100);
+
+  return { enabled, startSpeed, overshootPx, stiffness };
+}
+
+/**
  * 激活状态的默认配置，初始为出厂设置 DEFAULT_CONFIG 的深拷贝。
  * 如果后续成功加载了 presets/shipping.json，则将被更新为该 shipping 默认参数，
  * 从而使“恢复出厂默认参数”等操作能正确恢复至项目的 shipping 默认状态。
@@ -1893,10 +1954,13 @@ export function applyConfig(source: unknown): void {
     };
   }
   if (incoming.handSwap) {
-    merged.handSwap = {
-      ...merged.handSwap,
-      ...incoming.handSwap,
-    };
+    merged.handSwap = migrateSwapPhysicsCfg(
+      {
+        ...merged.handSwap,
+        ...incoming.handSwap,
+      },
+      merged.handLayout?.cardSpacing ?? 65
+    );
   }
   if (incoming.handSort) {
     merged.handSort = {
@@ -1905,10 +1969,13 @@ export function applyConfig(source: unknown): void {
     };
   }
   if (incoming.playHandSwap) {
-    merged.playHandSwap = {
-      ...merged.playHandSwap,
-      ...incoming.playHandSwap,
-    };
+    merged.playHandSwap = migrateSwapPhysicsCfg(
+      {
+        ...merged.playHandSwap,
+        ...incoming.playHandSwap,
+      },
+      merged.handLayout?.cardSpacing ?? 65
+    );
   }
   if (incoming.playPileDisplacement) {
     merged.playPileDisplacement = {
@@ -2221,10 +2288,13 @@ export function applyShippingDefaults(source: unknown): void {
     };
   }
   if (incoming.handSwap) {
-    activeDefaultConfig.handSwap = {
-      ...activeDefaultConfig.handSwap,
-      ...incoming.handSwap,
-    };
+    activeDefaultConfig.handSwap = migrateSwapPhysicsCfg(
+      {
+        ...activeDefaultConfig.handSwap,
+        ...incoming.handSwap,
+      },
+      activeDefaultConfig.handLayout?.cardSpacing ?? 65
+    );
   }
   if (incoming.handSort) {
     activeDefaultConfig.handSort = {
@@ -2233,10 +2303,13 @@ export function applyShippingDefaults(source: unknown): void {
     };
   }
   if (incoming.playHandSwap) {
-    activeDefaultConfig.playHandSwap = {
-      ...activeDefaultConfig.playHandSwap,
-      ...incoming.playHandSwap,
-    };
+    activeDefaultConfig.playHandSwap = migrateSwapPhysicsCfg(
+      {
+        ...activeDefaultConfig.playHandSwap,
+        ...incoming.playHandSwap,
+      },
+      activeDefaultConfig.handLayout?.cardSpacing ?? 65
+    );
   }
   if (incoming.playPileDisplacement) {
     activeDefaultConfig.playPileDisplacement = {

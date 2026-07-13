@@ -290,54 +290,71 @@ export const CardFx = {
   },
 
   /**
-   * 卡牌换位动画（手动理牌让位）。
+   * 卡牌换位动画（手动理牌让位 / 出牌挤位 / 出牌堆位移）。
    *
-   * 触发场景：玩家拖拽手牌越过相邻牌中线 → GameController 在 hand 数组中互换位置 →
+   * 触发场景：玩家拖拽手牌越过相邻牌中线 → GameController 互换 hand 序 →
    * 被让位的相邻牌走此动画到新槽位。
    *
-   * 与 moveToWithOvershoot 的区别：
-   *   - 后者按距离驱动过冲幅度、按目标平均速度自适应时长——为「归位/发牌」这类
-   *     起点距离差异巨大的场景设计；
-   *   - 让位场景的距离总是 ≈ cardSpacing（小且固定），用固定时长 + 固定过冲幅度
-   *     更利落直接，避免被 tweenReturnMinMS 下限拖沓、也避免短距离被
-   *     tweenMinOvershootDistancePx 阈值短路为单段补间没有过冲。
+   * 配置模式（customCfg 或 CONFIG.handSwap）：
+   *   A) 物理模式（手牌换位推荐）：{ startSpeed, overshootPx, stiffness }
+   *      rise  : T = 2 * D / startSpeed（D = 起点→过冲点），quadOut 恒减速
+   *      spring: T = 1000 / stiffness
+   *      打断后立刻按「当前位置 → 新目标」重算——短距离自动变短，速度不锐减。
+   *   B) 固定时长模式（出牌堆位移等遗留）：{ riseDurationMS, springDurationMS, overshootPx }
    *
-   * 与 selectMove 的形态同构：
-   *   rise   : 当前位置 → 沿目标方向越过 overshootPx 的过冲点（rotation 在此段做到位）
-   *   spring : 过冲点 → 真正落点（只动 x/y，rotation 不参与回弹）
+   * 同对象同字段被 TweenManager 自动互斥：连续换位时旧动画立刻被新一次接管，
+   * 从当前视觉位置重新开完整 rise→spring（不再走慢速 retarget 退化）。
    *
-   * 缓动复用 cardOvershoot.tweenRiseCurve / tweenSpringCurve，保持视觉风格一致。
-   *
-   * 退化路径（任一条件命中走单段补间）：
-   *   - CONFIG.handSwap.enabled === false
-   *   - overshootPx <= 0
-   *   - 起点终点几乎重合（< 1e-3）
-   *
-   * 同对象同字段被 TweenManager 自动互斥：如果用户连续左右换位，旧 swap 动画
-   * 会被新一次 swap 打断；视觉是「从当前所在位置（可能是过冲点）出发再次 swap」，
-   * 这是想要的连贯感。
-   *
-   * 配合 CardView.isSwapAnimating 标志：函数入口设为 true，最终落位（spring 完成、
-   * 或退化路径完成）时清零。GameController.layoutHand 会跳过 isSwapAnimating=true
-   * 且本帧不在 swapFor 的牌，避免后续 onDragging 帧用 moveToWithOvershoot 打断
-   * rise，导致 spring 阶段（在 rise 的 onComplete 内 lazy 调度）永远排不上。
-   * 这是修复"一次跨越多张牌时弹性丢失"的关键。
+   * 配合 CardView.isSwapAnimating + swapAnimGen：入口置位并递增代数，仅「本代」
+   * 回调可清旗。
    */
   swapMove(
     tm: TweenManager,
     card: CardView,
     target: { x: number; y: number; rotation: number },
-    customCfg?: { enabled: boolean; riseDurationMS: number; springDurationMS: number; overshootPx: number }
+    customCfg?: {
+      enabled: boolean;
+      overshootPx: number;
+      startSpeed?: number;
+      stiffness?: number;
+      riseDurationMS?: number;
+      springDurationMS?: number;
+    }
   ): Promise<void> {
-    const cfg = customCfg || CONFIG.handSwap;
-    const riseMS = Math.max(1, cfg?.riseDurationMS ?? 110);
-    const springMS = Math.max(1, cfg?.springDurationMS ?? 110);
-    const overshootPx = Math.max(0, cfg?.overshootPx ?? 0);
+    // 统一成可选字段视图：handSwap/playHandSwap 走物理，playPileDisplacement 等走时长。
+    const cfg = (customCfg || CONFIG.handSwap) as {
+      enabled?: boolean;
+      overshootPx?: number;
+      startSpeed?: number;
+      stiffness?: number;
+      riseDurationMS?: number;
+      springDurationMS?: number;
+    };
+    const overshootPx = Math.max(0, cfg.overshootPx ?? 0);
+    const enabled = cfg.enabled !== false;
+
+    // 优先物理模式（handSwap / playHandSwap）；否则回退固定时长（playPileDisplacement 等）。
+    const startSpeed = cfg.startSpeed;
+    const stiffness = cfg.stiffness;
+    if (
+      startSpeed != null &&
+      stiffness != null &&
+      Number.isFinite(startSpeed) &&
+      Number.isFinite(stiffness)
+    ) {
+      return CardFx.runSwapStyleMove(tm, card, target, {
+        enabled,
+        overshootPx,
+        startSpeed: Math.max(1, startSpeed),
+        stiffness: Math.max(0.001, stiffness),
+      });
+    }
+
     return CardFx.runSwapStyleMove(tm, card, target, {
-      enabled: cfg?.enabled !== false,
-      riseMS,
-      springMS,
+      enabled,
       overshootPx,
+      riseMS: Math.max(1, cfg.riseDurationMS ?? 110),
+      springMS: Math.max(1, cfg.springDurationMS ?? 110),
     });
   },
 
@@ -348,7 +365,7 @@ export const CardFx = {
    * 移动距离自适应：距离越大速度越大（durationPower < 1 时速度 ∝ dist^(1-p)）。
    * spring 段固定时长，保证回弹手感一致。
    *
-   * 参数来自 CONFIG.handSort。
+   * 参数来自 CONFIG.handSort（仍为时长驱动，与手动换位的物理模型独立）。
    */
   sortMove(
     tm: TweenManager,
@@ -384,99 +401,197 @@ export const CardFx = {
 
   /**
    * swap / sort 共用的 rise→spring 实现。
-   * 调用方负责算好 riseMS / springMS / overshootPx。
+   *
+   * 两种时长来源（互斥，物理优先）：
+   *   - 物理：opts.startSpeed + opts.stiffness → riseMS = 2D/v0，springMS = 1000/k
+   *   - 固定：opts.riseMS + opts.springMS（理牌距离自适应 / 出牌堆位移遗留）
+   *
+   * 可打断语义：
+   *   - 每次入口递增 card.swapAnimGen；旧 tween 的 onStop/onComplete 仅在代数仍匹配时清旗。
+   *   - 新一次换位立刻从当前位置重启完整两段动画（不再做慢速单段 retarget）。
    */
   runSwapStyleMove(
     tm: TweenManager,
     card: CardView,
     target: { x: number; y: number; rotation: number },
-    opts: { enabled: boolean; riseMS: number; springMS: number; overshootPx: number }
+    opts: {
+      enabled: boolean;
+      overshootPx: number;
+      /** 固定时长模式 */
+      riseMS?: number;
+      springMS?: number;
+      /** 物理模式（与 selectMove 同构） */
+      startSpeed?: number;
+      stiffness?: number;
+    }
   ): Promise<void> {
-    const overshootCfg = CONFIG.cardOvershoot;
-    const riseMS = Math.max(1, opts.riseMS);
-    const springMS = Math.max(1, opts.springMS);
     const overshootPx = Math.max(0, opts.overshootPx);
+    const usePhysics =
+      opts.startSpeed != null &&
+      opts.stiffness != null &&
+      Number.isFinite(opts.startSpeed) &&
+      Number.isFinite(opts.stiffness);
 
-    // 缓动：复用归位/发牌的两条贝塞尔曲线，曲线 disabled 时用 cubicOut 兜底。
-    const riseCurveEnabled =
-      overshootCfg?.tweenRiseCurve && overshootCfg.tweenRiseCurve.enabled !== false;
-    const riseEase: EaseFn = riseCurveEnabled
-      ? curveToEase(overshootCfg!.tweenRiseCurve)
-      : Easing.cubicOut;
-    const springCurveEnabled =
-      overshootCfg?.tweenSpringCurve && overshootCfg.tweenSpringCurve.enabled !== false;
-    const springEase: EaseFn = springCurveEnabled
-      ? curveToEase(overshootCfg!.tweenSpringCurve)
-      : Easing.cubicOut;
+    // 物理模式：quadOut = 恒减速，与 startSpeed 语义一致；
+    // 固定时长模式：仍可复用 cardOvershoot 曲线，disabled 时 cubicOut 兜底。
+    let riseEase: EaseFn;
+    let springEase: EaseFn;
+    if (usePhysics) {
+      riseEase = Easing.quadOut;
+      springEase = Easing.cubicOut;
+    } else {
+      const overshootCfg = CONFIG.cardOvershoot;
+      const riseCurveEnabled =
+        overshootCfg?.tweenRiseCurve && overshootCfg.tweenRiseCurve.enabled !== false;
+      riseEase = riseCurveEnabled
+        ? curveToEase(overshootCfg!.tweenRiseCurve)
+        : Easing.cubicOut;
+      const springCurveEnabled =
+        overshootCfg?.tweenSpringCurve && overshootCfg.tweenSpringCurve.enabled !== false;
+      springEase = springCurveEnabled
+        ? curveToEase(overshootCfg!.tweenSpringCurve)
+        : Easing.cubicOut;
+    }
 
     const dx = target.x - card.x;
     const dy = target.y - card.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    // 入口标记：本函数所有返回路径都必须最终清零（无论是直接返回还是动画完成）。
-    // 注意：如果在动画中途被另一次 swap/sort 接管（TweenManager 互斥停掉旧 rise），
-    // 旧 rise 的 onComplete 不会被触发；但新一次入口会再次把它设为 true，
-    // 最终由"最新一次"的 spring onComplete 负责清零，整体仍然平衡。
+    // 入口标记 + 代数：本函数所有「属于本次」的返回路径都必须最终清零。
+    // 被更新一次 swap 接管时，旧回调因 gen 不匹配而静默，由最新一次负责清零。
+    const gen = ++card.swapAnimGen;
     card.isSwapAnimating = true;
+
+    const clearIfMine = (): void => {
+      if (card.swapAnimGen === gen) {
+        card.isSwapAnimating = false;
+      }
+    };
 
     // 起点终点几乎重合：直接置位返回。
     if (dist < 1e-3) {
       card.x = target.x;
       card.y = target.y;
       card.rotation = target.rotation;
-      card.isSwapAnimating = false;
+      clearIfMine();
       return Promise.resolve();
     }
 
-    // 退化：开关关闭或过冲幅度为 0 → 单段补间。总时长 = rise + spring，
-    // 这样总播放时间与开启时一致，调参时的"总时长"观感不会突变。
-    if (!opts.enabled || overshootPx <= 0) {
-      return CardFx.moveTo(tm, card, target, riseMS + springMS).then(() => {
-        card.isSwapAnimating = false;
-      });
-    }
-
-    // 过冲点 = target + 单位方向向量 × overshootPx
+    // 过冲点（沿 起点→target 方向越过 target）
     const nx = dx / dist;
     const ny = dy / dist;
     const overX = target.x + nx * overshootPx;
     const overY = target.y + ny * overshootPx;
+    const riseDist = Math.hypot(overX - card.x, overY - card.y);
+
+    // 解析两段时长
+    let riseMS: number;
+    let springMS: number;
+    if (usePhysics) {
+      const v0 = Math.max(1, opts.startSpeed!);
+      const k = Math.max(0.001, opts.stiffness!);
+      // T = 2D/v0（秒）→ ms；与 selectMove 一致。
+      riseMS =
+        riseDist < 1e-3
+          ? 0
+          : Math.min(2000, Math.max(10, Math.round(((2 * riseDist) / v0) * 1000)));
+      springMS = Math.min(2000, Math.max(1, Math.round(1000 / k)));
+    } else {
+      riseMS = Math.max(1, opts.riseMS ?? 110);
+      springMS = Math.max(1, opts.springMS ?? 110);
+    }
+
+    // 退化：开关关闭或过冲幅度为 0 → 单段补间到真正落点。
+    // 物理模式总时长用「无过冲时到 target 的等效 rise」+ spring，避免观感突变。
+    if (!opts.enabled || overshootPx <= 0) {
+      let singleMS: number;
+      if (usePhysics) {
+        const v0 = Math.max(1, opts.startSpeed!);
+        const k = Math.max(0.001, opts.stiffness!);
+        const toTargetMS = Math.min(
+          2000,
+          Math.max(10, Math.round(((2 * dist) / v0) * 1000))
+        );
+        singleMS = toTargetMS + Math.min(2000, Math.max(1, Math.round(1000 / k)));
+      } else {
+        singleMS = riseMS + springMS;
+      }
+      return new Promise((resolve) => {
+        tm.add(
+          tm
+            .create(card)
+            .to({ x: target.x, y: target.y, rotation: target.rotation }, singleMS)
+            .easing(riseEase)
+            .onStop(() => {
+              clearIfMine();
+              resolve();
+            })
+            .onComplete(() => {
+              clearIfMine();
+              resolve();
+            })
+        );
+      });
+    }
+
+    // rise 距离几乎为 0（已在过冲点附近）：跳过 rise，直接 spring。
+    if (riseMS <= 0) {
+      return new Promise((resolve) => {
+        tm.add(
+          tm
+            .create(card)
+            .to({ x: target.x, y: target.y, rotation: target.rotation }, springMS)
+            .easing(springEase)
+            .onStop(() => {
+              clearIfMine();
+              resolve();
+            })
+            .onComplete(() => {
+              clearIfMine();
+              resolve();
+            })
+        );
+      });
+    }
 
     return new Promise((resolve) => {
       // 第一段：rise 越过目标到过冲点；rotation 也在此段做到位。
-      // 同时挂 onStop：rise 段被外部打断时（killOf 或被新 swap/归位 tween 互斥停掉），
-      // 必须清零 isSwapAnimating，否则 spring 段不会被调度，标志会永久残留，
-      // 导致后续无 force 的 layoutHand 永久豁免该牌而停在错位。
+      // 挂 onStop：被真正外部打断（killOf / 非 swap 的同字段互斥）时清旗；
+      // 若只是被新一次 swap 接管，gen 已变，clearIfMine 为空操作。
       tm.add(
         tm
           .create(card)
           .to({ x: overX, y: overY, rotation: target.rotation }, riseMS)
           .easing(riseEase)
           .onStop(() => {
-            card.isSwapAnimating = false;
+            clearIfMine();
             resolve();
           })
           .onComplete(() => {
+            // 代数已变：本次已被更新的 swap 取代，不要再排 spring。
+            if (card.swapAnimGen !== gen) {
+              resolve();
+              return;
+            }
             // 防御：理论上让位牌不会同时被拖拽（拖拽牌是另一张），
             // 但保留与 moveToWithOvershoot 一致的守卫，避免极端竞态下跳到错位。
             if (card.isDragging) {
-              card.isSwapAnimating = false;
+              clearIfMine();
               resolve();
               return;
             }
             // 第二段：spring 回弹到真正落点（rotation 不再动）。
-            // 同样挂 onStop 兜底：spring 段被打断时也清零标志。
             tm.add(
               tm
                 .create(card)
                 .to({ x: target.x, y: target.y }, springMS)
                 .easing(springEase)
                 .onStop(() => {
-                  card.isSwapAnimating = false;
+                  clearIfMine();
                   resolve();
                 })
                 .onComplete(() => {
-                  card.isSwapAnimating = false;
+                  clearIfMine();
                   resolve();
                 })
             );

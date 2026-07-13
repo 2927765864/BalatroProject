@@ -1181,13 +1181,13 @@ export function setupControlPanel(
     bindNumber("inp-discardFlipRandomRotationDeg", "val-discardFlipRandomRotationDeg", "discardFlip.randomRotationDeg", { integer: true });
 
     // === 卡牌换位（手动理牌）===
-    // 让位牌走 CardFx.swapMove（rise → 过冲 → spring）。与 cardOvershoot 完全独立，
-    // 因为换位距离固定 ≈ cardSpacing，无需距离/速度自适应。
+    // 让位牌走 CardFx.swapMove：物理模型 startSpeed / overshoot / stiffness（与 selectMove 同构）。
+    // 打断后按当前距离重算时长，快速往返不会因固定时长而变慢。
     bindSectionExpand("inp-expandHandSwap", "val-expandHandSwap", "cardVisuals.expandedSections.handSwap", "sect-handSwap-params");
     bindToggle("inp-handSwapEnabled", "val-handSwapEnabled", "handSwap.enabled");
-    bindNumber("inp-handSwapRiseDurationMS", "val-handSwapRiseDurationMS", "handSwap.riseDurationMS", { integer: true });
-    bindNumber("inp-handSwapSpringDurationMS", "val-handSwapSpringDurationMS", "handSwap.springDurationMS", { integer: true });
+    bindNumber("inp-handSwapStartSpeed", "val-handSwapStartSpeed", "handSwap.startSpeed", { integer: true });
     bindNumber("inp-handSwapOvershootPx", "val-handSwapOvershootPx", "handSwap.overshootPx", { digits: 1 });
+    bindNumber("inp-handSwapStiffness", "val-handSwapStiffness", "handSwap.stiffness", { digits: 2 });
 
     // === 卡牌换位【理牌】（点数/花色按钮）===
     // 走 CardFx.sortMove：形态同 swap，rise 时长按距离幂次缩放，距离越大速度越大。
@@ -1204,9 +1204,9 @@ export function setupControlPanel(
     // === 【出牌】手牌换位 ===
     bindSectionExpand("inp-expandPlayHandSwap", "val-expandPlayHandSwap", "cardVisuals.expandedSections.playHandSwap", "sect-playHandSwap-params");
     bindToggle("inp-playHandSwapEnabled", "val-playHandSwapEnabled", "playHandSwap.enabled");
-    bindNumber("inp-playHandSwapRiseDurationMS", "val-playHandSwapRiseDurationMS", "playHandSwap.riseDurationMS", { integer: true });
-    bindNumber("inp-playHandSwapSpringDurationMS", "val-playHandSwapSpringDurationMS", "playHandSwap.springDurationMS", { integer: true });
+    bindNumber("inp-playHandSwapStartSpeed", "val-playHandSwapStartSpeed", "playHandSwap.startSpeed", { integer: true });
     bindNumber("inp-playHandSwapOvershootPx", "val-playHandSwapOvershootPx", "playHandSwap.overshootPx", { digits: 1 });
+    bindNumber("inp-playHandSwapStiffness", "val-playHandSwapStiffness", "playHandSwap.stiffness", { digits: 2 });
 
     // === 【出牌】出牌堆的位移 ===
     bindSectionExpand("inp-expandPlayPileDisplacement", "val-expandPlayPileDisplacement", "cardVisuals.expandedSections.playPileDisplacement", "sect-playPileDisplacement-params");
