@@ -1,12 +1,32 @@
 {
   "type": "runtime-control-preset",
-  "version": 5,
+  "version": 6,
   "name": "shipping",
   "config": {
     "world": {
       "width": 1280,
       "height": 720,
-      "backgroundColor": 4885350
+      "backgroundColor": 3433801,
+      "background": {
+        "enabled": true,
+        "quality": "high",
+        "theme": "smallBlind",
+        "speed": 0.65,
+        "spinAmount": 0.32,
+        "spinEase": 0.5,
+        "contrast": 0.95,
+        "pixelSizeFac": 1000,
+        "zoom": 40,
+        "offsetX": 0,
+        "offsetY": 0,
+        "enableSpin": false,
+        "lighting": 0.07,
+        "seedPhase": 0,
+        "maxUpdateHz": 60,
+        "colour1": 4890580,
+        "colour2": 2775690,
+        "colour3": 992312
+      }
     },
     "rules": {
       "handSize": 8,
@@ -375,21 +395,22 @@
     "jokerSettleTextEffect": {
       "enabled": true,
       "defaultMultBonus": 10,
-      "fontSize": 36,
-      "letterSpacing": -3.5,
+      "textSuffix": "倍率",
+      "fontSize": 24,
+      "letterSpacing": -1.5,
       "color": 16777215,
       "offsetY": 100,
       "firstCharDelayMS": 0,
-      "charIntervalMS": 120,
+      "charIntervalMS": 50,
       "charIntervalReductionMS": 20,
-      "charScaleDurationMS": 240,
-      "charMaxScale": 1.15,
+      "charScaleDurationMS": 160,
+      "charMaxScale": 1.8,
       "charStableScale": 1,
       "swingPivotY": 100,
       "swingMaxAngleDeg": 20,
-      "swingFrequency": 3,
+      "swingFrequency": 4,
       "swingDamping": 4,
-      "swingDurationMS": 350,
+      "swingDurationMS": 360,
       "stayDurationMS": 550,
       "fadeDurationMS": 350,
       "shrinkAnchorY": 0.2,
@@ -429,8 +450,7 @@
           "x": 0.604030299533696,
           "y": 0.9924276380422041
         }
-      },
-      "textSuffix": "倍率"
+      }
     },
     "cardMoveRotation": {
       "enabled": true,
@@ -480,7 +500,7 @@
         "playPileSettleBgBlock": true,
         "jokerEffects": false,
         "jokerLayout": true,
-        "jokerSettleEffect": true,
+        "jokerSettleEffect": false,
         "jokerSettleText": true,
         "jokerSettleBgBlock": false,
         "chipsBounce": false,
@@ -945,7 +965,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "8223"
+              "text": "0"
             }
           },
           {
@@ -1652,7 +1672,7 @@
       },
       "hud": {
         "parentId": null,
-        "siblingIndex": 1,
+        "siblingIndex": 2,
         "components": [
           {
             "type": "transform",
@@ -1767,6 +1787,44 @@
             "data": {
               "x": 800,
               "y": 678,
+              "rotation": 0,
+              "scaleX": 1,
+              "scaleY": 1
+            }
+          }
+        ]
+      },
+      "hud.jokerBar": {
+        "parentId": null,
+        "siblingIndex": 1,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 307,
+              "y": -59,
+              "rotation": 0,
+              "scaleX": 0.7,
+              "scaleY": 1.02
+            }
+          },
+          {
+            "type": "opacity",
+            "data": {
+              "alpha": 0.39
+            }
+          }
+        ]
+      },
+      "hud.jokerBar.background": {
+        "parentId": "hud.jokerBar",
+        "siblingIndex": 0,
+        "components": [
+          {
+            "type": "transform",
+            "data": {
+              "x": 0,
+              "y": 0,
               "rotation": 0,
               "scaleX": 1,
               "scaleY": 1

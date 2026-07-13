@@ -21,6 +21,7 @@ import {
   BounceTextComponent,
   bounceTextCanAttach,
 } from "./components/BounceTextComponent";
+import { OpacityComponent } from "./components/OpacityComponent";
 
 export { UINode, isUINode } from "./UINode";
 export { uiHierarchy } from "./UIHierarchy";
@@ -36,6 +37,7 @@ export { ShadowComponent } from "./components/ShadowComponent";
 export { CharLayerComponent } from "./components/CharLayerComponent";
 export { BreathingTextComponent } from "./components/BreathingTextComponent";
 export { BounceTextComponent } from "./components/BounceTextComponent";
+export { OpacityComponent } from "./components/OpacityComponent";
 
 // 组件类型注册：
 //   - transform / textStyle 是默认组件，不出现在"添加组件"下拉里。
@@ -65,6 +67,12 @@ componentRegistry.register({
   type: "shadow",
   displayName: "Shadow",
   factory: () => new ShadowComponent(),
+});
+
+componentRegistry.register({
+  type: "opacity",
+  displayName: "透明度",
+  factory: () => new OpacityComponent(),
 });
 
 // 逐字层：拆字 + 接管渲染的底层管理器。由呼吸 / 弹弹惰性自动挂载，

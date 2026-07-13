@@ -63,16 +63,13 @@ async function bootstrap(): Promise<void> {
         uiHierarchy.hydrateFromConfig(app.worldRoot);
       }
 
-      if (key === "*" || key === "world.backgroundColor") {
-        try {
-          // PixiJS v8: renderer.background.color 是 Color 对象，
-          // 直接赋一个 number/string，它会内部解析。这里用 unknown 桥接
-          // 是为了避开 readonly Color 的类型签名。
-          (app.pixi.renderer.background as unknown as { color: number }).color =
-            CONFIG.world.backgroundColor;
-        } catch (err) {
-          console.warn("[main] 应用背景色失败：", err);
-        }
+      // 程序化背景 / 清屏色：任何 world.background* 或 backgroundColor 变更都同步。
+      if (
+        key === "*" ||
+        key === "world.backgroundColor" ||
+        key.startsWith("world.background")
+      ) {
+        game.syncBackground();
       }
 
       // 牌背切换：重画 DeckView。

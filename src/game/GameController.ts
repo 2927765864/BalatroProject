@@ -11,6 +11,7 @@ import type { CardData, ScoreResult, HandTypeName } from "@domain/types";
 import { SUITS } from "@domain/types";
 import { CardView, CardState } from "@render/CardView";
 import { computeHandLayout } from "@render/HandLayout";
+import { BackgroundView } from "@render/BackgroundView";
 import { HUD, type HUDMode } from "@ui/HUD";
 import { uiHierarchy } from "@ui/hierarchy";
 import { CardFx } from "@fx/CardFx";
@@ -60,6 +61,7 @@ export class GameController {
 
   private readonly cardLayer = new Container();
   private readonly shadowLayer = new Container();
+  private readonly background: BackgroundView;
   private hud!: HUD;
   private playPipeline!: PlayPipeline;
 
@@ -106,6 +108,15 @@ export class GameController {
       currentResult: EMPTY_RESULT,
     });
 
+    // Paint-mix 背景挂在 stage（屏幕坐标），铺满整窗，盖住 Scaler contain 的 letterbox。
+    // 不挂 worldRoot：否则只有 1280×720 世界区有涡旋，上下/左右会出现纯色条。
+    this.background = new BackgroundView(window.innerWidth, window.innerHeight);
+    this.app.pixi.stage.addChildAt(this.background, 0);
+    this.app.onResize(() => {
+      this.background.coverScreen(window.innerWidth, window.innerHeight);
+    });
+    this.applyBackgroundClearColor();
+
     // 卡牌层放在世界根之下，UI 之下、特效之上由 zIndex 控制。
     this.cardLayer.label = "CardLayer";
     this.cardLayer.zIndex = Layers.Card;
@@ -145,6 +156,13 @@ export class GameController {
     uiHierarchy.reparent(this.hud.deckView, null, this.app.worldRoot);
     this.hud.deckView.zIndex = Layers.Deck;
 
+    // 小丑槽位暗色底条：shipping 已记 parentId=null；hydrate 后应已在 worldRoot。
+    // 这里再 ensure 一次（兼容旧存档仍挂在 HUD 下的情况），并固定 zIndex 在卡牌之下。
+    if (this.hud.jokerBar.parent !== this.app.worldRoot) {
+      uiHierarchy.reparent(this.hud.jokerBar, null, this.app.worldRoot);
+    }
+    this.hud.jokerBar.zIndex = Layers.JokerBar;
+
     // 每次刷新网页时，都把界面UI的筹码文字和倍率文字设为0，回合分数文字也设为0，默认隐藏牌型文字和预期分数文字
     this.hud.scorePanel.setChipsMult(0, 0);
     this.hud.scorePanel.setTotalScore(0);
@@ -171,6 +189,7 @@ export class GameController {
 
     // 把 tween 接入 app 的更新循环
     this.app.onUpdate((dtMS) => {
+      this.background.update(dtMS);
       this.tween.update(dtMS);
       // 更新卡牌状态、阴影与动画
       for (const child of this.cardLayer.children) {
@@ -1228,6 +1247,25 @@ export class GameController {
   /** 在 normal / minimal 之间切换。 */
   toggleMode(): void {
     this.setMode(this.mode === "normal" ? "minimal" : "normal");
+  }
+
+  /**
+   * 从 CONFIG.world.background 同步程序化背景，并更新 renderer 清屏色。
+   * ControlPanel / preset 变更时由 main.onChange 调用。
+   */
+  syncBackground(): void {
+    this.background.syncFromConfig();
+    this.applyBackgroundClearColor();
+  }
+
+  /** Off 档用 backgroundColor；shader 开启时用 colour3 降低 letterbox 闪色。 */
+  private applyBackgroundClearColor(): void {
+    try {
+      (this.app.pixi.renderer.background as unknown as { color: number }).color =
+        this.background.getClearColor();
+    } catch (err) {
+      console.warn("[GameController] 应用背景清屏色失败：", err);
+    }
   }
 
   /**

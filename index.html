@@ -155,6 +155,171 @@
             </div>
           </details>
 
+          <!-- 1c. 背景 Background（paint-mix shader） -->
+          <details class="panel-group">
+            <summary>背景</summary>
+            <div class="panel-row" style="color: rgba(255,255,255,0.62); font-size: 11px;">
+              <span>Paint-mix 全屏动态背景（Azkun/balatroShader 算法再实现）。像素因子越大越细。对比度局内建议 &lt;2。</span>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>启用 shader 背景</span>
+                <span id="val-bgEnabled">开</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;">
+                <input id="inp-bgEnabled" type="checkbox" />
+                <span style="color:rgba(255,255,255,0.62);">关闭后使用下方清屏纯色</span>
+              </label>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>质量</span>
+                <span id="val-bgQuality">med</span>
+              </div>
+              <button id="btn-bgQuality" type="button">切换质量 off/low/med/high</button>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>主题</span>
+                <span id="val-bgTheme">feltGreen</span>
+              </div>
+              <button id="btn-bgTheme" type="button">切换主题</button>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>清屏色 (Off 档)</span>
+                <span id="val-backgroundColor">#4a8b66</span>
+              </div>
+              <input id="inp-backgroundColor" type="color" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>速度 speed</span>
+                <span id="val-bgSpeed">0.85</span>
+              </div>
+              <input id="inp-bgSpeed" type="range" min="0.1" max="3" step="0.05" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>旋转量 spinAmount</span>
+                <span id="val-bgSpinAmount">0.3</span>
+              </div>
+              <input id="inp-bgSpinAmount" type="range" min="0" max="1" step="0.01" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>旋转平滑 spinEase</span>
+                <span id="val-bgSpinEase">0.5</span>
+              </div>
+              <input id="inp-bgSpinEase" type="number" min="0.1" max="2" step="0.05" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>对比度 contrast（局内建议&lt;2）</span>
+                <span id="val-bgContrast">1.4</span>
+              </div>
+              <input id="inp-bgContrast" type="range" min="0.5" max="4" step="0.05" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>像素因子（越大越细）</span>
+                <span id="val-bgPixelSizeFac">900</span>
+              </div>
+              <input id="inp-bgPixelSizeFac" type="number" min="200" max="4000" step="10" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>缩放 zoom</span>
+                <span id="val-bgZoom">30</span>
+              </div>
+              <input id="inp-bgZoom" type="number" min="5" max="60" step="1" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>偏移 X</span>
+                <span id="val-bgOffsetX">0</span>
+              </div>
+              <input id="inp-bgOffsetX" type="number" min="-1" max="1" step="0.01" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>偏移 Y</span>
+                <span id="val-bgOffsetY">0</span>
+              </div>
+              <input id="inp-bgOffsetY" type="number" min="-1" max="1" step="0.01" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>启用自旋</span>
+                <span id="val-bgEnableSpin">开</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;">
+                <input id="inp-bgEnableSpin" type="checkbox" />
+              </label>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>照明 lighting</span>
+                <span id="val-bgLighting">0.25</span>
+              </div>
+              <input id="inp-bgLighting" type="range" min="0" max="1" step="0.01" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>色1 colour1</span>
+                <span id="val-bgColour1">#5aaf7a</span>
+              </div>
+              <input id="inp-bgColour1" type="color" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>色2 colour2</span>
+                <span id="val-bgColour2">#4a8b66</span>
+              </div>
+              <input id="inp-bgColour2" type="color" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>色3 colour3</span>
+                <span id="val-bgColour3">#1a3d2e</span>
+              </div>
+              <input id="inp-bgColour3" type="color" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>相位 seedPhase</span>
+                <span id="val-bgSeedPhase">0</span>
+              </div>
+              <input id="inp-bgSeedPhase" type="number" min="0" max="1000" step="1" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>更新 Hz</span>
+                <span id="val-bgMaxUpdateHz">30</span>
+              </div>
+              <input id="inp-bgMaxUpdateHz" type="number" min="15" max="60" step="1" />
+            </div>
+          </details>
+
           <!-- 2. 牌的绘制专项 -->
           <details class="panel-group">
             <summary>牌的绘制</summary>

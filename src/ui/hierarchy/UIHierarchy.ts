@@ -13,9 +13,14 @@
  *   - reparent / reorder 全部以 UINode 兄弟序列为口径，
  *     完成后调一次父节点 resortChildren()，把 UINode 子节点重新压到末尾。
  *
- * persist 行为：
+ * persist 行为（CRITICAL）：
  *   - 增量更新 CONFIG.uiNodes：只覆盖已注册节点的条目，保留其它。
- *   - hydrateFromConfig 末尾会强制 sweep 一次，把所有父节点都 resort 一遍。
+ *   - **hydrate 完成前禁止 persist**。
+ *     构造期节点先挂在代码默认父下（例如 scorePanel 在 HUD 下），
+ *     真正的父子关系只存在于 CONFIG.uiNodes，要等 hydrateFromConfig 的
+ *     reparent 通才还原。若在这之前 persist，会把"代码临时父子关系"
+ *     写回存档，永久毁掉用户/shipping 布局（历史事故根因）。
+ *   - hydrateFromConfig 末尾会强制 sweep 一次，并把 post-hydrate 状态 persist。
  */
 import { isUINode, type UINode } from "./UINode";
 import {
@@ -165,8 +170,16 @@ class UIHierarchyImpl {
   /**
    * 把 child reparent 到 newParent 下；newParent=null 表示挂到 worldRoot。
    * reparent 后调用新父节点的 resortChildren()，把 UINode 子压到末尾。
+   *
+   * @param opts.silent 为 true 时不广播、不 persist（供 hydrate 内部批量使用）。
+   *   默认 false：交互式拖拽 reparent 会写回存档。
    */
-  reparent(child: UINode, newParent: UINode | null, worldRoot: Container): void {
+  reparent(
+    child: UINode,
+    newParent: UINode | null,
+    worldRoot: Container,
+    opts?: { silent?: boolean },
+  ): void {
     if (newParent && this.isAncestor(child, newParent)) {
       console.warn("[UIHierarchy] 拒绝把节点挂到自己后代下");
       return;
@@ -174,51 +187,60 @@ class UIHierarchyImpl {
     const target = newParent ?? worldRoot;
     if (child.parent === target) return;
 
-    // 1) 计算在 target 下保持屏幕世界坐标不变的 local transform 参数
-    const W_child = child.getGlobalTransform();
-    const W_target = target.getGlobalTransform();
+    const silent = opts?.silent === true;
+    const wasSilent = this.silent;
+    if (silent) this.silent = true;
 
-    // 计算 W_target 的逆矩阵
-    const det = W_target.a * W_target.d - W_target.b * W_target.c;
-    let T_a = 1, T_b = 0, T_c = 0, T_d = 1, T_tx = 0, T_ty = 0;
-    if (Math.abs(det) > 1e-6) {
-      const inv_det = 1 / det;
-      T_a = W_target.d * inv_det;
-      T_b = -W_target.b * inv_det;
-      T_c = -W_target.c * inv_det;
-      T_d = W_target.a * inv_det;
-      T_tx = (W_target.c * W_target.ty - W_target.d * W_target.tx) * inv_det;
-      T_ty = (W_target.b * W_target.tx - W_target.a * W_target.ty) * inv_det;
+    try {
+      // 1) 计算在 target 下保持屏幕世界坐标不变的 local transform 参数
+      const W_child = child.getGlobalTransform();
+      const W_target = target.getGlobalTransform();
+
+      // 计算 W_target 的逆矩阵
+      const det = W_target.a * W_target.d - W_target.b * W_target.c;
+      let T_a = 1, T_b = 0, T_c = 0, T_d = 1, T_tx = 0, T_ty = 0;
+      if (Math.abs(det) > 1e-6) {
+        const inv_det = 1 / det;
+        T_a = W_target.d * inv_det;
+        T_b = -W_target.b * inv_det;
+        T_c = -W_target.c * inv_det;
+        T_d = W_target.a * inv_det;
+        T_tx = (W_target.c * W_target.ty - W_target.d * W_target.tx) * inv_det;
+        T_ty = (W_target.b * W_target.tx - W_target.a * W_target.ty) * inv_det;
+      }
+
+      // L = T_target_inv * W_child
+      const L_a = T_a * W_child.a + T_c * W_child.b;
+      const L_b = T_b * W_child.a + T_d * W_child.b;
+      const L_c = T_a * W_child.c + T_c * W_child.d;
+      const L_d = T_b * W_child.c + T_d * W_child.d;
+      const L_tx = T_a * W_child.tx + T_c * W_child.ty + T_tx;
+      const L_ty = T_b * W_child.tx + T_d * W_child.ty + T_ty;
+
+      // 分解 L 矩阵
+      const newX = L_tx;
+      const newY = L_ty;
+      const scaleX = Math.sqrt(L_a * L_a + L_b * L_b);
+      const scaleY = Math.sqrt(L_c * L_c + L_d * L_d);
+      const newRotation = Math.atan2(L_b, L_a);
+      const lDet = L_a * L_d - L_b * L_c;
+      const newScaleX = scaleX;
+      const newScaleY = lDet < 0 ? -scaleY : scaleY;
+
+      // 2) 真正改变 PIXI 父节点
+      target.addChild(child);
+
+      // 3) 设置并应用新的 transform 参数，触发单次更新
+      child.transform.setTransformDirect(newX, newY, newRotation, newScaleX, newScaleY);
+
+      // 立即排一次。新父节点是 UINode 时调它自己的 resort；
+      // 是 worldRoot 时 UINode 子永远是 worldRoot 的子，不需要规范化。
+      if (isUINode(target)) target.resortChildren();
+    } finally {
+      if (silent) this.silent = wasSilent;
     }
 
-    // L = T_target_inv * W_child
-    const L_a = T_a * W_child.a + T_c * W_child.b;
-    const L_b = T_b * W_child.a + T_d * W_child.b;
-    const L_c = T_a * W_child.c + T_c * W_child.d;
-    const L_d = T_b * W_child.c + T_d * W_child.d;
-    const L_tx = T_a * W_child.tx + T_c * W_child.ty + T_tx;
-    const L_ty = T_b * W_child.tx + T_d * W_child.ty + T_ty;
-
-    // 分解 L 矩阵
-    const newX = L_tx;
-    const newY = L_ty;
-    const scaleX = Math.sqrt(L_a * L_a + L_b * L_b);
-    const scaleY = Math.sqrt(L_c * L_c + L_d * L_d);
-    const newRotation = Math.atan2(L_b, L_a);
-    const lDet = L_a * L_d - L_b * L_c;
-    const newScaleX = scaleX;
-    const newScaleY = lDet < 0 ? -scaleY : scaleY;
-
-    // 2) 真正改变 PIXI 父节点
-    target.addChild(child);
-
-    // 3) 设置并应用新的 transform 参数，触发单次更新
-    child.transform.setTransformDirect(newX, newY, newRotation, newScaleX, newScaleY);
-
-    // 立即排一次。新父节点是 UINode 时调它自己的 resort；
-    // 是 worldRoot 时 UINode 子永远是 worldRoot 的子，不需要规范化。
-    if (isUINode(target)) target.resortChildren();
-
+    if (silent) return;
     this.emit("nodeReparented", child);
     this.emit("tree");
     this.persist();
@@ -273,6 +295,7 @@ class UIHierarchyImpl {
 
   notifyComponentsChanged(node: UINode): void {
     if (this.silent) return;
+    if (!this.hydratedOnce) return;
     if (!this.nodes.has(node.nodeId)) return;
     this.emit("componentsChanged", node);
     this.persist();
@@ -280,6 +303,7 @@ class UIHierarchyImpl {
 
   notifyTransformChanged(node: UINode): void {
     if (this.silent) return;
+    if (!this.hydratedOnce) return;
     if (!this.nodes.has(node.nodeId)) return;
     this.emit("transformChanged", node);
     this.persist();
@@ -411,8 +435,15 @@ class UIHierarchyImpl {
   /**
    * persist：增量写回 CONFIG.uiNodes。
    * siblingIndex 用"该节点在父下 UINode 兄弟序列中的位置"，不混合非 UINode。
+   *
+   * 守卫：hydrate 完成前一律拒绝写回。构造期树是"代码默认父子"，
+   * 真正布局以 CONFIG.uiNodes / shipping 为准；提前写回会污染存档。
+   * 唯一合法的首写点是 hydrateFromConfig 末尾（此时 hydratedOnce 已 true）。
    */
   persist(): void {
+    if (!this.hydratedOnce) {
+      return;
+    }
     const out: Record<string, UINodeSerialized> = { ...(CONFIG.uiNodes ?? {}) };
     for (const node of this.nodes.values()) {
       const parent = node.findUINodeParent();

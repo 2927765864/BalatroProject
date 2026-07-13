@@ -112,7 +112,17 @@ export class App {
 
   private readonly handleResize = (): void => {
     this.scaler.apply(this.pixi, this.worldRoot);
+    // Notify optional fullscreen layers (e.g. background shader) that live on stage.
+    for (const fn of this.resizeHandlers) fn();
   };
+
+  private readonly resizeHandlers = new Set<() => void>();
+
+  /** Register a callback after Scaler applies a window resize. */
+  onResize(fn: () => void): () => void {
+    this.resizeHandlers.add(fn);
+    return () => this.resizeHandlers.delete(fn);
+  }
 
   /**
    * 页面从后台恢复时，强制标记场景结构脏，避免复用挂起期间失效的

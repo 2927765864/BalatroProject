@@ -20,8 +20,11 @@
  *
  * v5：修复 v4 升级时 shipping.uiNodes 被硬编码默认覆盖、以及 applyConfig
  * 在 uiNodes 缺失时写成 {} 导致界面 UI 全部回退的问题。
+ * v6：修复 hydrate 完成前 persist 会把"代码临时父子关系"写进 localStorage
+ *     （新增 UI 节点时构造期 setTransform / addComponent 触发），导致布局混乱。
+ *     丢弃本地 uiNodes，回退 shipping；UIHierarchy.persist 已加 hydratedOnce 守卫。
  */
-export const CONFIG_VERSION = 5;
+export const CONFIG_VERSION = 6;
 
 /**
  * 单个 UI 节点的可持久化数据。
@@ -64,12 +67,87 @@ export interface EvalScoreTextConfig {
   stayDurationMS: number;
 }
 
+/** 全屏 paint-mix 背景质量档（见 BackgroundView / BalatroBackgroundFilter）。 */
+export type BackgroundQuality = "off" | "low" | "med" | "high";
+
+/** 预设主题名；custom 表示三色由面板直接控制。 */
+export type BackgroundThemeId =
+  | "feltGreen"
+  | "smallBlind"
+  | "bigBlind"
+  | "boss"
+  | "custom";
+
+/**
+ * 程序化背景参数。
+ * 算法对齐开源再实现 Azkun/balatroShader + Hammster balatro.hlsl（非游戏包内源码）。
+ */
+export interface BackgroundConfig {
+  enabled: boolean;
+  quality: BackgroundQuality;
+  theme: BackgroundThemeId;
+  /** Azkun speed：时间倍率 */
+  speed: number;
+  /** 0–1，shader spin_amount */
+  spinAmount: number;
+  /** Azkun spinEase / hlsl SPIN_EASE */
+  spinEase: number;
+  /** 对比度；局内建议 <2 */
+  contrast: number;
+  /** 像素因子，越大越细（Azkun pixelSizeFac） */
+  pixelSizeFac: number;
+  /** Azkun zoom，默认 30 */
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+  enableSpin: boolean;
+  /** hlsl LIGTHING 项 */
+  lighting: number;
+  /** 加到 uTime 上的相位 */
+  seedPhase: number;
+  /** 背景 uniform 更新上限 Hz（对齐 Azkun maxFPS 思想） */
+  maxUpdateHz: number;
+  /** 0xRRGGBB → colour_1/2/3 */
+  colour1: number;
+  colour2: number;
+  colour3: number;
+}
+
+/** 主题三色表（写入 colour1/2/3）。 */
+export const BACKGROUND_THEMES: Record<
+  Exclude<BackgroundThemeId, "custom">,
+  { colour1: number; colour2: number; colour3: number }
+> = {
+  feltGreen: {
+    colour1: 0x5aaf7a,
+    colour2: 0x4a8b66,
+    colour3: 0x1a3d2e,
+  },
+  smallBlind: {
+    colour1: 0x4a9fd4,
+    colour2: 0x2a5a8a,
+    colour3: 0x0f2438,
+  },
+  bigBlind: {
+    colour1: 0xe8a040,
+    colour2: 0x8a5520,
+    colour3: 0x2a1808,
+  },
+  boss: {
+    colour1: 0xe05070,
+    colour2: 0x6a2040,
+    colour3: 0x1a0810,
+  },
+};
+
 export interface RuntimeConfig {
   world: {
     width: number;
     height: number;
-    /** 背景色（PixiJS 数字色）。运行中改这个值需要业务侧主动 apply。 */
+    /** 背景色（PixiJS 数字色）。Off 档清屏 / 无 shader 时使用。运行中改需要主动 apply。 */
     backgroundColor: number;
+    /** 程序化 paint-mix 背景；enabled+quality 控制是否跑 shader。 */
+    background: BackgroundConfig;
   };
   rules: {
     /** 满手牌数量 */
@@ -1182,6 +1260,26 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     width: 1280,
     height: 720,
     backgroundColor: 0x4a8b66,
+    background: Object.freeze({
+      enabled: true,
+      quality: "med" as BackgroundQuality,
+      theme: "feltGreen" as BackgroundThemeId,
+      speed: 0.85,
+      spinAmount: 0.3,
+      spinEase: 0.5,
+      contrast: 1.4,
+      pixelSizeFac: 900,
+      zoom: 30,
+      offsetX: 0,
+      offsetY: 0,
+      enableSpin: true,
+      lighting: 0.25,
+      seedPhase: 0,
+      maxUpdateHz: 30,
+      colour1: BACKGROUND_THEMES.feltGreen.colour1,
+      colour2: BACKGROUND_THEMES.feltGreen.colour2,
+      colour3: BACKGROUND_THEMES.feltGreen.colour3,
+    }),
   }),
   rules: Object.freeze({
     handSize: 8,
@@ -1828,7 +1926,10 @@ export const GameConfig: RuntimeConfig = CONFIG;
 /** 深拷贝 RuntimeConfig（保证不与 frozen DEFAULT_CONFIG 共享引用）。 */
 export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
   return {
-    world: { ...src.world },
+    world: {
+      ...src.world,
+      background: { ...src.world.background },
+    },
     rules: { ...src.rules },
     animation: { ...src.animation },
     debug: { ...src.debug },
@@ -1997,7 +2098,16 @@ export function applyConfig(source: unknown): void {
     : {};
 
   const merged = cloneConfig(activeDefaultConfig);
-  if (incoming.world) Object.assign(merged.world, incoming.world);
+  if (incoming.world) {
+    merged.world = {
+      ...merged.world,
+      ...incoming.world,
+      background: {
+        ...merged.world.background,
+        ...(incoming.world.background ?? {}),
+      },
+    };
+  }
   if (incoming.rules) Object.assign(merged.rules, incoming.rules);
   if (incoming.animation) Object.assign(merged.animation, incoming.animation);
   if (incoming.debug) Object.assign(merged.debug, incoming.debug);
@@ -2366,7 +2476,16 @@ export function applyShippingDefaults(source: unknown): void {
     ? (migrated as Partial<RuntimeConfig>)
     : {};
 
-  if (incoming.world) Object.assign(activeDefaultConfig.world, incoming.world);
+  if (incoming.world) {
+    activeDefaultConfig.world = {
+      ...activeDefaultConfig.world,
+      ...incoming.world,
+      background: {
+        ...activeDefaultConfig.world.background,
+        ...(incoming.world.background ?? {}),
+      },
+    };
+  }
   if (incoming.rules) Object.assign(activeDefaultConfig.rules, incoming.rules);
   if (incoming.animation) Object.assign(activeDefaultConfig.animation, incoming.animation);
   if (incoming.debug) Object.assign(activeDefaultConfig.debug, incoming.debug);

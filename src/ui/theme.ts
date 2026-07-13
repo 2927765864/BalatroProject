@@ -12,6 +12,8 @@ export const Theme = {
   colors: {
     panelDark: 0x2b2d31,
     panelBlack: 0x222222,
+    /** 顶部小丑牌槽位长条背景 */
+    jokerBar: 0x1a1c20,
     targetBg: 0x4d3900,
     targetBorder: 0xcc9900,
     blueChip: 0x0077ff,

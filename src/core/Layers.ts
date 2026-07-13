@@ -7,6 +7,8 @@
 export const Layers = {
   Background: 0,
   Deck: 10,
+  /** 小丑牌槽位暗色底条：在牌堆之上、卡牌之下，避免挡住小丑牌 */
+  JokerBar: 15,
   Hand: 20,
   Card: 30,
   UI: 40,

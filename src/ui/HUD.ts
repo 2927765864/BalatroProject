@@ -3,10 +3,10 @@ import { Panel } from "./components/Panel";
 import { Button } from "./components/Button";
 import { ScorePanel } from "./components/ScorePanel";
 import { DeckView } from "@render/DeckView";
-import { UINode } from "@ui/hierarchy";
+import { OpacityComponent, UINode } from "@ui/hierarchy";
 
 /**
- * HUD：左侧侧栏 + 底部按钮 + 牌堆位置
+ * HUD：左侧侧栏 + 顶部小丑槽位条 + 底部按钮 + 牌堆位置
  *
  * 全部坐标基于 worldWidth/worldHeight（默认 1280×720）。
  * 子组件按需暴露，让 GameController 接管交互回调。
@@ -16,6 +16,9 @@ import { UINode } from "@ui/hierarchy";
  *   - "minimal"：精简版（仅保留底部按钮 + 右下角牌堆，且按钮居中放置）。
  *
  * 切换模式由 GameController.switchMode 触发，HUD 只负责显示/位置的应用。
+ *
+ * jokerBar 会在 GameController.start 里 reparent 到 worldRoot（Layers.JokerBar），
+ * 保证渲染在卡牌层之下，作为小丑牌的暗色底框而不挡住牌面。
  */
 export type HUDMode = "normal" | "minimal";
 
@@ -35,6 +38,8 @@ export interface HUDOptions {
 
 export class HUD extends UINode {
   private readonly leftPanel: Panel;
+  /** 顶部小丑牌槽位暗色长条（框） */
+  readonly jokerBar: Panel;
   readonly scorePanel: ScorePanel;
   readonly playBtn: Button;
   readonly discardBtn: Button;
@@ -70,6 +75,29 @@ export class HUD extends UINode {
       radius: 0,
     });
     this.addChild(this.leftPanel);
+
+    // 顶部小丑牌槽位：暗色长条框（宽度覆盖主玩法区，高度包住卡牌 140 + 内边距）
+    const jokerBarMarginX = 24;
+    const jokerBarHeight = 168;
+    const jokerBarY = 8;
+    this.jokerBar = new Panel({
+      id: "hud.jokerBar",
+      displayName: "小丑牌槽位条",
+      width: worldWidth - this.sidebarWidth - jokerBarMarginX * 2,
+      height: jokerBarHeight,
+      fill: Theme.colors.jokerBar,
+      radius: 14,
+    });
+    // 默认位姿 / 透明度仅作"代码兜底"；真正布局以 shipping / CONFIG.uiNodes 为准。
+    // 组件必须在 addChild（register）之前挂好，且不要在构造期调用会
+    // notify→persist 的 setter——hydrate 前的树是临时父子关系。
+    this.jokerBar.position.set(this.sidebarWidth + jokerBarMarginX, jokerBarY);
+    const jokerBarOpacity = new OpacityComponent();
+    this.jokerBar.addComponent(jokerBarOpacity);
+    // 直接 deserialize 默认值，避免 setAlpha 在 register 后触发持久化路径
+    jokerBarOpacity.deserialize({ alpha: 0.72 });
+    jokerBarOpacity.apply();
+    this.addChild(this.jokerBar);
 
     // 得分面板
     this.scorePanel = new ScorePanel(opts.targetScore, opts.plays, opts.discards);
@@ -160,6 +188,17 @@ export class HUD extends UINode {
     const btnGap = 8;
     const mainBtnY = worldHeight - 120;
     const sortBtnY = mainBtnY + mainBtnH + btnGap;
+
+    // 小丑槽位条：只随 mode 改宽度（minimal 拉满 / normal 贴主玩法区）。
+    // 位置与透明度一律以 shipping / CONFIG.uiNodes 为准，禁止在这里 setTransformDirect，
+    // 否则会覆盖用户 Hierarchy 微调，并在 hydrate 前污染 parentId 存档。
+    const jokerBarMarginX = 24;
+    const jokerBarHeight = 168;
+    const jokerBarW =
+      mode === "minimal"
+        ? worldWidth - jokerBarMarginX * 2
+        : worldWidth - this.sidebarWidth - jokerBarMarginX * 2;
+    this.jokerBar.setSize(jokerBarW, jokerBarHeight);
 
     if (mode === "minimal") {
       // 隐藏完整 UI 部件

@@ -22,6 +22,7 @@ import {
   CONFIG_VERSION,
   DEFAULT_CONFIG,
   STORAGE_KEYS,
+  BACKGROUND_THEMES,
   applyConfig,
   cloneConfig,
   resetConfigToDefaults,
@@ -992,6 +993,78 @@ export function setupControlPanel(
 
     // === 基础参数 ===
     bindToggle("inp-unlimitedActions", "val-unlimitedActions", "rules.unlimitedActions");
+
+    // === 背景 paint-mix ===
+    bindToggle("inp-bgEnabled", "val-bgEnabled", "world.background.enabled");
+    bindCycleButton("btn-bgQuality", "val-bgQuality", "world.background.quality", [
+      { value: "off", label: "off" },
+      { value: "low", label: "low" },
+      { value: "med", label: "med" },
+      { value: "high", label: "high" },
+    ]);
+    bindCycleButton("btn-bgTheme", "val-bgTheme", "world.background.theme", [
+      { value: "feltGreen", label: "feltGreen" },
+      { value: "smallBlind", label: "smallBlind" },
+      { value: "bigBlind", label: "bigBlind" },
+      { value: "boss", label: "boss" },
+      { value: "custom", label: "custom" },
+    ]);
+    {
+      const btn = document.getElementById("btn-bgTheme") as HTMLButtonElement | null;
+      if (btn && btn.dataset["bgThemeExtra"] !== "1") {
+        btn.dataset["bgThemeExtra"] = "1";
+        btn.addEventListener("click", () => {
+          const theme = CONFIG.world.background.theme;
+          if (theme !== "custom") {
+            const t = BACKGROUND_THEMES[theme];
+            CONFIG.world.background.colour1 = t.colour1;
+            CONFIG.world.background.colour2 = t.colour2;
+            CONFIG.world.background.colour3 = t.colour3;
+            for (const s of syncers) s();
+            notify("world.background.theme", theme);
+          }
+        });
+      }
+    }
+    bindColor("inp-backgroundColor", "val-backgroundColor", "world.backgroundColor");
+    bindSlider("inp-bgSpeed", "val-bgSpeed", "world.background.speed", { digits: 2 });
+    bindSlider("inp-bgSpinAmount", "val-bgSpinAmount", "world.background.spinAmount", {
+      digits: 2,
+    });
+    bindNumber("inp-bgSpinEase", "val-bgSpinEase", "world.background.spinEase", { digits: 2 });
+    bindSlider("inp-bgContrast", "val-bgContrast", "world.background.contrast", { digits: 2 });
+    bindNumber("inp-bgPixelSizeFac", "val-bgPixelSizeFac", "world.background.pixelSizeFac", {
+      integer: true,
+    });
+    bindNumber("inp-bgZoom", "val-bgZoom", "world.background.zoom", { digits: 1 });
+    bindNumber("inp-bgOffsetX", "val-bgOffsetX", "world.background.offsetX", { digits: 2 });
+    bindNumber("inp-bgOffsetY", "val-bgOffsetY", "world.background.offsetY", { digits: 2 });
+    bindToggle("inp-bgEnableSpin", "val-bgEnableSpin", "world.background.enableSpin");
+    bindSlider("inp-bgLighting", "val-bgLighting", "world.background.lighting", { digits: 2 });
+    {
+      const markCustomTheme = (): void => {
+        CONFIG.world.background.theme = "custom";
+      };
+      const bindColorCustom = (inputId: string, valueId: string, path: string): void => {
+        bindColor(inputId, valueId, path);
+        const input = document.getElementById(inputId) as HTMLInputElement | null;
+        if (!input || input.dataset["bgCustomMark"] === "1") return;
+        input.dataset["bgCustomMark"] = "1";
+        input.addEventListener("input", () => {
+          markCustomTheme();
+          notify("world.background.theme", "custom");
+        });
+      };
+      bindColorCustom("inp-bgColour1", "val-bgColour1", "world.background.colour1");
+      bindColorCustom("inp-bgColour2", "val-bgColour2", "world.background.colour2");
+      bindColorCustom("inp-bgColour3", "val-bgColour3", "world.background.colour3");
+    }
+    bindNumber("inp-bgSeedPhase", "val-bgSeedPhase", "world.background.seedPhase", {
+      digits: 1,
+    });
+    bindNumber("inp-bgMaxUpdateHz", "val-bgMaxUpdateHz", "world.background.maxUpdateHz", {
+      integer: true,
+    });
 
     // === 牌的绘制 / 单牌样式 ===
     bindToggle("inp-useSprites", "val-useSprites", "cardArt.useSprites");
