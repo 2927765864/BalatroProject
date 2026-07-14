@@ -89,6 +89,55 @@ export const CardFx = {
   },
 
   /**
+   * 手牌整体垂直位移（出牌前后的下移/上移）。
+   * 只改 y 与 layoutY，不碰 x/rotation；缓动由 moveCurve + startSpeed 决定时长。
+   */
+  shiftHandGroupY(
+    tm: TweenManager,
+    cards: readonly CardView[],
+    deltaY: number,
+    opts: {
+      moveCurve: BezierCurveConfig;
+      startSpeed: number;
+    }
+  ): Promise<void> {
+    if (cards.length === 0 || Math.abs(deltaY) < 1e-3) {
+      return Promise.resolve();
+    }
+
+    const dist = Math.abs(deltaY);
+    const y1 = opts.moveCurve?.p1?.y ?? 0.25;
+    const slope = Math.max(0.1, 3 * y1);
+    const startSpeed = Math.max(1, opts.startSpeed ?? 800);
+    let durationMS = (dist * slope / startSpeed) * 1000;
+    durationMS = Math.max(50, Math.min(2000, durationMS));
+
+    const easing =
+      opts.moveCurve && opts.moveCurve.enabled !== false
+        ? curveToEase(opts.moveCurve)
+        : Easing.cubicOut;
+
+    return Promise.all(
+      cards.map(
+        (card) =>
+          new Promise<void>((resolve) => {
+            const targetY = card.y + deltaY;
+            card.layoutY = (card.layoutY ?? card.y) + deltaY;
+            tm.killOf(card);
+            tm.add(
+              tm
+                .create(card)
+                .to({ y: targetY }, durationMS)
+                .easing(easing)
+                .onComplete(resolve)
+                .onStop(resolve)
+            );
+          })
+      )
+    ).then(() => undefined);
+  },
+
+  /**
    * 带过冲反弹的"平滑移动到目标位姿"——moveTo 的进阶版。
    *
    * 【模型 v2：距离驱动的过冲 + 目标平均速度自适应时长】

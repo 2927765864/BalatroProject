@@ -168,6 +168,7 @@ export function setupControlPanel(
   let jokerBgBlockFadeCurvePanel: BezierCurvePanel | null = null;
   let jokerBgBlockScaleCurvePanel: BezierCurvePanel | null = null;
   let playCardMoveCurvePanel: BezierCurvePanel | null = null;
+  let playHandGroupShiftCurvePanel: BezierCurvePanel | null = null;
 
   // 收集所有"按 CONFIG 当前值刷新自身"的回调，preset 加载后批量重跑。
   const syncers: Array<() => void> = [];
@@ -997,6 +998,14 @@ export function setupControlPanel(
 
     // === 基础参数 ===
     bindToggle("inp-unlimitedActions", "val-unlimitedActions", "rules.unlimitedActions");
+    bindNumber("inp-playfieldHandBaseY", "val-playfieldHandBaseY", "playfield.handBaseY", {
+      integer: true,
+    });
+    bindNumber("inp-playfieldHandOffsetX", "val-playfieldHandOffsetX", "playfield.handOffsetX", {
+      integer: true,
+    });
+    bindNumber("inp-playfieldDeckX", "val-playfieldDeckX", "playfield.deckX", { integer: true });
+    bindNumber("inp-playfieldDeckY", "val-playfieldDeckY", "playfield.deckY", { integer: true });
 
     // === 背景 paint-mix ===
     bindToggle("inp-bgEnabled", "val-bgEnabled", "world.background.enabled");
@@ -1294,6 +1303,31 @@ export function setupControlPanel(
     bindNumber("inp-handSortMinRiseDurationMS", "val-handSortMinRiseDurationMS", "handSort.minRiseDurationMS", { integer: true });
     bindNumber("inp-handSortMaxRiseDurationMS", "val-handSortMaxRiseDurationMS", "handSort.maxRiseDurationMS", { integer: true });
 
+    // === 【出牌】卡牌整体位移效果 ===
+    bindSectionExpand("inp-expandPlayHandGroupShift", "val-expandPlayHandGroupShift", "cardVisuals.expandedSections.playHandGroupShift", "sect-playHandGroupShift-params");
+    bindToggle("inp-playHandGroupShiftEnabled", "val-playHandGroupShiftEnabled", "playHandGroupShift.enabled");
+    bindNumber("inp-playHandGroupShiftDistancePx", "val-playHandGroupShiftDistancePx", "playHandGroupShift.distancePx", { integer: true });
+    bindNumber("inp-playHandGroupShiftStartSpeed", "val-playHandGroupShiftStartSpeed", "playHandGroupShift.startSpeed", { integer: true });
+    bindNumber("inp-playHandGroupShiftPreDownWaitMS", "val-playHandGroupShiftPreDownWaitMS", "playHandGroupShift.preDownWaitMS", { integer: true });
+    bindNumber("inp-playHandGroupShiftPostDownWaitMS", "val-playHandGroupShiftPostDownWaitMS", "playHandGroupShift.postDownWaitMS", { integer: true });
+    bindNumber("inp-playHandGroupShiftPreUpWaitMS", "val-playHandGroupShiftPreUpWaitMS", "playHandGroupShift.preUpWaitMS", { integer: true });
+    bindNumber("inp-playHandGroupShiftPostUpWaitMS", "val-playHandGroupShiftPostUpWaitMS", "playHandGroupShift.postUpWaitMS", { integer: true });
+
+    const playHandGroupShiftCurveMount = document.getElementById("mount-playHandGroupShiftCurve");
+    if (playHandGroupShiftCurveMount && !playHandGroupShiftCurvePanel) {
+      playHandGroupShiftCurvePanel = buildCurvePanel(playHandGroupShiftCurveMount, CONFIG.playHandGroupShift.moveCurve, {
+        label: "速率曲线",
+        onChange: () => {
+          notify("playHandGroupShift.moveCurve", CONFIG.playHandGroupShift.moveCurve);
+        }
+      });
+      syncers.push(() => {
+        if (playHandGroupShiftCurvePanel) {
+          playHandGroupShiftCurvePanel.setCurve(CONFIG.playHandGroupShift.moveCurve);
+        }
+      });
+    }
+
     // === 【出牌】手牌换位 ===
     bindSectionExpand("inp-expandPlayHandSwap", "val-expandPlayHandSwap", "cardVisuals.expandedSections.playHandSwap", "sect-playHandSwap-params");
     bindToggle("inp-playHandSwapEnabled", "val-playHandSwapEnabled", "playHandSwap.enabled");
@@ -1544,6 +1578,7 @@ export function setupControlPanel(
     bindNumber("inp-jokerSlotCount", "val-jokerSlotCount", "joker.slotCount", { integer: true });
     bindNumber("inp-jokerCardSpacing", "val-jokerCardSpacing", "joker.cardSpacing", { digits: 0 });
     bindNumber("inp-jokerBaseY", "val-jokerBaseY", "joker.baseY", { digits: 0 });
+    bindNumber("inp-jokerBaseX", "val-jokerBaseX", "joker.baseX", { digits: 0 });
 
     // === 【小丑】小丑牌的结算效果 ===
     bindSectionExpand("inp-expandJokerSettleEffect", "val-expandJokerSettleEffect", "cardVisuals.expandedSections.jokerSettleEffect", "sect-jokerSettleEffect-params");

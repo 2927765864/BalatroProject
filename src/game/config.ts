@@ -248,6 +248,30 @@ export interface RuntimeConfig {
     /** 每张牌相对中心牌的旋转角度系数（度/张）。0 = 不旋转。 */
     fanAnglePerCardDeg: number;
   };
+  /**
+   * 玩法区世界坐标布局（手牌整体 + 牌堆）。
+   *
+   * 手牌「整体」包含：
+   *   - 底部手牌扇形（handBaseY / handOffsetX）；
+   *   - 打出后的出牌结算堆（相对 handBaseY 的 playPile.baseYOffset + 中位对齐手牌中线）。
+   * 因此只调 handBaseY / handOffsetX 即可连带移动结算区，无需再调 playPile 的绝对坐标。
+   *
+   * 默认值对齐原 HUD 硬编码（1280×720）：
+   *   handBaseY = height-250=470，handOffsetX=0，deck = (width-120, height-180)=(1160,540)。
+   */
+  playfield: {
+    /** 手牌基准 Y（世界坐标）。未选中时牌心 y≈此值（弧形另加下沉）。 */
+    handBaseY: number;
+    /**
+     * 手牌水平区域整体偏移（像素，正值向右）。
+     * 不改变区域宽度：normal 默认 [sidebar, W-40]、minimal 默认 [200, W-200] 整体平移。
+     */
+    handOffsetX: number;
+    /** 牌堆左上角世界 X。 */
+    deckX: number;
+    /** 牌堆左上角世界 Y。 */
+    deckY: number;
+  };
   cardShadow: {
     color: number;
     alpha: number;
@@ -468,6 +492,33 @@ export interface RuntimeConfig {
     minRiseDurationMS: number;
     /** rise 段时长上限（ms），避免极远距离拖沓。建议 180~320。 */
     maxRiseDurationMS: number;
+  };
+  /**
+   * 【出牌】卡牌整体位移效果
+   *
+   * 出牌键按下后：四按钮瞬间隐藏 → 等待 → 手牌整体下移 → 等待 → 进入打出流程；
+   * 预期分全部累加到回合分后、发新牌前：等待 → 手牌整体上移回原位 → 等待 → 发牌；
+   * 所有新牌到达布局目标位置（不必等过冲/回弹播完）时四按钮瞬间出现。
+   */
+  playHandGroupShift: {
+    enabled: boolean;
+    /** 手牌整体下移距离（px，正值向下）。上移距离与此相同。 */
+    distancePx: number;
+    /**
+     * 整体位移速率曲线（三次贝塞尔，端点固定 0→1）。
+     * 与 startSpeed 共同决定时长：duration ≈ |distance| * slope / startSpeed。
+     */
+    moveCurve: BezierCurveConfig;
+    /** 启动速度（px/s），用于由距离推导位移时长。 */
+    startSpeed: number;
+    /** 按钮隐藏后、开始下移前的等待（ms）。 */
+    preDownWaitMS: number;
+    /** 下移完成后、进入手牌打出流程前的等待（ms）。 */
+    postDownWaitMS: number;
+    /** 分数迁移完成后、开始上移前的等待（ms）。 */
+    preUpWaitMS: number;
+    /** 上移完成后、开始发新牌前的等待（ms）。 */
+    postUpWaitMS: number;
   };
   /**
    * 【出牌】手牌换位（挤位阶段）
@@ -917,6 +968,7 @@ export interface RuntimeConfig {
       discardFlip: boolean;
       handSwap: boolean;
       handSort: boolean;
+      playHandGroupShift: boolean;
       playHandSwap: boolean;
       playPileDisplacement: boolean;
       playCardMove: boolean;
@@ -1254,6 +1306,11 @@ export interface RuntimeConfig {
      * 独立于 handLayout.cardSpacing：顶部一条直线排布，间距通常比手牌更宽。
      */
     cardSpacing: number;
+    /**
+     * 小丑行整体中心的世界 X。
+     * 槽位以该值为中线左右对称排布（默认 640 = 1280 宽屏中线）。
+     */
+    baseX: number;
     /** 小丑中心的世界 Y（屏幕上方）。 */
     baseY: number;
     /**
@@ -1359,6 +1416,12 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     arcHeight: 18,
     fanAnglePerCardDeg: 1.5,
   }),
+  playfield: Object.freeze({
+    handBaseY: 470,
+    handOffsetX: 0,
+    deckX: 1160,
+    deckY: 540,
+  }),
   cardShadow: Object.freeze({
     color: 0x000000,
     alpha: 0.35,
@@ -1437,6 +1500,22 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     durationPower: 0.2,
     minRiseDurationMS: 60,
     maxRiseDurationMS: 220,
+  }),
+  playHandGroupShift: Object.freeze({
+    enabled: true,
+    distancePx: 40,
+    moveCurve: Object.freeze({
+      enabled: true,
+      startScale: 0,
+      endScale: 1,
+      p1: { x: 0.25, y: 0.1 },
+      p2: { x: 0.25, y: 1.0 },
+    }) as BezierCurveConfig,
+    startSpeed: 800,
+    preDownWaitMS: 80,
+    postDownWaitMS: 60,
+    preUpWaitMS: 80,
+    postUpWaitMS: 60,
   }),
   playHandSwap: Object.freeze({
     enabled: true,
@@ -1732,6 +1811,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       discardFlip: true,
       handSwap: true,
       handSort: true,
+      playHandGroupShift: true,
       playHandSwap: true,
       playPileDisplacement: true,
       playCardMove: true,
@@ -1892,6 +1972,8 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     slotCount: 5,
     // 比手牌 spacing 略宽，顶部 5 张并排更透气。
     cardSpacing: 120,
+    // 默认世界宽度 1280 的水平中线。
+    baseX: 640,
     baseY: 90,
     effects: Object.freeze({
       shadow: true,
@@ -2012,6 +2094,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
       back: { ...src.cardArt.back },
     },
     handLayout: { ...src.handLayout },
+    playfield: { ...src.playfield },
     cardShadow: {
       ...src.cardShadow,
     },
@@ -2060,6 +2143,14 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     discardFlip: { ...src.discardFlip },
     handSwap: { ...src.handSwap },
     handSort: { ...src.handSort },
+    playHandGroupShift: {
+      ...src.playHandGroupShift,
+      moveCurve: src.playHandGroupShift.moveCurve ? {
+        ...src.playHandGroupShift.moveCurve,
+        p1: { ...src.playHandGroupShift.moveCurve.p1 },
+        p2: { ...src.playHandGroupShift.moveCurve.p2 },
+      } : undefined as any,
+    },
     playHandSwap: { ...src.playHandSwap },
     playPileDisplacement: { ...src.playPileDisplacement },
     playCardMove: { ...src.playCardMove },
@@ -2202,6 +2293,12 @@ export function applyConfig(source: unknown): void {
       ...incoming.handLayout,
     };
   }
+  if (incoming.playfield) {
+    merged.playfield = {
+      ...merged.playfield,
+      ...incoming.playfield,
+    };
+  }
   if (incoming.cardShadow) {
     merged.cardShadow = {
       ...merged.cardShadow,
@@ -2317,6 +2414,26 @@ export function applyConfig(source: unknown): void {
     merged.handSort = {
       ...merged.handSort,
       ...incoming.handSort,
+    };
+  }
+  if (incoming.playHandGroupShift) {
+    merged.playHandGroupShift = {
+      ...merged.playHandGroupShift,
+      ...incoming.playHandGroupShift,
+      moveCurve: incoming.playHandGroupShift.moveCurve
+        ? {
+            ...merged.playHandGroupShift.moveCurve,
+            ...incoming.playHandGroupShift.moveCurve,
+            p1: {
+              ...(merged.playHandGroupShift.moveCurve?.p1 ?? {}),
+              ...(incoming.playHandGroupShift.moveCurve.p1 ?? {}),
+            },
+            p2: {
+              ...(merged.playHandGroupShift.moveCurve?.p2 ?? {}),
+              ...(incoming.playHandGroupShift.moveCurve.p2 ?? {}),
+            },
+          }
+        : merged.playHandGroupShift.moveCurve,
     };
   }
   if (incoming.playHandSwap) {
@@ -2508,6 +2625,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.debug = merged.debug;
   CONFIG.cardArt = merged.cardArt;
   CONFIG.handLayout = merged.handLayout;
+  CONFIG.playfield = merged.playfield;
   CONFIG.cardShadow = merged.cardShadow;
   CONFIG.dragShadow = merged.dragShadow;
   CONFIG.dragHandCard = merged.dragHandCard;
@@ -2519,6 +2637,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.discardFlip = merged.discardFlip;
   CONFIG.handSwap = merged.handSwap;
   CONFIG.handSort = merged.handSort;
+  CONFIG.playHandGroupShift = merged.playHandGroupShift;
   CONFIG.playHandSwap = merged.playHandSwap;
   CONFIG.playPileDisplacement = merged.playPileDisplacement;
   CONFIG.playCardMove = merged.playCardMove;
@@ -2578,6 +2697,12 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.handLayout = {
       ...activeDefaultConfig.handLayout,
       ...incoming.handLayout,
+    };
+  }
+  if (incoming.playfield) {
+    activeDefaultConfig.playfield = {
+      ...activeDefaultConfig.playfield,
+      ...incoming.playfield,
     };
   }
   if (incoming.cardShadow) {
@@ -2695,6 +2820,26 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.handSort = {
       ...activeDefaultConfig.handSort,
       ...incoming.handSort,
+    };
+  }
+  if (incoming.playHandGroupShift) {
+    activeDefaultConfig.playHandGroupShift = {
+      ...activeDefaultConfig.playHandGroupShift,
+      ...incoming.playHandGroupShift,
+      moveCurve: incoming.playHandGroupShift.moveCurve
+        ? {
+            ...activeDefaultConfig.playHandGroupShift.moveCurve,
+            ...incoming.playHandGroupShift.moveCurve,
+            p1: {
+              ...(activeDefaultConfig.playHandGroupShift.moveCurve?.p1 ?? {}),
+              ...(incoming.playHandGroupShift.moveCurve.p1 ?? {}),
+            },
+            p2: {
+              ...(activeDefaultConfig.playHandGroupShift.moveCurve?.p2 ?? {}),
+              ...(incoming.playHandGroupShift.moveCurve.p2 ?? {}),
+            },
+          }
+        : activeDefaultConfig.playHandGroupShift.moveCurve,
     };
   }
   if (incoming.playHandSwap) {

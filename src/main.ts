@@ -113,7 +113,13 @@ async function bootstrap(): Promise<void> {
         game.layoutHand({ force: true });
       }
 
-      // 小丑槽布局（间距 / 基准 Y / 槽位数）。
+      // 玩法区世界坐标（手牌整体 Y/水平偏移 + 牌堆 X/Y）。
+      // 出牌结算区相对手牌 baseY / 中线，随 handBaseY / handOffsetX 一起动。
+      if (key === "*" || key.startsWith("playfield.")) {
+        game.refreshPlayfieldLayout();
+      }
+
+      // 小丑槽布局（间距 / 基准 X·Y / 槽位数）。
       // slotCount 变化需要重建实例；其余只重排位姿即可。
       if (key === "*" || key.startsWith("joker.")) {
         if (key === "*" || key === "joker.slotCount") {

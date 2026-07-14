@@ -4,6 +4,7 @@ import { Button } from "./components/Button";
 import { ScorePanel } from "./components/ScorePanel";
 import { DeckView } from "@render/DeckView";
 import { OpacityComponent, UINode } from "@ui/hierarchy";
+import { CONFIG } from "@game/config";
 
 /**
  * HUD：左侧侧栏 + 顶部小丑槽位条 + 底部按钮 + 牌堆位置
@@ -149,9 +150,8 @@ export class HUD extends UINode {
     });
     this.addChild(this.sortSuitBtn);
 
-    // 牌堆
+    // 牌堆（世界坐标由 CONFIG.playfield 驱动，见 applyPlayfield）
     this.deckView = new DeckView(52);
-    this.deckView.position.set(worldWidth - 120, worldHeight - 180);
     this.addChild(this.deckView);
 
     // 手牌可用区域 / 按钮位置 / leftPanel & scorePanel 可见性
@@ -160,6 +160,38 @@ export class HUD extends UINode {
     this.handAreaRight = 0;
     this.handBaseY = 0;
     this.applyMode("normal");
+  }
+
+  /**
+   * 从 CONFIG.playfield 刷新手牌区域与牌堆世界坐标。
+   * 手牌水平宽度仍由 mode 决定，仅叠加 handOffsetX；Y 与牌堆位置直接读配置。
+   * 出牌结算堆相对 handBaseY / 手牌中线，会随手牌整体一起移动。
+   */
+  applyPlayfield(): void {
+    const { worldWidth } = this;
+    const pf = CONFIG.playfield;
+    const ox = pf.handOffsetX ?? 0;
+
+    this.handBaseY = pf.handBaseY;
+
+    if (this._mode === "minimal") {
+      // 精简：避开右下角牌堆，围绕屏幕中线居中，再加整体水平偏移。
+      this.handAreaLeft = 200 + ox;
+      this.handAreaRight = worldWidth - 200 + ox;
+    } else {
+      this.handAreaLeft = this.sidebarWidth + ox;
+      this.handAreaRight = worldWidth - 40 + ox;
+    }
+
+    // 用 TransformComponent 写入，保证 Hierarchy / persist 与运行时位置一致。
+    // 注意：playfield 是牌堆位置的 SSOT；hydrate 之后也应再调一次本方法覆盖存档里的旧坐标。
+    this.deckView.transform.setTransformDirect(
+      pf.deckX,
+      pf.deckY,
+      this.deckView.rotation,
+      this.deckView.scale.x,
+      this.deckView.scale.y,
+    );
   }
 
   get mode(): HUDMode {
@@ -213,12 +245,7 @@ export class HUD extends UINode {
       this.sortRankBtn.position.set(centerX - 160, sortBtnY);
       this.sortSuitBtn.position.set(centerX + 20, sortBtnY);
 
-      // 手牌区域：避开右下角牌堆所在水平区间，整体围绕屏幕水平中线居中。
-      // 牌堆位于 (worldWidth-120, worldHeight-180)，半宽 ≈ 60，
-      // 因此手牌右边界保守取 worldWidth - 200，左边界对称取 200，使中线对齐 worldWidth/2。
-      this.handAreaLeft = 200;
-      this.handAreaRight = worldWidth - 200;
-      this.handBaseY = worldHeight - 250;
+      // 手牌区域 + 牌堆：见 applyPlayfield（读 CONFIG.playfield）。
     } else {
       // normal：完整布局，恢复初始可见性与位置
       this.leftPanel.visible = true;
@@ -229,10 +256,8 @@ export class HUD extends UINode {
       this.discardBtn.position.set(playAreaCenterX + 20, mainBtnY);
       this.sortRankBtn.position.set(playAreaCenterX - 160, sortBtnY);
       this.sortSuitBtn.position.set(playAreaCenterX + 20, sortBtnY);
-
-      this.handAreaLeft = this.sidebarWidth;
-      this.handAreaRight = worldWidth - 40;
-      this.handBaseY = worldHeight - 250;
     }
+
+    this.applyPlayfield();
   }
 }

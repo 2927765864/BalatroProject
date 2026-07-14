@@ -88,6 +88,13 @@ export class GameController {
    */
   private isPlayPhaseSwapping = false;
 
+  /**
+   * 出牌流程中手牌整体垂直偏移（px，正值向下）。
+   * layoutHand 与出牌堆 getHandArea 的 baseY 都会叠加该值：
+   * 手牌挤位与结算区（出牌堆）同步下移/上移，相对关系保持不变。
+   */
+  private handPlayYOffset = 0;
+
   private lastHandType = "";
   private lastSelectedCount = 0;
 
@@ -162,6 +169,10 @@ export class GameController {
     uiHierarchy.reparent(this.hud.deckView, null, this.app.worldRoot);
     this.hud.deckView.zIndex = Layers.Deck;
 
+    // 玩法区坐标以 CONFIG.playfield 为 SSOT：hydrate 可能写回 shipping 里的旧 deck 位姿，
+    // 这里再覆盖一次，保证手牌基准 / 牌堆与参数面板一致。
+    this.hud.applyPlayfield();
+
     // 小丑槽位暗色底条：shipping 已记 parentId=null；hydrate 后应已在 worldRoot。
     // 这里再 ensure 一次（兼容旧存档仍挂在 HUD 下的情况），并固定 zIndex 在卡牌之下。
     if (this.hud.jokerBar.parent !== this.app.worldRoot) {
@@ -219,7 +230,8 @@ export class GameController {
       getHandArea: () => ({
         left: this.hud.handAreaLeft,
         right: this.hud.handAreaRight,
-        baseY: this.hud.handBaseY,
+        // 与 handPlayYOffset 同步：整体下移后，出牌结算区也落在偏移后的高度。
+        baseY: this.hud.handBaseY + this.handPlayYOffset,
       }),
       layoutHand: (opts) => this.layoutHand(opts),
       applyScore: (result) => {
@@ -376,7 +388,8 @@ export class GameController {
     const spacing = GameConfig.joker?.cardSpacing ?? 120;
     const baseY = GameConfig.joker?.baseY ?? 90;
     const rise = GameConfig.cardVisuals.selectRiseY ?? 30;
-    const centerX = GameConfig.world.width / 2;
+    // 整体中线：读 joker.baseX（世界坐标），缺省回退到世界宽度中线。
+    const centerX = GameConfig.joker?.baseX ?? GameConfig.world.width / 2;
     const startX = centerX - ((n - 1) * spacing) / 2;
 
     list.forEach((view, i) => {
@@ -399,7 +412,7 @@ export class GameController {
   /**
    * 按 CONFIG.joker 重新计算顶部小丑槽位姿。
    * 动画路径与 layoutHand 同构（swapMove / moveToWithOvershoot / select 豁免）。
-   * 公开以便 ControlPanel 改 spacing / baseY / slotCount 后即时生效。
+   * 公开以便 ControlPanel 改 spacing / baseX / baseY / slotCount 后即时生效。
    */
   layoutJokers(opts?: {
     swapFor?: ReadonlySet<CardView>;
@@ -413,8 +426,8 @@ export class GameController {
     const baseY = GameConfig.joker?.baseY ?? 90;
     const rise =
       GameConfig.cardVisuals.selectRiseY ?? 30;
-    // 水平居中：以整个世界宽度中线为锚。
-    const centerX = GameConfig.world.width / 2;
+    // 水平中线：读 joker.baseX（世界坐标），缺省回退到世界宽度中线。
+    const centerX = GameConfig.joker?.baseX ?? GameConfig.world.width / 2;
     const totalSpan = (n - 1) * spacing;
     const startX = centerX - totalSpan / 2;
 
@@ -744,7 +757,7 @@ export class GameController {
     const slots = computeHandLayout(hand, {
       areaLeft: this.hud.handAreaLeft,
       areaRight: this.hud.handAreaRight,
-      baseY: this.hud.handBaseY,
+      baseY: this.hud.handBaseY + this.handPlayYOffset,
       cardSpacing: GameConfig.handLayout.cardSpacing,
       arcEnabled: GameConfig.handLayout.arcEnabled,
       arcHeight: GameConfig.handLayout.arcHeight,
@@ -1142,6 +1155,64 @@ export class GameController {
 
   // --- 出牌 / 弃牌 -------------------------------------------------
 
+  /** 出牌/弃牌/点数/花色四键瞬间显隐（visible，与 setEnabled 独立）。 */
+  private setActionButtonsVisible(visible: boolean): void {
+    this.hud.playBtn.visible = visible;
+    this.hud.discardBtn.visible = visible;
+    this.hud.sortRankBtn.visible = visible;
+    this.hud.sortSuitBtn.visible = visible;
+  }
+
+  /**
+   * 手牌整体垂直位移（下移正 / 上移负），并同步 handPlayYOffset，
+   * 使后续 layoutHand 挤位仍落在偏移后的高度。
+   */
+  private async shiftHandGroup(deltaY: number): Promise<void> {
+    const cfg = GameConfig.playHandGroupShift;
+    const hand = this.store.getState().hand;
+    if (!cfg || hand.length === 0 || Math.abs(deltaY) < 1e-3) {
+      this.handPlayYOffset += deltaY;
+      return;
+    }
+    // 先写入偏移，避免位移过程中 layoutHand 把牌拽回旧 baseY。
+    this.handPlayYOffset += deltaY;
+    await CardFx.shiftHandGroupY(this.tween, hand, deltaY, {
+      moveCurve: cfg.moveCurve,
+      startSpeed: cfg.startSpeed,
+    });
+  }
+
+  /**
+   * 轮询直到手牌补满且每张都到达 layout 目标附近
+   * （过冲峰值仍远离目标，不会在飞向过冲点时误触发）。
+   * 不等待回弹/过冲动画播完。
+   */
+  private waitHandNearLayoutTargets(thresholdPx = 8, timeoutMS = 5000): Promise<void> {
+    const threshold = Math.max(1, thresholdPx);
+    const targetCount = GameConfig.rules.handSize;
+    const start = performance.now();
+    return new Promise((resolve) => {
+      const tick = () => {
+        const hand = this.store.getState().hand;
+        // 必须先补满，否则「仅剩旧牌已在位」会在发新牌前就提前 resolve。
+        const full = hand.length >= targetCount;
+        const allNear =
+          full &&
+          hand.every((v) => {
+            const dx = v.x - v.layoutX;
+            const dy = v.y - v.layoutY;
+            return Math.hypot(dx, dy) <= threshold;
+          });
+        if (allNear || performance.now() - start >= timeoutMS) {
+          resolve();
+          return;
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
   private async playSelected(): Promise<void> {
     const state = this.store.getState();
     const unlimited = GameConfig.rules.unlimitedActions;
@@ -1151,10 +1222,14 @@ export class GameController {
 
     const result = state.currentResult;
     const selectedSnapshot = [...state.selected];
+    const shiftCfg = GameConfig.playHandGroupShift;
+    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
     // 进入"出牌锁"：按钮 disable、toggleSelection 跳过。
     // 注意：hover / 拖拽 / 换位仍然有效（需求要求）。
     this.isPlaying = true;
+    // 出牌瞬间：四按钮立刻隐藏（与 disable 独立）。
+    this.setActionButtonsVisible(false);
     // 立刻清空当前选中（HUD 上不再保留高亮）。
     // 无限模式下不扣减出牌次数，也不刷新 HUD 数字。
     const nextPlays = unlimited ? state.plays : state.plays - 1;
@@ -1173,7 +1248,22 @@ export class GameController {
     });
     this.updateButtons();
 
+    let buttonsRestored = false;
+    const restoreButtons = () => {
+      if (buttonsRestored) return;
+      buttonsRestored = true;
+      this.setActionButtonsVisible(true);
+    };
+
     try {
+      // ── 整体下移：按钮隐藏 → 等待 → 下移 → 等待 → 打出 ──
+      if (shiftCfg?.enabled) {
+        const dist = Math.max(0, shiftCfg.distancePx ?? 0);
+        if (shiftCfg.preDownWaitMS > 0) await sleep(shiftCfg.preDownWaitMS);
+        if (dist > 0) await this.shiftHandGroup(dist);
+        if (shiftCfg.postDownWaitMS > 0) await sleep(shiftCfg.postDownWaitMS);
+      }
+
       // 进入"挤位阶段"：run() 内部触发的剩余手牌重排走 swapMove（利落挤位）。
       this.isPlayPhaseSwapping = true;
       let views: CardView[];
@@ -1185,7 +1275,7 @@ export class GameController {
         this.isPlayPhaseSwapping = false;
       }
 
-      // ── 流程结束：数据回收 + 补牌 ───────────────────────
+      // ── 流程结束：数据回收 ───────────────────────
       // 视图层面：所有牌已飞出屏幕，无需 flyOut；但需要把 view 状态复位以便复用。
       for (const v of views) {
         v.selected = false;
@@ -1198,12 +1288,33 @@ export class GameController {
       this.hud.deckView.setCount(this.deck.size);
       this.bus.emit("deck:changed", { size: this.deck.size });
 
-      // 补牌（hand 已经在阶段 1 内被 removeFromHand 逐张清空）。
-      await this.drawToFull();
+      // ── 整体上移：分数已入账后、发牌前 ──
+      if (shiftCfg?.enabled && Math.abs(this.handPlayYOffset) > 1e-3) {
+        if (shiftCfg.preUpWaitMS > 0) await sleep(shiftCfg.preUpWaitMS);
+        await this.shiftHandGroup(-this.handPlayYOffset);
+        if (shiftCfg.postUpWaitMS > 0) await sleep(shiftCfg.postUpWaitMS);
+      } else {
+        this.handPlayYOffset = 0;
+      }
+
+      // 补牌：启动发牌动画；按钮在「新牌到达布局位置」时立刻显示，
+      // 不必等过冲/回弹播完（drawToFull 仍可在后台跑完）。
+      const drawPromise = this.drawToFull();
+      await this.waitHandNearLayoutTargets();
+      restoreButtons();
+      this.isPlaying = false;
+      this.updateButtons();
+      await drawPromise;
       this.evaluateAndUpdate();
     } finally {
       // 兜底：即便 run() 抛错绕过了上面的内层 finally，这里也确保挤位标志被关闭。
       this.isPlayPhaseSwapping = false;
+      // 异常路径：保证偏移复位、按钮重新出现。
+      if (Math.abs(this.handPlayYOffset) > 1e-3) {
+        this.handPlayYOffset = 0;
+        this.layoutHand({ force: true });
+      }
+      restoreButtons();
       this.isPlaying = false;
       this.updateButtons();
     }
@@ -1253,6 +1364,17 @@ export class GameController {
   /** 在 normal / minimal 之间切换。 */
   toggleMode(): void {
     this.setMode(this.mode === "normal" ? "minimal" : "normal");
+  }
+
+  /**
+   * 从 CONFIG.playfield 刷新手牌整体区域与牌堆世界坐标，并强制重排手牌。
+   * ControlPanel 改 playfield.* 或 preset 整表载入时由 main.onChange 调用。
+   * 出牌结算堆相对 handBaseY / 手牌中线，会随手牌整体移动，无需单独刷。
+   */
+  refreshPlayfieldLayout(): void {
+    if (!this.hud) return;
+    this.hud.applyPlayfield();
+    this.layoutHand({ force: true });
   }
 
   /**

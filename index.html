@@ -153,6 +153,45 @@
                 <span style="color:rgba(255,255,255,0.62);">开启后出牌、弃牌都不再扣减次数</span>
               </label>
             </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
+              <span>玩法区世界坐标</span>
+            </div>
+            <div class="panel-row" style="color: rgba(255,255,255,0.62); font-size: 11px;">
+              <span>手牌整体（含打出后的结算堆，结算相对手牌基准 Y / 中线对齐）与右下角牌堆的世界坐标。默认对齐 1280×720 出厂布局。</span>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>手牌基准 Y</span>
+                <span id="val-playfieldHandBaseY">470</span>
+              </div>
+              <input id="inp-playfieldHandBaseY" type="number" step="1" min="0" max="720" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>手牌水平偏移 X</span>
+                <span id="val-playfieldHandOffsetX">0</span>
+              </div>
+              <input id="inp-playfieldHandOffsetX" type="number" step="1" min="-400" max="400" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>牌堆 X</span>
+                <span id="val-playfieldDeckX">1160</span>
+              </div>
+              <input id="inp-playfieldDeckX" type="number" step="1" min="-200" max="1400" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>牌堆 Y</span>
+                <span id="val-playfieldDeckY">540</span>
+              </div>
+              <input id="inp-playfieldDeckY" type="number" step="1" min="-200" max="900" />
+            </div>
           </details>
 
           <!-- 1c. 背景 Background（paint-mix shader） -->
@@ -888,6 +927,77 @@
                   <span id="val-handSortMaxRiseDurationMS">220</span>
                 </div>
                 <input id="inp-handSortMaxRiseDurationMS" type="number" step="10" min="1" max="2000" />
+              </div>
+            </div>
+
+             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>【出牌】卡牌整体位移效果</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandPlayHandGroupShift" style="color: var(--accent);">开</span>
+                <input id="inp-expandPlayHandGroupShift" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+
+            <div id="sect-playHandGroupShift-params">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用整体位移</span>
+                  <span id="val-playHandGroupShiftEnabled">开</span>
+                </div>
+                <input id="inp-playHandGroupShiftEnabled" type="checkbox" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>手牌整体移动距离 (px，向下)</span>
+                  <span id="val-playHandGroupShiftDistancePx">40</span>
+                </div>
+                <input id="inp-playHandGroupShiftDistancePx" type="number" step="1" min="0" max="400" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启动速度 (px/s)</span>
+                  <span id="val-playHandGroupShiftStartSpeed">800</span>
+                </div>
+                <input id="inp-playHandGroupShiftStartSpeed" type="number" step="50" min="1" max="10000" />
+              </div>
+
+              <div class="panel-row">
+                <div id="mount-playHandGroupShiftCurve"></div>
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>下移前等待 (ms)</span>
+                  <span id="val-playHandGroupShiftPreDownWaitMS">80</span>
+                </div>
+                <input id="inp-playHandGroupShiftPreDownWaitMS" type="number" step="10" min="0" max="5000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>下移后等待 (ms)</span>
+                  <span id="val-playHandGroupShiftPostDownWaitMS">60</span>
+                </div>
+                <input id="inp-playHandGroupShiftPostDownWaitMS" type="number" step="10" min="0" max="5000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>上移前等待 (ms)</span>
+                  <span id="val-playHandGroupShiftPreUpWaitMS">80</span>
+                </div>
+                <input id="inp-playHandGroupShiftPreUpWaitMS" type="number" step="10" min="0" max="5000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>上移后等待 (ms)</span>
+                  <span id="val-playHandGroupShiftPostUpWaitMS">60</span>
+                </div>
+                <input id="inp-playHandGroupShiftPostUpWaitMS" type="number" step="10" min="0" max="5000" />
               </div>
             </div>
 
@@ -3111,6 +3221,14 @@
                   <span id="val-jokerBaseY">90</span>
                 </div>
                 <input id="inp-jokerBaseY" type="number" step="1" min="20" max="400" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>基准 X (世界坐标)</span>
+                  <span id="val-jokerBaseX">640</span>
+                </div>
+                <input id="inp-jokerBaseX" type="number" step="1" min="0" max="1280" />
               </div>
             </div>
 
