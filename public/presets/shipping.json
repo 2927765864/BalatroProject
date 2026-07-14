@@ -30,8 +30,8 @@
       "crt": {
         "enabled": true,
         "preset": "subtle",
-        "intensity": 0.35,
-        "scanlineCount": 720,
+        "intensity": 0.21,
+        "scanlineCount": 280,
         "noiseAmount": 0.02,
         "contrast": 1.05,
         "resolution": 1
@@ -213,7 +213,7 @@
     "drawCard": {
       "lastCardAdvanceMS": 80,
       "nextCardAdvanceMS": 0,
-      "speedRatio": 1.8,
+      "speedRatio": 1.4,
       "useInitialRotation": true,
       "initialRotationDeg": -60,
       "initMaxRotation": true
@@ -227,7 +227,8 @@
     },
     "discard": {
       "intervalMS": 270,
-      "speedRatio": 1.8
+      "speedRatio": 1.8,
+      "lastCardWaitMS": 400
     },
     "discardFlip": {
       "enabled": true,
@@ -243,9 +244,9 @@
     },
     "handSort": {
       "enabled": true,
-      "riseDurationMS": 60,
+      "riseDurationMS": 100,
       "springDurationMS": 110,
-      "overshootPx": 31,
+      "overshootPx": 41,
       "refDistancePx": 65,
       "durationPower": 0.8,
       "minRiseDurationMS": 60,
@@ -271,7 +272,7 @@
       "preDownWaitMS": 0,
       "postDownWaitMS": 300,
       "preUpWaitMS": 200,
-      "postUpWaitMS": 120
+      "postUpWaitMS": 90
     },
     "playHandSwap": {
       "enabled": true,
@@ -521,7 +522,7 @@
         "cardOps": false,
         "cardMoveRotation": false,
         "cardOvershoot": false,
-        "drawCard": false,
+        "drawCard": true,
         "drawFlip": false,
         "discard": false,
         "discardFlip": false,
@@ -545,7 +546,7 @@
         "multBounce": false,
         "handNameBounce": false,
         "evalScoreBounce": false,
-        "evalScoreText": true,
+        "evalScoreText": false,
         "mouseOffset": true
       },
       "selectMoveEnabled": true,
@@ -598,7 +599,7 @@
       "hoverBreathingSpeedDecay": 0,
       "hoverBreathingAmplitudeDecay": 5,
       "mouse3DTiltEnabled": true,
-      "mouse3DTiltStrength": 3,
+      "mouse3DTiltStrength": 1,
       "mouse3DTiltInvertTL": true,
       "mouse3DTiltInvertTR": true,
       "mouse3DTiltInvertBL": true,
@@ -612,7 +613,7 @@
       "clickDistanceThreshold": 50,
       "hoverHitEnabled": true,
       "hoverHitEnterScale": 0.9,
-      "hoverHitLeaveScale": 1,
+      "hoverHitLeaveScale": 1.1,
       "mouseOffsetEnabled": true,
       "mouseOffsetFactorX": 0.08,
       "mouseOffsetFactorY": 0.08,
@@ -1131,7 +1132,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "5"
             }
           },
           {
@@ -1222,7 +1223,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "1"
             }
           },
           {
@@ -1360,7 +1361,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "15"
+              "text": "16"
             }
           },
           {

@@ -478,6 +478,11 @@ export class PlayPipeline {
     }
     // 等最后一张飞行时长，确保所有牌都飞到屏幕外才结束 pipeline。
     await sleep(flyDurationMS);
+    // 最后一张弃牌后额外等待（与手牌弃牌共用 discard.lastCardWaitMS，受 speedRatio 缩放）
+    const lastCardWaitMS = Math.max(0, (discardCfg?.lastCardWaitMS ?? 0) / speedRatio);
+    if (lastCardWaitMS > 0) {
+      await sleep(lastCardWaitMS);
+    }
     // 弃牌飞行结束：恢复速度旋转标志，避免这些 CardView 被回收复用后残留禁用态。
     for (const view of selected) {
       view.endDiscardFly();

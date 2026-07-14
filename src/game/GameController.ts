@@ -1508,6 +1508,11 @@ export class GameController {
 
       // 等待最后一张飞出动画完成
       await sleep(flyDurationMS);
+      // 最后一张弃牌后额外等待（受 speedRatio 缩放）
+      const lastCardWaitMS = Math.max(0, (discardCfg?.lastCardWaitMS ?? 0) / speedRatio);
+      if (lastCardWaitMS > 0) {
+        await sleep(lastCardWaitMS);
+      }
       // 弃牌飞行结束：恢复速度旋转标志，避免这些 CardView 被回收复用后残留禁用态。
       for (const v of recycling) {
         v.endDiscardFly();

@@ -1266,6 +1266,7 @@ export function setupControlPanel(
     bindSectionExpand("inp-expandDiscard", "val-expandDiscard", "cardVisuals.expandedSections.discard", "sect-discard-params");
     bindNumber("inp-discardIntervalMS", "val-discardIntervalMS", "discard.intervalMS", { integer: true });
     bindNumber("inp-discardSpeedRatio", "val-discardSpeedRatio", "discard.speedRatio", { digits: 1 });
+    bindNumber("inp-discardLastCardWaitMS", "val-discardLastCardWaitMS", "discard.lastCardWaitMS", { integer: true });
 
     // === 【抓牌】卡牌翻面效果 ===
     bindSectionExpand("inp-expandDrawFlip", "val-expandDrawFlip", "cardVisuals.expandedSections.drawFlip", "sect-drawFlip-params");

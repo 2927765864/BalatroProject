@@ -377,6 +377,12 @@ export interface RuntimeConfig {
      * 与 animation.flyOutDurationMS 联动（实际飞行时长 = flyOutDurationMS / speedRatio）。
      */
     speedRatio: number;
+    /**
+     * 最后一张牌弃牌后等待时间（ms）。
+     * 在最后一张牌飞出动画结束后、进入后续流程（补牌 / 出牌管线结束）之前额外等待。
+     * 同时作用于「主动弃牌」与「出牌结束弃牌」；受 speedRatio 缩放。
+     */
+    lastCardWaitMS: number;
   };
   /**
    * 【弃牌/出牌结束】卡牌翻面效果
@@ -1476,6 +1482,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
   discard: Object.freeze({
     intervalMS: 80,
     speedRatio: 1.0,
+    lastCardWaitMS: 0,
   }),
   discardFlip: Object.freeze({
     enabled: true,
