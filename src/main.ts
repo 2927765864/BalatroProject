@@ -1,7 +1,13 @@
 import { App } from "@core/App";
 import { assets } from "@core/AssetManager";
 import { GameController } from "@game/GameController";
-import { CONFIG, loadSavedConfig, loadShippingConfig } from "@game/config";
+import {
+  applyCrtPreset,
+  CONFIG,
+  loadSavedConfig,
+  loadShippingConfig,
+  type CrtPresetId,
+} from "@game/config";
 import { uiHierarchy } from "@ui/hierarchy";
 import { setupControlPanel } from "@/debug/ControlPanel";
 
@@ -70,6 +76,14 @@ async function bootstrap(): Promise<void> {
         key.startsWith("world.background")
       ) {
         game.syncBackground();
+      }
+
+      // 全屏 CRT：preset 切换时先灌入 subtle/hard 数值，再 apply filter。
+      if (key === "world.crt.preset") {
+        applyCrtPreset(CONFIG.world.crt.preset as CrtPresetId);
+      }
+      if (key === "*" || key.startsWith("world.crt")) {
+        game.syncCrt();
       }
 
       // 牌背切换：重画 DeckView。

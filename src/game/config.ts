@@ -79,6 +79,39 @@ export type BackgroundThemeId =
   | "custom";
 
 /**
+ * 全屏 CRT 后处理档位（见 CrtFilter）。
+ * off / subtle（对齐参考图）/ hard。
+ */
+export type CrtPresetId = "off" | "subtle" | "hard";
+
+/**
+ * 全屏 CRT 后处理参数。
+ * 算法：CRT-Easymode 扫描线 + 亮度回混思想；挂 stage（含 BackgroundView）。
+ */
+export interface CrtConfig {
+  /** 总开关；preset=off 时为 false */
+  enabled: boolean;
+  /** 产品档；切换时由 applyCrtPreset 写入数值 */
+  preset: CrtPresetId;
+  /** 扫描线强度 0–1 → uIntensity */
+  intensity: number;
+  /**
+   * 垂直方向完整扫描周期数 → uScanlineCount。
+   * 设计分辨率语义（非物理像素）。默认 720。
+   */
+  scanlineCount: number;
+  /** 暗部噪点 0–0.1 → uNoiseAmount */
+  noiseAmount: number;
+  /** 扫描前对比度，1=不变 → uContrast */
+  contrast: number;
+  /**
+   * Filter.resolution，1=全分辨率。
+   * 移动端可 0.5–0.75（对齐 BackgroundView low 档）。
+   */
+  resolution: number;
+}
+
+/**
  * 程序化背景参数。
  * 算法对齐开源再实现 Azkun/balatroShader + Hammster balatro.hlsl（非游戏包内源码）。
  */
@@ -148,6 +181,8 @@ export interface RuntimeConfig {
     backgroundColor: number;
     /** 程序化 paint-mix 背景；enabled+quality 控制是否跑 shader。 */
     background: BackgroundConfig;
+    /** 全屏 CRT 后处理（CrtFilter，挂 stage）。 */
+    crt: CrtConfig;
   };
   rules: {
     /** 满手牌数量 */
@@ -1280,6 +1315,15 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       colour2: BACKGROUND_THEMES.feltGreen.colour2,
       colour3: BACKGROUND_THEMES.feltGreen.colour3,
     }),
+    crt: Object.freeze({
+      enabled: true,
+      preset: "subtle" as CrtPresetId,
+      intensity: 0.35,
+      scanlineCount: 720,
+      noiseAmount: 0.02,
+      contrast: 1.05,
+      resolution: 1,
+    }),
   }),
   rules: Object.freeze({
     handSize: 8,
@@ -1923,12 +1967,42 @@ export const CONFIG: RuntimeConfig = cloneConfig(activeDefaultConfig);
  */
 export const GameConfig: RuntimeConfig = CONFIG;
 
+/**
+ * 按产品档写入 crt 数值字段。
+ * subtle/hard 的默认值对齐执行方案验收表。
+ */
+export function applyCrtPreset(
+  preset: CrtPresetId,
+  crt: CrtConfig = CONFIG.world.crt,
+): void {
+  crt.preset = preset;
+  if (preset === "off") {
+    crt.enabled = false;
+    return;
+  }
+  crt.enabled = true;
+  if (preset === "subtle") {
+    crt.intensity = 0.35;
+    crt.scanlineCount = 720;
+    crt.noiseAmount = 0.02;
+    crt.contrast = 1.05;
+    crt.resolution = 1;
+  } else {
+    crt.intensity = 0.55;
+    crt.scanlineCount = 540;
+    crt.noiseAmount = 0.04;
+    crt.contrast = 1.12;
+    crt.resolution = 1;
+  }
+}
+
 /** 深拷贝 RuntimeConfig（保证不与 frozen DEFAULT_CONFIG 共享引用）。 */
 export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
   return {
     world: {
       ...src.world,
       background: { ...src.world.background },
+      crt: { ...src.world.crt },
     },
     rules: { ...src.rules },
     animation: { ...src.animation },
@@ -2105,6 +2179,10 @@ export function applyConfig(source: unknown): void {
       background: {
         ...merged.world.background,
         ...(incoming.world.background ?? {}),
+      },
+      crt: {
+        ...merged.world.crt,
+        ...(incoming.world.crt ?? {}),
       },
     };
   }

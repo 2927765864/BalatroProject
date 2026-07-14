@@ -6,7 +6,7 @@
     "world": {
       "width": 1280,
       "height": 720,
-      "backgroundColor": 3433801,
+      "backgroundColor": 4885350,
       "background": {
         "enabled": true,
         "quality": "high",
@@ -26,6 +26,15 @@
         "colour1": 4890580,
         "colour2": 2775690,
         "colour3": 992312
+      },
+      "crt": {
+        "enabled": true,
+        "preset": "subtle",
+        "intensity": 0.35,
+        "scanlineCount": 720,
+        "noiseAmount": 0.02,
+        "contrast": 1.05,
+        "resolution": 1
       }
     },
     "rules": {
@@ -51,7 +60,7 @@
       "faceColor": 16777195,
       "outlineColor": 13092807,
       "back": {
-        "row": 3,
+        "row": 2,
         "col": 0
       }
     },
@@ -223,7 +232,7 @@
     "handSwap": {
       "enabled": true,
       "startSpeed": 2600,
-      "overshootPx": 24,
+      "overshootPx": 28,
       "stiffness": 7.5
     },
     "handSort": {
@@ -494,10 +503,10 @@
         "playPileDisplacement": false,
         "playCardMove": false,
         "playCardMoveControl": false,
-        "playPileLiftEffect": false,
-        "playPileSettleEffect": true,
-        "playPileSettleText": true,
-        "playPileSettleBgBlock": true,
+        "playPileLiftEffect": true,
+        "playPileSettleEffect": false,
+        "playPileSettleText": false,
+        "playPileSettleBgBlock": false,
         "jokerEffects": false,
         "jokerLayout": true,
         "jokerSettleEffect": false,
@@ -507,14 +516,14 @@
         "multBounce": false,
         "handNameBounce": false,
         "evalScoreBounce": false,
-        "evalScoreText": false,
+        "evalScoreText": true,
         "mouseOffset": true
       },
       "selectMoveEnabled": true,
       "selectRiseY": 26,
       "selectMoveStartSpeed": 800,
-      "selectMoveOvershoot": 7,
-      "selectMoveStiffness": 8,
+      "selectMoveOvershoot": 6,
+      "selectMoveStiffness": 43,
       "selectFallStartSpeed": 1040,
       "selectFallOvershoot": 7,
       "selectFallStiffness": 8,
@@ -841,7 +850,7 @@
               "x": 114,
               "y": 59,
               "rotation": 0,
-              "scaleX": 0.9999999999999998,
+              "scaleX": 1,
               "scaleY": 0.9999999999999998
             }
           },
@@ -936,8 +945,8 @@
               "x": 12,
               "y": 21,
               "rotation": 0,
-              "scaleX": 0.9999999999999996,
-              "scaleY": 0.9999999999999996
+              "scaleX": 1.2,
+              "scaleY": 1.2
             }
           },
           {
@@ -956,16 +965,16 @@
             "type": "transform",
             "data": {
               "x": 164,
-              "y": 7.99999999999997,
+              "y": 2,
               "rotation": 0,
-              "scaleX": 0.9999999999999996,
-              "scaleY": 0.9999999999999996
+              "scaleX": 1.4,
+              "scaleY": 1.4
             }
           },
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "3792"
             }
           },
           {
@@ -1252,7 +1261,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "葫芦"
+              "text": "同花"
             }
           },
           {
@@ -1343,11 +1352,11 @@
           {
             "type": "transform",
             "data": {
-              "x": 0,
-              "y": 0,
+              "x": -5,
+              "y": -7,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 1.08,
+              "scaleY": 1.45
             }
           }
         ]
@@ -1378,8 +1387,8 @@
               "x": 19.999999999999986,
               "y": 4.999999999999886,
               "rotation": 0,
-              "scaleX": 0.9999999999999998,
-              "scaleY": 0.9999999999999998
+              "scaleX": 1.59,
+              "scaleY": 1.5
             }
           },
           {
@@ -1400,8 +1409,8 @@
               "x": 24.999999999999986,
               "y": 29.999999999999943,
               "rotation": 0,
-              "scaleX": 0.9999999999999998,
-              "scaleY": 0.9999999999999998
+              "scaleX": 1.5,
+              "scaleY": 1.5
             }
           },
           {
@@ -1435,8 +1444,8 @@
               "x": 94.99999999999999,
               "y": 4.999999999999886,
               "rotation": 0,
-              "scaleX": 0.9999999999999998,
-              "scaleY": 0.9999999999999998
+              "scaleX": 1.5,
+              "scaleY": 1.5
             }
           },
           {
@@ -1457,8 +1466,8 @@
               "x": 99.99999999999999,
               "y": 29.999999999999943,
               "rotation": 0,
-              "scaleX": 0.9999999999999998,
-              "scaleY": 0.9999999999999998
+              "scaleX": 1.5,
+              "scaleY": 1.5
             }
           },
           {
@@ -1737,6 +1746,19 @@
               "scaleX": 1,
               "scaleY": 1
             }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.5,
+              "angle": 90,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
           }
         ]
       },
@@ -1791,6 +1813,19 @@
               "scaleX": 1,
               "scaleY": 1
             }
+          },
+          {
+            "type": "shadow",
+            "data": {
+              "color": "#000000",
+              "alpha": 0.5,
+              "angle": 90,
+              "distance": 4,
+              "scaleX": 1,
+              "scaleY": 1,
+              "skewX": 0,
+              "skewY": 0
+            }
           }
         ]
       },
@@ -1811,7 +1846,7 @@
           {
             "type": "opacity",
             "data": {
-              "alpha": 0.39
+              "alpha": 0.13
             }
           }
         ]

@@ -29,11 +29,14 @@
  *   - 宿主 childAdded / childRemoved
  *   - hierarchy 的 componentsChanged 事件（别的组件改了宿主外观）
  *   - 宿主 emit("hostVisualChanged")（动态内容变化，如 UIText.setText 改文字、
- *     业务直接改了内部 PIXI 显示对象的视觉属性）
+ *     业务直接改了内部 PIXI 显示对象的视觉属性、逐字 scale 动画）
  *
- * 为了避免"同一帧里宿主连续多次改值导致 N 次重烤"，所有"非 onAttach、
- * 非 inspector 直接交互"的重建请求都走 `scheduleRebuild()`：用 rAF 合并到
- * 同一帧内最多一次。
+ * 合并策略：
+ *   - `hostVisualChanged` **同步** rebuild：逐字弹弹等路径在 ticker 里改完
+ *     scale 立刻通知，必须同帧烤完，否则阴影会比数字晚一拍（rAF 会落到
+ *     当帧 render 之后，肉眼可见滞后）。
+ *   - childAdded / childRemoved / componentsChanged 仍走 `scheduleRebuild()`：
+ *     用 rAF 合并同一帧内多次结构变动，避免 N 次重烤。
  */
 import {
   Sprite,
@@ -132,11 +135,12 @@ export class ShadowComponent extends UIComponent {
     this.host.on("childAdded", this.hostChangeHandler);
     this.host.on("childRemoved", this.hostChangeHandler);
 
-    // 宿主自身视觉内容发生变化（UIText.setText 改文字、业务改了内部 PIXI
-    // 对象的颜色/样式等）→ 排队重烤。
+    // 宿主自身视觉内容发生变化（UIText.setText、逐字 scale/旋转动画等）
+    // → **同步**重烤。CharLayer 在 ticker 写完 transform 后立刻 notify，
+    // 必须在本帧 render 前烤完；走 rAF 会晚到当帧画面已画出之后，阴影滞后。
     this.hostVisualHandler = (): void => {
       if (this.rebuilding) return;
-      this.scheduleRebuild();
+      this.rebuild();
     };
     (
       this.host as unknown as { on: (name: string, fn: () => void) => void }
@@ -203,11 +207,10 @@ export class ShadowComponent extends UIComponent {
 
   /**
    * 排队一次 rebuild，rAF 内合并同帧多次请求为一次。
-   * 用于"内容变化"这类来自外部、可能在一帧里被连续触发多次的事件
-   * （典型例子：分数动画补间逐帧 setText）。
+   * 用于 child 增删 / componentsChanged 等可能一帧内连发的结构事件。
    *
-   * 注意：不替代 onAttach / inspector 直接交互那条同步路径——那些场景
-   * 需要"立刻看到变化"，不能拖到下一帧。
+   * 注意：hostVisualChanged（含逐字缩放动画）走同步 rebuild，不要用本方法，
+   * 否则阴影会比本体晚至少一帧。
    */
   private scheduleRebuild(): void {
     if (this.rafHandle !== 0) return;

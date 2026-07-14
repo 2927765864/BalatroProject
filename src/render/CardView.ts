@@ -1322,7 +1322,8 @@ export class CardView extends Container {
     this.dragStartTime = Date.now();
     this.dragMaxDistance = 0;
     this.cachePointerGlobal(event);
-    // 按下瞬间立刻刷新本地坐标：拖拽态不再关闭伪 3D 倾斜，需保持有效 mouseLocal。
+    // 按下瞬间立刻刷新本地坐标：拖拽中倾斜关闭，但保留 mouseLocal，
+    // 便于松手后悬停倾斜无需等下一次 pointermove 即可接上。
     {
       const localPos = event.getLocalPosition(this);
       this.mouseLocalX = localPos.x;
@@ -1404,7 +1405,7 @@ export class CardView extends Container {
     if (!this.dragData) return;
 
     this.cachePointerGlobal(event);
-    // 拖拽中也持续更新本地坐标，保证伪 3D 倾斜与选中位移可叠加。
+    // 拖拽中持续更新本地坐标：倾斜虽关闭，松手瞬间仍有有效 mouseLocal 可立刻恢复悬停倾斜。
     this.refreshMouseLocalFromGlobal();
 
     // 当前鼠标在父容器坐标中的位置。
@@ -1701,8 +1702,8 @@ export class CardView extends Container {
 
   /**
    * 用缓存的全局指针位置投影到卡牌本地坐标。
-   * 在 isMouseOver 或 isDragging 时调用：卡牌 selectMove 上移/下移时鼠标可能不动，
-   * 必须每帧重算，伪 3D 倾斜才不会在动画结束后才突然校正。
+   * 在 isMouseOver 或 isDragging 时调用：选中上移/下移时鼠标可能不动，
+   * 必须每帧重算；悬停时供伪 3D 倾斜使用，拖拽时仍刷新坐标以便松手后立刻接上倾斜。
    */
   private refreshMouseLocalFromGlobal(): void {
     if (!this.hasLastPointerGlobal) return;
@@ -1789,7 +1790,7 @@ export class CardView extends Container {
     // 3. 卡牌伪3D倾斜：真实鼠标悬停时按鼠标位置倾斜；未悬停时由"常态伪3D倾斜呼吸晃动"
     //    通过虚拟鼠标产生缓慢的圆周倾斜。两种来源共用同一套投影公式与同一份目标角偏移，
     //    悬停一旦激活，呼吸态会自然让位（同 target，靠插值平滑切换）。
-    //    倾斜与选中态/短按拖拽态兼容：只要鼠标在牌上就持续更新（见 updateMouse3DTilt 门控）。
+    //    拖拽中（isDragging）两种倾斜均关闭，目标角归零，避免悬空跟手时仍出现伪 3D 扭曲。
     this.updateMouse3DTilt(dtMS);
 
     // 3b. 抓牌翻面（绕竖中轴线翻面：背面 → 一条线 → 正面）。独立通道，仅在发牌后短暂激活。
@@ -2549,19 +2550,21 @@ export class CardView extends Container {
     const W = CardSkin.width;
     const H = CardSkin.height;
 
-    // 真实鼠标 3D 倾斜：只要鼠标在牌上且有有效本地坐标就开启。
-    // 不再因 Dragging / Selected / 选中位移动画关闭——选中上移与倾斜、弹性缩放应可叠加。
-    // （按下短按也会进 Dragging，旧逻辑会把倾斜清零，松手/动画结束后才恢复 → 生硬跳变。）
+    // 真实鼠标 3D 倾斜：仅悬停、且非拖拽时开启。
+    // Selected / 选中上移仍可与倾斜叠加；拖拽（含悬空跟手）必须关闭，
+    // 否则鼠标停在牌上会持续驱动角点扭曲，出现「拖着不动也在倾斜」。
+    // 归零走下方 target→current 平滑插值，松手后接回悬停倾斜不会硬切。
     // 小丑牌通过 isVisualEnabled 叠加 CONFIG.joker.effects 门控。
     const hoverActive =
       !!visualConf &&
       this.isVisualEnabled("mouse3DTilt") &&
+      !this.isDragging &&
       this.isMouseOver &&
       this.mouseLocalX !== null &&
       this.mouseLocalY !== null;
 
     // 常态伪 3D 倾斜呼吸：仅当真实悬停未激活、且非拖拽时起效。
-    // 拖拽中牌跟手，呼吸倾斜会与拖拽位姿打架，故仍排除 isDragging。
+    // 拖拽中牌跟手，呼吸倾斜会与拖拽位姿打架，故排除 isDragging。
     const idleActive =
       !hoverActive &&
       !!visualConf &&
@@ -2885,7 +2888,7 @@ export class CardView extends Container {
         this.cardState = CardState.Normal;
       }
       // 拖拽中牌跟手，hit-test 可能短暂判定离开；保留 mouseLocal，由 refresh 继续更新，
-      // 避免按下/拖拽期间伪 3D 倾斜被清零后突然跳回。
+      // 便于松手后悬停倾斜立刻接上（拖拽期间倾斜本身已关闭，不会误驱动角点）。
       if (!this.isDragging) {
         this.mouseLocalX = null;
         this.mouseLocalY = null;
@@ -2897,7 +2900,7 @@ export class CardView extends Container {
     });
 
     this.on("pointermove", (event) => {
-      // 拖拽中也更新本地坐标（倾斜与位移/缩放通道兼容）。
+      // 悬停与拖拽都更新本地坐标（拖拽时倾斜关闭，坐标供松手后恢复）。
       if (this.isMouseOver || this.isDragging) {
         this.onHoverMove(event);
       }

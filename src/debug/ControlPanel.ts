@@ -149,6 +149,10 @@ export function setupControlPanel(
     } catch (err) {
       console.error("[ControlPanel] onChange 抛错：", err);
     }
+    // CRT 预设会批量改 intensity/noise 等字段，需把滑条显示同步到 CONFIG。
+    if (key === "world.crt.preset") {
+      syncers.forEach((fn) => fn());
+    }
     recordHistory(key);
   }
 
@@ -1062,6 +1066,20 @@ export function setupControlPanel(
     bindNumber("inp-bgSeedPhase", "val-bgSeedPhase", "world.background.seedPhase", {
       digits: 1,
     });
+    bindToggle("inp-crtEnabled", "val-crtEnabled", "world.crt.enabled");
+    bindCycleButton("btn-crtPreset", "val-crtPreset", "world.crt.preset", [
+      { value: "off", label: "off" },
+      { value: "subtle", label: "subtle" },
+      { value: "hard", label: "hard" },
+    ]);
+    bindSlider("inp-crtIntensity", "val-crtIntensity", "world.crt.intensity", { digits: 2 });
+    bindNumber("inp-crtScanlineCount", "val-crtScanlineCount", "world.crt.scanlineCount", {
+      digits: 0,
+    });
+    bindSlider("inp-crtNoise", "val-crtNoise", "world.crt.noiseAmount", { digits: 3 });
+    bindSlider("inp-crtContrast", "val-crtContrast", "world.crt.contrast", { digits: 2 });
+    bindSlider("inp-crtResolution", "val-crtResolution", "world.crt.resolution", { digits: 2 });
+
     bindNumber("inp-bgMaxUpdateHz", "val-bgMaxUpdateHz", "world.background.maxUpdateHz", {
       integer: true,
     });

@@ -15,7 +15,8 @@ import { BackgroundView } from "@render/BackgroundView";
 import { HUD, type HUDMode } from "@ui/HUD";
 import { uiHierarchy } from "@ui/hierarchy";
 import { CardFx } from "@fx/CardFx";
-import { GameConfig, setDrawingCards } from "./config";
+import { CrtFilter } from "@fx/CrtFilter";
+import { CONFIG, GameConfig, setDrawingCards } from "./config";
 import type { GameEvents } from "./events";
 import { PlayPipeline } from "./PlayPipeline";
 
@@ -62,6 +63,7 @@ export class GameController {
   private readonly cardLayer = new Container();
   private readonly shadowLayer = new Container();
   private readonly background: BackgroundView;
+  private readonly crtFilter: CrtFilter;
   private hud!: HUD;
   private playPipeline!: PlayPipeline;
 
@@ -116,6 +118,10 @@ export class GameController {
       this.background.coverScreen(window.innerWidth, window.innerHeight);
     });
     this.applyBackgroundClearColor();
+
+    // 全屏 CRT：挂 stage，一次覆盖 BackgroundView + worldRoot（勿只挂 worldRoot）。
+    this.crtFilter = new CrtFilter();
+    this.syncCrt();
 
     // 卡牌层放在世界根之下，UI 之下、特效之上由 zIndex 控制。
     this.cardLayer.label = "CardLayer";
@@ -1256,6 +1262,27 @@ export class GameController {
   syncBackground(): void {
     this.background.syncFromConfig();
     this.applyBackgroundClearColor();
+  }
+
+  /**
+   * 从 CONFIG.world.crt 同步全屏 CRT Filter。
+   * 挂在 stage.filters（第一版独占，不与其它 stage filter 合并）。
+   */
+  syncCrt(): void {
+    const c = CONFIG.world.crt;
+    if (!c.enabled) {
+      this.app.pixi.stage.filters = null;
+      return;
+    }
+    this.crtFilter.resolution = c.resolution;
+    this.crtFilter.applyUniforms({
+      intensity: c.intensity,
+      scanlineCount: c.scanlineCount,
+      noiseAmount: c.noiseAmount,
+      contrast: c.contrast,
+      noiseSeed: 0,
+    });
+    this.app.pixi.stage.filters = [this.crtFilter];
   }
 
   /** Off 档用 backgroundColor；shader 开启时用 colour3 降低 letterbox 闪色。 */

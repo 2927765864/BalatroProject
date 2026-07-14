@@ -17,6 +17,7 @@
  *   1. 若文本 / 样式变了就重建逐字 Text（并通知宿主 visualChanged 让阴影重烤）。
  *   2. 把每个字复位到基线：position = (baseX, baseY)，scale = 1。
  *   3. 依次让已注册的效果把贡献累加上去（y 累加、scale 累乘）。
+ *   4. 有 scale/rotation 时立刻 notifyVisualChanged（阴影同帧同步）；仅位移则节流。
  *
  * 不变量：
  *   - 任意时刻宿主上最多只有这一组逐字 Text。
@@ -299,6 +300,12 @@ export class CharLayerComponent extends UIComponent {
     // 自注销），快照可避免在本帧迭代中被修改而漏算 / 报错。
     const effectsSnapshot = this.effects.slice();
 
+    // 逐字 transform 是否改变了剪影形状：
+    //   - scale / rotation 会改变字的外形 → 阴影必须同帧重烤，否则肉眼可见滞后
+    //   - 仅 offsetX/Y（呼吸起伏）外形不变，只是位移 → 可适度节流以降低 GPU 压力
+    let silhouetteChanged = false;
+    let translationOnly = false;
+
     for (let i = 0; i < count; i += 1) {
       const ch = this.chars[i]!;
       // 1) 复位到基线。
@@ -311,20 +318,36 @@ export class CharLayerComponent extends UIComponent {
       ch.position.set(this.baseX[i]! + acc.offsetX, this.baseY[i]! + acc.offsetY);
       ch.scale.set(acc.scale);
       ch.rotation = acc.rotation;
+
+      if (Math.abs(acc.scale - 1) > 0.001 || Math.abs(acc.rotation) > 0.001) {
+        silhouetteChanged = true;
+      }
+      if (Math.abs(acc.offsetX) > 0.01 || Math.abs(acc.offsetY) > 0.01) {
+        translationOnly = true;
+      }
     }
 
     // 阴影是"烤宿主快照"的——逐字动画期间字符只是 transform 在变，不会自动
-    // 触发重烤，阴影会停在静态快照。这里在动画期间周期性通知宿主视觉变化，
+    // 触发重烤，阴影会停在静态快照。这里在动画期间通知宿主视觉变化，
     // 让 ShadowComponent 重烤，使阴影跟随。
     //
-    // 注意：不每帧都通知。generateTexture 是较重的 GPU 操作；呼吸文字 isActive
-    // 常为 true，若按 30fps 持续重烤 + 立刻 destroy 旧 RT，会与 WebGPU batch
-    // BindGroup 竞态，待机一段时间后极易黑屏。节流到约 10fps，并配合
-    // DeferredTextureDestroy 延迟释放。动画结束那一帧必定补发一次。
+    // 策略：
+    //   - 有 scale/rotation（弹弹等）→ 每帧通知，阴影与数字同帧同步
+    //   - 仅有位移（呼吸）→ 约 20fps 节流；外形未变，位移滞后不那么刺眼，
+    //     且呼吸 isActive 常为 true，全帧重烤 + 旧 RT 释放会加重 WebGPU 压力
+    //   - 动画结束那一帧必定补发一次，落回稳态
+    // 旧纹理释放走 DeferredTextureDestroy，避免 BindGroup 悬空黑屏。
     const anyActive = effectsSnapshot.some((e) => e.isActive());
-    const SHADOW_REBAKE_INTERVAL = 100; // ms，约 10fps
+    /** 仅位移时的重烤间隔（ms），约 20fps。 */
+    const SHADOW_TRANSLATION_REBAKE_INTERVAL = 50;
     if (anyActive) {
-      if (now - this.lastShadowNotify >= SHADOW_REBAKE_INTERVAL) {
+      if (silhouetteChanged) {
+        this.host.notifyVisualChanged();
+        this.lastShadowNotify = now;
+      } else if (
+        translationOnly &&
+        now - this.lastShadowNotify >= SHADOW_TRANSLATION_REBAKE_INTERVAL
+      ) {
         this.host.notifyVisualChanged();
         this.lastShadowNotify = now;
       }
