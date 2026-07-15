@@ -12,7 +12,7 @@ import {
 import type { CardData } from "@domain/types";
 import { assets } from "@core/AssetManager";
 import { deferDestroyTexture } from "@core/DeferredTextureDestroy";
-import { CONFIG, isDrawingCards } from "@game/config";
+import { CONFIG, isDrawingCards, scaleTimeMS } from "@game/config";
 import { sampleCurve } from "@/debug/BezierCurveEditor";
 import { uiHierarchy } from "@ui/hierarchy";
 import { ElasticRopeMotion } from "@/motion/ElasticRopeMotion";
@@ -1057,6 +1057,8 @@ export class CardView extends Container {
       lightY: number;
       distanceRatio: number;
       scaleRatio: number;
+      /** 有值时：卡牌 Y 高于（小于）该值则阴影纵向偏移按该 Y 封顶 */
+      stretchLimitY?: number;
     };
 
     if (this.isDragging) {
@@ -1119,9 +1121,17 @@ export class CardView extends Container {
     const ly = shadowConf.lightY;
     const ratio = shadowConf.distanceRatio;
 
+    // 阴影 Y 向拉长上限：卡牌视觉中心高于 stretchLimitY（屏幕坐标 Y 更小）时，
+    // 纵向投影仍按 limitY 计算，避免牌抬得越高阴影越无限往下拉长。
+    // X 向仍用真实 cx，只钳制 Y。
+    const cyForStretch =
+      shadowConf.stretchLimitY !== undefined
+        ? Math.max(cy, shadowConf.stretchLimitY)
+        : cy;
+
     // 世界坐标系中的相对偏移
     const worldDx = (lx - cx) * ratio;
-    const worldDy = (ly - cy) * ratio;
+    const worldDy = (ly - cyForStretch) * ratio;
 
     // 同步可见性
     this.shadowGraphics.visible = this.visible;
@@ -1561,7 +1571,7 @@ export class CardView extends Container {
       this.dragScaleToMul = 1.0;
     }
 
-    // 获取配置中的快速点击时间阈值
+    // 获取配置中的快速点击时间阈值（卡牌操作逻辑专区：不受 gameSpeed 影响）
     const threshold = CONFIG.cardVisuals?.clickThresholdMS ?? 250;
     const distanceThreshold = CONFIG.cardVisuals?.clickDistanceThreshold ?? 10;
 
@@ -1936,10 +1946,11 @@ export class CardView extends Container {
     if (this.dragScaleAnim === null) return;
 
     const dragConf = CONFIG.dragHandCard;
-    const durationMS =
+    const durationMS = scaleTimeMS(
       this.dragScaleAnim === "in"
         ? (dragConf?.dragScaleInDurationMS ?? 180)
-        : (dragConf?.dragScaleOutDurationMS ?? 180);
+        : (dragConf?.dragScaleOutDurationMS ?? 180),
+    );
 
     if (durationMS <= 0) {
       // 时长为 0：瞬间到位

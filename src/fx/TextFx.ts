@@ -4,7 +4,7 @@ import { Easing } from "@tween/Easing";
 import type { CardView } from "@render/CardView";
 import { GameFonts } from "@ui/fonts";
 import { sampleCurve } from "../debug/BezierCurveEditor";
-import type { BezierCurveConfig } from "@game/config";
+import { scaleTimeMS, type BezierCurveConfig } from "@game/config";
 
 /**
  * 文字视效（占位起步）
@@ -109,6 +109,19 @@ export const TextFx = {
       textSuffix?: string;
     }
   ): void {
+    // 文字视效中的 ms 时间参数按 gameSpeed 缩放（面板仍显示 1× 基准值）
+    cfg = {
+      ...cfg,
+      firstCharDelayMS: scaleTimeMS(cfg.firstCharDelayMS),
+      charIntervalMS: scaleTimeMS(cfg.charIntervalMS),
+      charIntervalReductionMS: scaleTimeMS(cfg.charIntervalReductionMS),
+      charScaleDurationMS: scaleTimeMS(cfg.charScaleDurationMS),
+      swingDurationMS: scaleTimeMS(cfg.swingDurationMS),
+      stayDurationMS: scaleTimeMS(cfg.stayDurationMS),
+      fadeDurationMS: scaleTimeMS(cfg.fadeDurationMS),
+      bgBlockDurationMS: scaleTimeMS(cfg.bgBlockDurationMS),
+    };
+
     const textStr = "+" + value + (cfg.textSuffix ?? "");
     const chars = Array.from(textStr);
 

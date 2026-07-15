@@ -6,7 +6,7 @@ import { computePlayPileLayout } from "@render/PlayPileLayout";
 import { PlayPileFx, sleep } from "@fx/PlayPileFx";
 import { CardFx } from "@fx/CardFx";
 import { TextFx } from "@fx/TextFx";
-import { CONFIG } from "./config";
+import { CONFIG, scaleTimeMS } from "./config";
 import type { GameEvents } from "./events";
 
 /**
@@ -141,7 +141,11 @@ export class PlayPipeline {
         // 前一张牌与后一张牌的发车间隔（若设为0则所有牌一起启动），不需要等当前牌完全 landing 才 sleep。
         // 第一张牌发出后，间隔 interval 时间再启动下一张。
         // 每次发车间隔递减 intervalReductionMS，直到最后一对牌。发车间隔最小为 0。
-        const interval = Math.max(0, dispCfg.firstIntervalMS - i * dispCfg.intervalReductionMS);
+        // 卡牌逻辑 ms 参数：受 gameSpeed 缩放。
+        const interval = Math.max(
+          0,
+          scaleTimeMS(dispCfg.firstIntervalMS) - i * scaleTimeMS(dispCfg.intervalReductionMS),
+        );
 
         if (i < total - 1) {
           await sleep(interval);
@@ -202,7 +206,7 @@ export class PlayPipeline {
 
     if (isDisplacementEnabled) {
       // 最后一张牌落定后，再等待最后一张牌的间隔时间（lastIntervalMS）才触发出牌堆牌的上移效果。
-      await sleep(dispCfg.lastIntervalMS);
+      await sleep(scaleTimeMS(dispCfg.lastIntervalMS));
     }
     bus.emit("play:pileFormed", { views: selected });
 
@@ -221,9 +225,10 @@ export class PlayPipeline {
       const scoringViews = selected.filter((v) => scoringCards.some((sc) => sc.id === v.data.id));
       if (scoringViews.length > 0) {
         const liftPromises: Promise<void>[] = [];
+        const liftIntervalMS = scaleTimeMS(liftEffectCfg.interval);
         for (let i = 0; i < scoringViews.length; i++) {
           const card = scoringViews[i]!;
-          const delay = i * liftEffectCfg.interval;
+          const delay = i * liftIntervalMS;
           const promise = (async () => {
             if (delay > 0) {
               await sleep(delay);
@@ -233,8 +238,9 @@ export class PlayPipeline {
           liftPromises.push(promise);
         }
         await Promise.all(liftPromises);
-        if (liftEffectCfg.stayDuration && liftEffectCfg.stayDuration > 0) {
-          await sleep(liftEffectCfg.stayDuration);
+        const liftStayMS = scaleTimeMS(liftEffectCfg.stayDuration ?? 0);
+        if (liftStayMS > 0) {
+          await sleep(liftStayMS);
         }
       }
     } else {
@@ -250,7 +256,19 @@ export class PlayPipeline {
 
     // ── 阶段 4a：手牌结算（内缩 + 过大弹 / 逐张弹性 + 筹码弹字） ──
     // 注意：最终入账延后到小丑结算之后（倍率可能被小丑修改）。
-    const settleEffectCfg = CONFIG.playPileSettleEffect;
+    // 倍速：前三个间隔 + 阶段4/5时间 (t4/t5) 受 gameSpeed 缩放；
+    // 阶段1–3时间 (t1–t3) 固定，不受倍速影响。
+    const settleEffectCfgRaw = CONFIG.playPileSettleEffect;
+    const settleEffectCfg = settleEffectCfgRaw
+      ? {
+          ...settleEffectCfgRaw,
+          firstIntervalMS: scaleTimeMS(settleEffectCfgRaw.firstIntervalMS),
+          intervalReductionMS: scaleTimeMS(settleEffectCfgRaw.intervalReductionMS),
+          lastIntervalMS: scaleTimeMS(settleEffectCfgRaw.lastIntervalMS),
+          t4: scaleTimeMS(settleEffectCfgRaw.t4),
+          t5: scaleTimeMS(settleEffectCfgRaw.t5),
+        }
+      : settleEffectCfgRaw;
     if (settleEffectCfg && settleEffectCfg.enabled) {
       const scoringCards = result.scoringCards ?? [];
       const scoringViews = selected.filter((v) => scoringCards.some((sc) => sc.id === v.data.id));
@@ -300,7 +318,19 @@ export class PlayPipeline {
       scoringCards: result.scoringCards,
     };
     let totalJokerMultBonus = 0;
-    const jokerSettleCfg = CONFIG.jokerSettleEffect;
+    // 小丑结算：与出牌堆结算同规则——三个间隔 + t4/t5 受 gameSpeed；t1–t3 固定。
+    // 结算数字效果的 ms 在 TextFx.createSettleText 内统一缩放。
+    const jokerSettleCfgRaw = CONFIG.jokerSettleEffect;
+    const jokerSettleCfg = jokerSettleCfgRaw
+      ? {
+          ...jokerSettleCfgRaw,
+          firstIntervalMS: scaleTimeMS(jokerSettleCfgRaw.firstIntervalMS),
+          intervalReductionMS: scaleTimeMS(jokerSettleCfgRaw.intervalReductionMS),
+          lastIntervalMS: scaleTimeMS(jokerSettleCfgRaw.lastIntervalMS),
+          t4: scaleTimeMS(jokerSettleCfgRaw.t4),
+          t5: scaleTimeMS(jokerSettleCfgRaw.t5),
+        }
+      : jokerSettleCfgRaw;
     const jokers = this.deps.getJokers?.() ?? [];
     if (jokerSettleCfg && jokerSettleCfg.enabled && jokers.length > 0) {
       const textCfg = CONFIG.jokerSettleTextEffect;
@@ -354,9 +384,10 @@ export class PlayPipeline {
       const scoringViews = selected.filter((v) => scoringCards.some((sc) => sc.id === v.data.id));
       if (scoringViews.length > 0) {
         const dropPromises: Promise<void>[] = [];
+        const dropIntervalMS = scaleTimeMS(liftEffectCfg.interval);
         for (let i = 0; i < scoringViews.length; i++) {
           const card = scoringViews[i]!;
-          const delay = i * liftEffectCfg.interval;
+          const delay = i * dropIntervalMS;
           const targetY = cardBaselines.get(card) ?? card.y;
           const promise = (async () => {
             if (delay > 0) {
@@ -399,7 +430,10 @@ export class PlayPipeline {
     const discardCfg = CONFIG.discard;
     const speedRatio = Math.max(0.01, discardCfg?.speedRatio ?? 1.0);
     const flyDurationMS = Math.max(1, cfg.discardFlyDurationMS / speedRatio);
-    const intervalMS = Math.max(0, (discardCfg?.intervalMS ?? cfg.discardIntervalMS) / speedRatio);
+    const intervalMS = Math.max(
+      0,
+      scaleTimeMS(discardCfg?.intervalMS ?? cfg.discardIntervalMS) / speedRatio,
+    );
     // 随机旋转范围（度→弧度），与手牌弃牌共用 discardFlip.randomRotationDeg。
     const randRotDeg = Math.max(0, CONFIG.discardFlip?.randomRotationDeg ?? 0);
     const randomRotation = (): number =>
@@ -462,8 +496,8 @@ export class PlayPipeline {
     }
     // 等全部弃牌绳吸附完成。
     await Promise.all(discardFlyPromises);
-    // 最后一张弃牌后额外等待（与手牌弃牌共用 discard.lastCardWaitMS，受 speedRatio 缩放）
-    const lastCardWaitMS = Math.max(0, (discardCfg?.lastCardWaitMS ?? 0) / speedRatio);
+    // 最后一张弃牌后额外等待（与手牌弃牌共用 discard.lastCardWaitMS，受 gameSpeed + speedRatio 缩放）
+    const lastCardWaitMS = Math.max(0, scaleTimeMS(discardCfg?.lastCardWaitMS ?? 0) / speedRatio);
     if (lastCardWaitMS > 0) {
       await sleep(lastCardWaitMS);
     }

@@ -145,6 +145,17 @@
 
             <div class="panel-row">
               <div class="panel-row-header">
+                <span>游戏倍速</span>
+                <span id="val-gameSpeed">1×</span>
+              </div>
+              <button id="btn-gameSpeed" type="button">切换倍速</button>
+            </div>
+            <div class="panel-row" style="color: rgba(255,255,255,0.62); font-size: 11px;">
+              <span>仅缩放「卡牌逻辑 / 文字视效」中标注 ms 的时间参数（时长 ÷ 倍速）；「卡牌操作逻辑」专区（点击判定等）不受影响。面板上的 ms 数值仍是 1 倍基准，不随倍速改写。0.5× 慢放，1× 正常，2× / 4× 加速。</span>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
                 <span>无限出牌/弃牌</span>
                 <span id="val-unlimitedActions">关</span>
               </div>
@@ -1794,6 +1805,18 @@
                   step="0.01"
                 />
               </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影Y拉长限制Y</span>
+                  <span id="val-shadowStretchLimitY">400.0</span>
+                </div>
+                <input
+                  id="inp-shadowStretchLimitY"
+                  type="number"
+                  step="5"
+                />
+              </div>
             </div>
 
             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
@@ -1875,6 +1898,18 @@
                   min="0"
                   max="3"
                   step="0.01"
+                />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>拖动阴影Y拉长限制Y</span>
+                  <span id="val-dragShadowStretchLimitY">400.0</span>
+                </div>
+                <input
+                  id="inp-dragShadowStretchLimitY"
+                  type="number"
+                  step="5"
                 />
               </div>
             </div>

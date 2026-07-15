@@ -174,6 +174,16 @@ export const BACKGROUND_THEMES: Record<
 };
 
 export interface RuntimeConfig {
+  /**
+   * 游戏倍速（基础参数面板可调：0.5 / 1 / 2 / 4）。
+   * 仅缩放「卡牌逻辑」「文字视效」中标注为 ms 的时间参数：
+   *   effectiveMS = baseMS / gameSpeed
+   * 面板仍显示 1 倍基准值，不改写存储。
+   * 不缩放：卡牌操作逻辑专区（点击判定等）、结算阶段 1–3 时间 (t1–t3)、
+   * 卡牌视效、单位为 px/ms 的速度系数、弹性绳物理、背景 shader 等。
+   * 小丑结算效果与出牌堆结算同规则；小丑结算数字 *MS 全量缩放。
+   */
+  gameSpeed: number;
   world: {
     width: number;
     height: number;
@@ -279,6 +289,12 @@ export interface RuntimeConfig {
     lightY: number;
     distanceRatio: number;
     scaleRatio: number;
+    /**
+     * 阴影 Y 向拉长上限锚点（世界坐标 Y，越小越靠上）。
+     * 当卡牌视觉中心 Y 小于该值（卡牌更靠上）时，计算阴影纵向偏移时
+     * 仍按该 Y 取值，阴影不再继续往下拉长。
+     */
+    stretchLimitY: number;
   };
   dragShadow: {
     color: number;
@@ -287,6 +303,10 @@ export interface RuntimeConfig {
     lightY: number;
     distanceRatio: number;
     scaleRatio: number;
+    /**
+     * 拖拽阴影 Y 向拉长上限锚点（世界坐标 Y），语义同 cardShadow.stretchLimitY。
+     */
+    stretchLimitY: number;
   };
   /** 拖拽手牌相关参数（缩放视效；位移跟手由弹性绳） */
   dragHandCard: {
@@ -303,11 +323,15 @@ export interface RuntimeConfig {
   };
   /** 【抓牌】抓牌相关参数 */
   drawCard: {
-    /** 抽牌数>=4时，最后一张牌提前的时间 (ms) */
+    /** 抽牌数>=4时，最后一张牌提前的时间 (ms)；基准值，不直接乘倍速 */
     lastCardAdvanceMS: number;
-    /** 下一张牌的提前时间 (ms) */
+    /** 下一张牌的提前时间 (ms)；基准值，不直接乘倍速 */
     nextCardAdvanceMS: number;
-    /** 整体抽牌动画的速度比例 */
+    /**
+     * 整体抽牌动画的速度比例（1× 基准，面板可调）。
+     * 倍速生效方式：effectiveSpeedRatio = speedRatio * gameSpeed（如 1.4 × 2 = 2.8）。
+     * 飞行估时与发牌错开间隔都会除以 effectiveSpeedRatio。
+     */
     speedRatio: number;
     /** 是否启用初始旋转角度 */
     useInitialRotation: boolean;
@@ -477,12 +501,13 @@ export interface RuntimeConfig {
   /** 【出牌】出牌堆的结算效果 */
   playPileSettleEffect: {
     enabled: boolean;
-    /** 第一张要进行筹码数值计算的卡牌动画结束后的停留的时间间隔 */
+    /** 第一张要进行筹码数值计算的卡牌动画结束后的停留的时间间隔（受 gameSpeed 缩放） */
     firstIntervalMS: number;
-    /** 之后每张牌减少的时间间隔 */
+    /** 之后每张牌减少的时间间隔（受 gameSpeed 缩放） */
     intervalReductionMS: number;
-    /** 最后一张牌动画结束后的停留时间间隔 */
+    /** 最后一张牌动画结束后的停留时间间隔（受 gameSpeed 缩放） */
     lastIntervalMS: number;
+    /** 阶段 1–3 时间 t1–t3 不受倍速影响；阶段 4–5 时间 t4–t5 受 gameSpeed 缩放 */
     s1: number; t1: number;
     s2: number; t2: number;
     s3: number; t3: number;
@@ -534,9 +559,11 @@ export interface RuntimeConfig {
    */
   jokerSettleEffect: {
     enabled: boolean;
+    /** 间隔 ms 受 gameSpeed 缩放（与出牌堆结算同规则） */
     firstIntervalMS: number;
     intervalReductionMS: number;
     lastIntervalMS: number;
+    /** 阶段 1–3 时间 t1–t3 不受倍速；阶段 4–5 时间 t4–t5 受 gameSpeed 缩放 */
     s1: number; t1: number;
     s2: number; t2: number;
     s3: number; t3: number;
@@ -558,6 +585,7 @@ export interface RuntimeConfig {
     letterSpacing: number;
     color: number;
     offsetY: number;
+    /** 下列 *MS 时间参数均在 TextFx 内受 gameSpeed 缩放 */
     firstCharDelayMS: number;
     charIntervalMS: number;
     charIntervalReductionMS: number;
@@ -1096,6 +1124,7 @@ export interface RuntimeConfig {
  * 读取时永远走 CONFIG。
  */
 export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
+  gameSpeed: 1,
   world: Object.freeze({
     width: 1280,
     height: 720,
@@ -1177,6 +1206,8 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     lightY: 360,
     distanceRatio: 0.05,
     scaleRatio: 0.95,
+    // 中间偏下：卡牌再往上时阴影纵向拉长不再增加
+    stretchLimitY: 400,
   }),
   dragShadow: Object.freeze({
     color: 0x000000,
@@ -1185,6 +1216,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     lightY: 360,
     distanceRatio: 0.12,
     scaleRatio: 0.88,
+    stretchLimitY: 400,
   }),
   dragHandCard: Object.freeze({
     dragScaleTarget: 1.15,
@@ -1683,6 +1715,17 @@ export const CONFIG: RuntimeConfig = cloneConfig(activeDefaultConfig);
 export const GameConfig: RuntimeConfig = CONFIG;
 
 /**
+ * 将「卡牌逻辑 / 文字视效」中的 ms 时间参数按 gameSpeed 缩放。
+ * gameSpeed>1 → 时长变短（加速）；0.5 → 时长变长（慢放）。
+ */
+export function scaleTimeMS(ms: number): number {
+  if (!Number.isFinite(ms)) return 0;
+  const speed = CONFIG.gameSpeed;
+  if (!Number.isFinite(speed) || speed <= 0) return ms;
+  return ms / speed;
+}
+
+/**
  * 按产品档写入 crt 数值字段。
  * subtle/hard 的默认值对齐执行方案验收表。
  */
@@ -1714,6 +1757,7 @@ export function applyCrtPreset(
 /** 深拷贝 RuntimeConfig（保证不与 frozen DEFAULT_CONFIG 共享引用）。 */
 export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
   return {
+    gameSpeed: src.gameSpeed ?? 1,
     world: {
       ...src.world,
       background: { ...src.world.background },
@@ -1867,6 +1911,9 @@ export function applyConfig(source: unknown): void {
     : {};
 
   const merged = cloneConfig(activeDefaultConfig);
+  if (typeof incoming.gameSpeed === "number" && Number.isFinite(incoming.gameSpeed) && incoming.gameSpeed > 0) {
+    merged.gameSpeed = incoming.gameSpeed;
+  }
   if (incoming.world) {
     merged.world = {
       ...merged.world,
@@ -2155,6 +2202,7 @@ export function applyConfig(source: unknown): void {
   }
 
   // 就地写回，保留外部对 CONFIG 的引用稳定。
+  CONFIG.gameSpeed = merged.gameSpeed;
   CONFIG.world = merged.world;
   CONFIG.rules = merged.rules;
   CONFIG.animation = merged.animation;
@@ -2205,6 +2253,9 @@ export function applyShippingDefaults(source: unknown): void {
     ? (migrated as Partial<RuntimeConfig>)
     : {};
 
+  if (typeof incoming.gameSpeed === "number" && Number.isFinite(incoming.gameSpeed) && incoming.gameSpeed > 0) {
+    activeDefaultConfig.gameSpeed = incoming.gameSpeed;
+  }
   if (incoming.world) {
     activeDefaultConfig.world = {
       ...activeDefaultConfig.world,

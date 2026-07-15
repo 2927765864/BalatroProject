@@ -3,6 +3,7 @@
   "version": 6,
   "name": "shipping",
   "config": {
+    "gameSpeed": 1,
     "world": {
       "width": 1280,
       "height": 720,
@@ -81,8 +82,9 @@
       "alpha": 0.35,
       "lightX": 720,
       "lightY": 600,
-      "distanceRatio": 0.035,
+      "distanceRatio": 0.0389,
       "scaleRatio": 0.95,
+      "stretchLimitY": 400,
       "scale": 0.97,
       "skew": 0,
       "angle": 17,
@@ -94,7 +96,8 @@
       "lightX": 720,
       "lightY": 800,
       "distanceRatio": 0.08,
-      "scaleRatio": 0.95
+      "scaleRatio": 0.95,
+      "stretchLimitY": 400
     },
     "dragHandCard": {
       "dragScaleTarget": 1.1,
@@ -454,7 +457,7 @@
     },
     "cardVisuals": {
       "expandedSections": {
-        "shadow": false,
+        "shadow": true,
         "dragShadow": false,
         "breathing": false,
         "idleTilt": false,
@@ -950,7 +953,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "459"
             }
           },
           {

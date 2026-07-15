@@ -16,7 +16,7 @@ import { HUD, type HUDMode } from "@ui/HUD";
 import { uiHierarchy } from "@ui/hierarchy";
 import { CardFx } from "@fx/CardFx";
 import { CrtFilter } from "@fx/CrtFilter";
-import { CONFIG, GameConfig, setDrawingCards } from "./config";
+import { CONFIG, GameConfig, scaleTimeMS, setDrawingCards } from "./config";
 import type { GameEvents } from "./events";
 import { PlayPipeline } from "./PlayPipeline";
 
@@ -268,8 +268,8 @@ export class GameController {
         this.hud.scorePanel.setExpectScoreVisible(true);
         this.hud.scorePanel.triggerEvalScoreBounce();
 
-        // 间隔极短时间后开始进行分数迁移
-        await sleep(GameConfig.evalScoreText.delayMS);
+        // 间隔极短时间后开始进行分数迁移（文字视效 ms 参数受 gameSpeed 缩放）
+        await sleep(scaleTimeMS(GameConfig.evalScoreText.delayMS));
 
         // "分数迁移，预期得分文字的数字快速变小，等量加和到回合分数数字上，回合分数字快速变大，
         //  预期得分文字的数字减为0时瞬间消失，回合分数字此时刚好等于原分数+预期得分文字原本的数字。"
@@ -286,7 +286,10 @@ export class GameController {
           this.tween.add(
             this.tween
               .create(animData)
-              .to({ evalScore: 0, roundScore: finalRoundScore }, GameConfig.evalScoreText.decreaseDurationMS)
+              .to(
+                { evalScore: 0, roundScore: finalRoundScore },
+                scaleTimeMS(GameConfig.evalScoreText.decreaseDurationMS),
+              )
               .easing(Easing.cubicOut)
               .onUpdate(() => {
                 this.hud.scorePanel.setExpectScore(Math.round(animData.evalScore));
@@ -301,8 +304,9 @@ export class GameController {
           );
         });
 
-        if (GameConfig.evalScoreText.stayDurationMS && GameConfig.evalScoreText.stayDurationMS > 0) {
-          await sleep(GameConfig.evalScoreText.stayDurationMS);
+        const stayMS = scaleTimeMS(GameConfig.evalScoreText.stayDurationMS);
+        if (stayMS > 0) {
+          await sleep(stayMS);
         }
       },
     });
@@ -605,7 +609,11 @@ export class GameController {
       const drawn = this.deck.draw(need);
       const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-      const speedRatio = GameConfig.drawCard?.speedRatio ?? 1.0;
+      // 抓牌倍速：只放大「整体抽牌动画的速度比例」；面板存的是 1× 基准（如 1.4），
+      // 2× 时有效值 = 1.4 * gameSpeed。提前量 ms 仍用基准值，再除以有效 speedRatio。
+      const baseDrawSpeed = GameConfig.drawCard?.speedRatio ?? 1.0;
+      const gameSpeed = Math.max(0.01, GameConfig.gameSpeed ?? 1);
+      const speedRatio = Math.max(0.01, baseDrawSpeed * gameSpeed);
 
       for (let i = 0; i < drawn.length; i++) {
         const data = drawn[i]!;
@@ -1246,9 +1254,11 @@ export class GameController {
       // ── 整体下移：按钮隐藏 → 等待 → 下移 → 等待 → 打出 ──
       if (shiftCfg?.enabled) {
         const dist = Math.max(0, shiftCfg.distancePx ?? 0);
-        if (shiftCfg.preDownWaitMS > 0) await sleep(shiftCfg.preDownWaitMS);
+        const preDown = scaleTimeMS(shiftCfg.preDownWaitMS);
+        const postDown = scaleTimeMS(shiftCfg.postDownWaitMS);
+        if (preDown > 0) await sleep(preDown);
         if (dist > 0) await this.shiftHandGroup(dist);
-        if (shiftCfg.postDownWaitMS > 0) await sleep(shiftCfg.postDownWaitMS);
+        if (postDown > 0) await sleep(postDown);
       }
 
       // 进入"挤位阶段"：run() 内部触发的剩余手牌重排走 swapMove（利落挤位）。
@@ -1277,9 +1287,11 @@ export class GameController {
 
       // ── 整体上移：分数已入账后、发牌前 ──
       if (shiftCfg?.enabled && Math.abs(this.handPlayYOffset) > 1e-3) {
-        if (shiftCfg.preUpWaitMS > 0) await sleep(shiftCfg.preUpWaitMS);
+        const preUp = scaleTimeMS(shiftCfg.preUpWaitMS);
+        const postUp = scaleTimeMS(shiftCfg.postUpWaitMS);
+        if (preUp > 0) await sleep(preUp);
         await this.shiftHandGroup(-this.handPlayYOffset);
-        if (shiftCfg.postUpWaitMS > 0) await sleep(shiftCfg.postUpWaitMS);
+        if (postUp > 0) await sleep(postUp);
       } else {
         this.handPlayYOffset = 0;
       }
@@ -1457,7 +1469,8 @@ export class GameController {
       const discardCfg = GameConfig.discard;
       const speedRatio = Math.max(0.01, discardCfg?.speedRatio ?? 1.0);
       const flyDurationMS = Math.max(1, GameConfig.animation.flyOutDurationMS / speedRatio);
-      const intervalMS = Math.max(0, (discardCfg?.intervalMS ?? 0) / speedRatio);
+      // 弃牌间隔 / 末张等待：卡牌逻辑 ms 参数，受 gameSpeed 缩放（再叠 speedRatio）
+      const intervalMS = Math.max(0, scaleTimeMS(discardCfg?.intervalMS ?? 0) / speedRatio);
 
       // 视觉：从左到右逐张错开飞向弃牌堆（屏幕正右方外、垂直居中），飞行途中翻约 90° 压成一条线。
       const flyPromises: Promise<void>[] = [];
@@ -1499,8 +1512,8 @@ export class GameController {
 
       // 等待全部弃牌绳吸附完成（替代固定 flyDurationMS）
       await Promise.all(flyPromises);
-      // 最后一张弃牌后额外等待（受 speedRatio 缩放）
-      const lastCardWaitMS = Math.max(0, (discardCfg?.lastCardWaitMS ?? 0) / speedRatio);
+      // 最后一张弃牌后额外等待（受 gameSpeed + speedRatio 缩放）
+      const lastCardWaitMS = Math.max(0, scaleTimeMS(discardCfg?.lastCardWaitMS ?? 0) / speedRatio);
       if (lastCardWaitMS > 0) {
         await sleep(lastCardWaitMS);
       }

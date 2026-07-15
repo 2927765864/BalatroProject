@@ -17,7 +17,7 @@
  */
 import { UIComponent, type SerializedComponent } from "../UIComponent";
 import type { UIText } from "@ui/components/UIText";
-import { CONFIG } from "@game/config";
+import { CONFIG, scaleTimeMS } from "@game/config";
 import {
   ensureCharLayer,
   type CharEffect,
@@ -120,7 +120,8 @@ export class BounceTextComponent extends UIComponent implements CharEffect {
       return;
     }
 
-    const scanSpeed = Math.max(1, config.scanSpeed);
+    // 扫描速度单位为 ms/字（文字视效），受 gameSpeed 缩放
+    const scanSpeed = Math.max(1, scaleTimeMS(config.scanSpeed));
     const scaleStrength = Math.max(0.1, config.scaleStrength);
     const initScale = config.initScale;
     const maxScale = config.maxScale;

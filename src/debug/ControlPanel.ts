@@ -991,6 +991,12 @@ export function setupControlPanel(
     applyPanelOpacity();
 
     // === 基础参数 ===
+    bindCycleButton("btn-gameSpeed", "val-gameSpeed", "gameSpeed", [
+      { value: 0.5, label: "0.5×" },
+      { value: 1, label: "1×" },
+      { value: 2, label: "2×" },
+      { value: 4, label: "4×" },
+    ]);
     bindToggle("inp-unlimitedActions", "val-unlimitedActions", "rules.unlimitedActions");
     bindNumber("inp-playfieldHandBaseY", "val-playfieldHandBaseY", "playfield.handBaseY", {
       integer: true,
@@ -1108,6 +1114,7 @@ export function setupControlPanel(
     bindNumber("inp-shadowLightY", "val-shadowLightY", "cardShadow.lightY", { digits: 1 });
     bindNumber("inp-shadowDistanceRatio", "val-shadowDistanceRatio", "cardShadow.distanceRatio", { digits: 5 });
     bindNumber("inp-shadowScaleRatio", "val-shadowScaleRatio", "cardShadow.scaleRatio", { digits: 2 });
+    bindNumber("inp-shadowStretchLimitY", "val-shadowStretchLimitY", "cardShadow.stretchLimitY", { digits: 1 });
 
     bindSectionExpand("inp-expandDragShadow", "val-expandDragShadow", "cardVisuals.expandedSections.dragShadow", "sect-dragShadow-params");
     bindColor("inp-dragShadowColor", "val-dragShadowColor", "dragShadow.color");
@@ -1116,6 +1123,7 @@ export function setupControlPanel(
     bindNumber("inp-dragShadowLightY", "val-dragShadowLightY", "dragShadow.lightY", { digits: 1 });
     bindNumber("inp-dragShadowDistanceRatio", "val-dragShadowDistanceRatio", "dragShadow.distanceRatio", { digits: 5 });
     bindNumber("inp-dragShadowScaleRatio", "val-dragShadowScaleRatio", "dragShadow.scaleRatio", { digits: 2 });
+    bindNumber("inp-dragShadowStretchLimitY", "val-dragShadowStretchLimitY", "dragShadow.stretchLimitY", { digits: 1 });
 
     // === 新增卡牌视效与逻辑参数 ===
     bindSectionExpand("inp-expandBreathing", "val-expandBreathing", "cardVisuals.expandedSections.breathing", "sect-breathing-params");
