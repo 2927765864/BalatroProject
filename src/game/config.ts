@@ -941,10 +941,20 @@ export interface RuntimeConfig {
      */
     followLerp: number;
     /**
+     * 旋转用速度采样的 EMA 时间常数（ms）。
+     * 仅平滑 targetRot 所用的速度，不影响 lastSpeedPxPerSec / 过冲触发。
+     * 用于抑制 rAF dt 抖动、pointer 节流与 drag lerp 台阶造成的旋转角闪抖。
+     * 0 = 禁用平滑。建议 24~48。
+     */
+    velocitySmoothMS: number;
+    /**
      * 穿孔摩擦力 (0~1)：每帧把 velocityRotation 向 0 衰减的比例（按标准帧）。
      * 摩擦力越大，旋转越快回正，速度变化产生的旋转越被压制；
      * 摩擦力越小，旋转更持久、更"自由"。建议 0.05 ~ 0.30。
      * 设为 0 时只靠 followLerp 回正（速度恢复 0 后旋转才衰减）。
+     *
+     * 实现说明：摩擦只在「已停住 / spring 回弹」时施加；匀速拖动时只 follow，
+     * 避免 follow+friction 每帧互搏把稳态角压低并放大速度噪声。
      */
     friction: number;
     /**
@@ -952,6 +962,73 @@ export interface RuntimeConfig {
      * 避免微抖动造成持续小幅旋转。建议 0.01 ~ 0.05。
      */
     minSpeed: number;
+  };
+  /**
+   * 弹性绳子牵引卡牌模型（隔离沙盒 / 未来统一移动核）
+   * 规格：docs/elastic-rope-traction-card-model.md
+   */
+  elasticRopeCard: {
+    enabled: boolean;
+    spring: {
+      maxElasticLength: number;
+      stiffness: number;
+    };
+    airDrag: {
+      mode: "linear" | "quadratic";
+      linearCoeff: number;
+      quadraticCoeff: number;
+    };
+    integration: {
+      mass: number;
+      maxDtSec: number;
+      substeps: number;
+    };
+    settle: {
+      distancePx: number;
+      speedPxPerSec: number;
+    };
+    rotation: {
+      enabled: boolean;
+      forceToAngle: number;
+      maxAngleDeg: number;
+      angleFollow: number;
+      rotationAffectsAnchor: boolean;
+      /** instant | follow | springDamper — 见 docs/elastic-rope-rotation-damping-plan.md */
+      dynamics: "instant" | "follow" | "springDamper";
+      mapMode: "linear" | "power";
+      responseGamma: number;
+      inertia: number;
+      /** 角自然频率 ωn (rad/s) */
+      angularFreq: number;
+      /** 阻尼比 ζ，1=临界 */
+      dampingRatio: number;
+    };
+    anchor: {
+      anchorY: number;
+      anchorXMin: number;
+      anchorXMax: number;
+      mapMode: "continuous" | "leftRightHalf";
+    };
+    debug: {
+      drawRope: boolean;
+      drawAnchor: boolean;
+      showHudReadouts: boolean;
+      elasticColor: number;
+      rigidColor: number;
+    };
+    sandbox: {
+      followPointerWhileDown: boolean;
+      freezeTargetOnRelease: boolean;
+    };
+    expandedSections: {
+      spring: boolean;
+      airDrag: boolean;
+      integration: boolean;
+      settle: boolean;
+      rotation: boolean;
+      anchor: boolean;
+      debug: boolean;
+    };
   };
   cardVisuals: {
     expandedSections: {
@@ -1794,8 +1871,71 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     rotationPerSpeed: 0.06,
     drawRotationPerSpeed: 0.15,
     followLerp: 0.25,
+    // 约 2 帧的速度 EMA，抑制拖拽中旋转角闪抖。
+    velocitySmoothMS: 36,
     friction: 0.12,
     minSpeed: 0.02,
+  }),
+  // forceToAngle ≈ maxAngleRad / (k * Lmax) = (20°→0.349) / (100*120) ≈ 2.9e-5
+  elasticRopeCard: Object.freeze({
+    enabled: true,
+    spring: Object.freeze({
+      maxElasticLength: 120,
+      stiffness: 100,
+    }),
+    airDrag: Object.freeze({
+      mode: "linear" as const,
+      linearCoeff: 10,
+      quadraticCoeff: 0.002,
+    }),
+    integration: Object.freeze({
+      mass: 1,
+      maxDtSec: 1 / 30,
+      substeps: 2,
+    }),
+    settle: Object.freeze({
+      distancePx: 3,
+      speedPxPerSec: 30,
+    }),
+    rotation: Object.freeze({
+      enabled: true,
+      forceToAngle: 0.000029,
+      maxAngleDeg: 20,
+      angleFollow: 0.35,
+      rotationAffectsAnchor: false,
+      dynamics: "springDamper" as const,
+      mapMode: "linear" as const,
+      responseGamma: 1.5,
+      inertia: 1,
+      angularFreq: 12,
+      dampingRatio: 1.0,
+    }),
+    anchor: Object.freeze({
+      anchorY: -45,
+      anchorXMin: -25,
+      anchorXMax: 25,
+      mapMode: "continuous" as const,
+    }),
+    debug: Object.freeze({
+      drawRope: true,
+      drawAnchor: true,
+      showHudReadouts: true,
+      elasticColor: 0x66eeaa,
+      rigidColor: 0x88aaff,
+    }),
+    sandbox: Object.freeze({
+      followPointerWhileDown: true,
+      freezeTargetOnRelease: true,
+    }),
+    expandedSections: Object.freeze({
+      spring: true,
+      airDrag: true,
+      integration: true,
+      settle: true,
+      rotation: true,
+      anchor: true,
+      debug: true,
+    }),
   }),
   cardVisuals: Object.freeze({
     expandedSections: Object.freeze({
@@ -2199,6 +2339,18 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
       } : undefined as any,
     },
     cardMoveRotation: { ...src.cardMoveRotation },
+    elasticRopeCard: {
+      ...src.elasticRopeCard,
+      spring: { ...src.elasticRopeCard.spring },
+      airDrag: { ...src.elasticRopeCard.airDrag },
+      integration: { ...src.elasticRopeCard.integration },
+      settle: { ...src.elasticRopeCard.settle },
+      rotation: { ...src.elasticRopeCard.rotation },
+      anchor: { ...src.elasticRopeCard.anchor },
+      debug: { ...src.elasticRopeCard.debug },
+      sandbox: { ...src.elasticRopeCard.sandbox },
+      expandedSections: { ...src.elasticRopeCard.expandedSections },
+    },
     cardVisuals: {
       ...src.cardVisuals,
       expandedSections: src.cardVisuals.expandedSections ? {
@@ -2344,6 +2496,28 @@ export function applyConfig(source: unknown): void {
     merged.cardMoveRotation = {
       ...merged.cardMoveRotation,
       ...incoming.cardMoveRotation,
+    };
+  }
+  if (incoming.elasticRopeCard) {
+    const er = incoming.elasticRopeCard;
+    merged.elasticRopeCard = {
+      ...merged.elasticRopeCard,
+      ...er,
+      spring: { ...merged.elasticRopeCard.spring, ...(er.spring ?? {}) },
+      airDrag: { ...merged.elasticRopeCard.airDrag, ...(er.airDrag ?? {}) },
+      integration: {
+        ...merged.elasticRopeCard.integration,
+        ...(er.integration ?? {}),
+      },
+      settle: { ...merged.elasticRopeCard.settle, ...(er.settle ?? {}) },
+      rotation: { ...merged.elasticRopeCard.rotation, ...(er.rotation ?? {}) },
+      anchor: { ...merged.elasticRopeCard.anchor, ...(er.anchor ?? {}) },
+      debug: { ...merged.elasticRopeCard.debug, ...(er.debug ?? {}) },
+      sandbox: { ...merged.elasticRopeCard.sandbox, ...(er.sandbox ?? {}) },
+      expandedSections: {
+        ...merged.elasticRopeCard.expandedSections,
+        ...(er.expandedSections ?? {}),
+      },
     };
   }
   if (incoming.cardOvershoot) {
@@ -2637,6 +2811,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.dragShadow = merged.dragShadow;
   CONFIG.dragHandCard = merged.dragHandCard;
   CONFIG.cardMoveRotation = merged.cardMoveRotation;
+  CONFIG.elasticRopeCard = merged.elasticRopeCard;
   CONFIG.cardOvershoot = merged.cardOvershoot;
   CONFIG.drawCard = merged.drawCard;
   CONFIG.drawFlip = merged.drawFlip;
@@ -2744,6 +2919,31 @@ export function applyShippingDefaults(source: unknown): void {
             p2: { ...(activeDefaultConfig.dragHandCard.dragScaleOutCurve?.p2 ?? {}), ...(incoming.dragHandCard.dragScaleOutCurve.p2 ?? {}) },
           }
         : activeDefaultConfig.dragHandCard.dragScaleOutCurve,
+    };
+  }
+  if (incoming.elasticRopeCard) {
+    const er = incoming.elasticRopeCard;
+    activeDefaultConfig.elasticRopeCard = {
+      ...activeDefaultConfig.elasticRopeCard,
+      ...er,
+      spring: { ...activeDefaultConfig.elasticRopeCard.spring, ...(er.spring ?? {}) },
+      airDrag: { ...activeDefaultConfig.elasticRopeCard.airDrag, ...(er.airDrag ?? {}) },
+      integration: {
+        ...activeDefaultConfig.elasticRopeCard.integration,
+        ...(er.integration ?? {}),
+      },
+      settle: { ...activeDefaultConfig.elasticRopeCard.settle, ...(er.settle ?? {}) },
+      rotation: {
+        ...activeDefaultConfig.elasticRopeCard.rotation,
+        ...(er.rotation ?? {}),
+      },
+      anchor: { ...activeDefaultConfig.elasticRopeCard.anchor, ...(er.anchor ?? {}) },
+      debug: { ...activeDefaultConfig.elasticRopeCard.debug, ...(er.debug ?? {}) },
+      sandbox: { ...activeDefaultConfig.elasticRopeCard.sandbox, ...(er.sandbox ?? {}) },
+      expandedSections: {
+        ...activeDefaultConfig.elasticRopeCard.expandedSections,
+        ...(er.expandedSections ?? {}),
+      },
     };
   }
   if (incoming.cardMoveRotation) {

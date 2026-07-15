@@ -131,6 +131,13 @@ export class CardView extends Container {
   layoutY = 0;
   layoutRotation = 0;
   isDragging = false;
+  /**
+   * 位置驱动模式：
+   *   - internal：默认，updateDragging 用 lerp/急停写 x/y（手牌主路径）
+   *   - external：沙盒弹性绳等外部积分器写 x/y；本类只维护 dragTarget / 缩放 / isDragging
+   * 见 docs/elastic-rope-traction-card-model.md §4
+   */
+  positionDriver: "internal" | "external" = "internal";
   isReturning = false;
   /**
    * 一次性标志：true 时下一次 layoutHand 调用 CardFx.moveToWithOvershoot 会强制走过冲路径，
@@ -327,11 +334,14 @@ export class CardView extends Container {
   //     下一帧入口用 (curX - prevX) / dtMS 计算这一整帧的瞬时平均速度（px/ms）。
   //   prevSampled 标志位用于规避第一次 update 时 prevX/prevY 还未初始化造成的伪速度突变。
   //   velocityRotation 是当前帧实际作用到 displayWrapper 上的旋转量（弧度），
-  //   它以 followLerp 追逐 targetRot，同时每帧受 friction 持续向 0 收敛。
+  //   它以 followLerp 追逐 targetRot；摩擦仅在低速/停住时把旋转拉回 0。
+  //   velSmoothX/Y 是对帧间差分速度的 EMA，抑制 rAF 抖动、指针节流与 lerp 台阶造成的角抖。
   private prevX = 0;
   private prevY = 0;
   private prevSampled = false;
   private velocityRotation = 0;
+  private velSmoothX = 0;
+  private velSmoothY = 0;
   /**
    * 最近一帧的卡牌位移速度（px/s）。由 updateMoveRotation 在差分后顺便写入，
    * 供 GameController.layoutHand 在调用 CardFx.moveToWithOvershoot 时
@@ -1372,6 +1382,12 @@ export class CardView extends Container {
     this.pointerPrevMoveDirX = 0;
     this.pointerPrevMoveDirY = 0;
     this.pointerPeakSpeed = 0;
+    // 拖拽起点同步旋转速度采样，避免从静止到首帧位移被当成瞬时高速旋转。
+    this.prevX = this.x;
+    this.prevY = this.y;
+    this.prevSampled = true;
+    this.velSmoothX = 0;
+    this.velSmoothY = 0;
     this.pointerLastSampleTimeMS = performance.now();
     this.pointerLastMoveTimeMS = this.pointerLastSampleTimeMS;
     {
@@ -1523,8 +1539,16 @@ export class CardView extends Container {
         }
         const wasFast = this.pointerPrevSampleSpeed >= highThreshold;
         const nowSlow = this.pointerLastSampleSpeed <= lowThreshold;
+        // 相对跌幅门槛：必须相对上一采样明显减速（默认至少掉 40%），
+        // 避免「高速段内单帧采样噪声刚好掉到 low 阈值」误触发急停。
+        // shipping 等预设若把 high 压得很低、cooldown=0、平滑=0，没有这条会连发过冲，
+        // 位置正反交替 → 旋转角剧烈抖动。
+        const minDropRatio = 0.4;
+        const droppedHardEnough =
+          this.pointerPrevSampleSpeed > 1e-3 &&
+          this.pointerLastSampleSpeed <= this.pointerPrevSampleSpeed * (1 - minDropRatio);
         // 反向帧不视为合法的"突降终点"——这一帧的低速只是穿越零点的瞬间值。
-        if (wasFast && nowSlow && !reversed) {
+        if (wasFast && nowSlow && droppedHardEnough && !reversed) {
           // 本次 pointermove 的 dragTarget 必须先同步，否则 triggerDragInertia 会用到上一帧
           // 的旧落点，造成过冲方向/回弹落点看起来反了。
           const targetDx = curX - this.dragStartPointerX;
@@ -1567,16 +1591,25 @@ export class CardView extends Container {
           // A4：取消时把卡牌位置往 spring 终点（= 触发时锚定的 dragTarget）方向收一收，
           //     避免遗留在过冲点造成"反向甩动时起点偏远"的累积漂移。
           //     限制最大回拉距离为 cancelEps，避免出现明显瞬移。
-          const pullX = this.inertiaSpringTargetX - this.x;
-          const pullY = this.inertiaSpringTargetY - this.y;
-          const pullLen = Math.hypot(pullX, pullY);
-          if (pullLen > 0) {
-            const pullStep = Math.min(pullLen, cancelEps);
-            this.x += (pullX / pullLen) * pullStep;
-            this.y += (pullY / pullLen) * pullStep;
+          // external 模式位置由外核写，禁止此处改 x/y。
+          if (this.positionDriver !== "external") {
+            const pullX = this.inertiaSpringTargetX - this.x;
+            const pullY = this.inertiaSpringTargetY - this.y;
+            const pullLen = Math.hypot(pullX, pullY);
+            if (pullLen > 0) {
+              const pullStep = Math.min(pullLen, cancelEps);
+              this.x += (pullX / pullLen) * pullStep;
+              this.y += (pullY / pullLen) * pullStep;
+            }
           }
           this.inertiaPhase = "none";
           this.inertiaProgress = 0;
+          // 位置被脚本回拉后，重置速度采样基线，避免下一帧 updateMoveRotation
+          // 把这次「人为位移」当成真实高速，造成旋转角突刺。
+          this.prevX = this.x;
+          this.prevY = this.y;
+          this.velSmoothX = 0;
+          this.velSmoothY = 0;
           // A3：取消时一并重置冷却时间戳，让"取消 → 立即满足新的急停判定"
           //     不会被 dragTriggerCooldownMS 闸住——这种取消明显是用户主动操作，
           //     冷却的设计目的（防止采样抖动反复触发）不适用于此场景。
@@ -1823,10 +1856,23 @@ export class CardView extends Container {
   private updateMoveRotation(dtMS: number): void {
     const cfg = CONFIG.cardMoveRotation;
 
+    // external：旋转由弹性绳等外核写 this.rotation，禁止 velocityRotation 覆盖。
+    if (this.positionDriver === "external") {
+      this.velocityRotation = 0;
+      this.velSmoothX = 0;
+      this.velSmoothY = 0;
+      this.prevX = this.x;
+      this.prevY = this.y;
+      this.prevSampled = true;
+      return;
+    }
+
     // 弃牌飞行期：禁用速度→旋转联动，让卡牌保持飞出瞬间设定的随机旋转角度。
     // 速度旋转直接置零；同时维护 prev/lastSpeed，避免弃牌结束后第一帧速度爆冲。
     if (this.discardFlying) {
       this.velocityRotation = 0;
+      this.velSmoothX = 0;
+      this.velSmoothY = 0;
       if (!this.prevSampled) {
         this.prevSampled = true;
       } else if (dtMS > 0) {
@@ -1843,6 +1889,8 @@ export class CardView extends Container {
       // 关闭或时间步无效时，平滑回零（不直接置零，避免开关切换的瞬间跳变）。
       this.velocityRotation *= 0.85;
       if (Math.abs(this.velocityRotation) < 1e-4) this.velocityRotation = 0;
+      this.velSmoothX *= 0.85;
+      this.velSmoothY *= 0.85;
       // 首次进入时仍要把 prev 同步到当前 x/y，避免之后再开启时第一次速度爆冲。
       if (!this.prevSampled) {
         this.prevX = this.x;
@@ -1865,6 +1913,8 @@ export class CardView extends Container {
       this.prevY = this.y;
       this.prevSampled = true;
       this.lastSpeedPxPerSec = 0;
+      this.velSmoothX = 0;
+      this.velSmoothY = 0;
       return;
     }
 
@@ -1881,19 +1931,39 @@ export class CardView extends Container {
     //    关键时序：必须在 updateDragging 之前采样（否则当前帧的 updateDragging 写入会被
     //    算到下一帧的 prev → 实际等于把本帧 drag 位移整个吃掉，vx 永远 ≈ 0）。
     //    我们在 update() 主体最早一步就调用了 updateMoveRotation，正好满足此前提。
-    const vx = (this.x - this.prevX) / dtMS;
-    const vy = (this.y - this.prevY) / dtMS;
+    const rawVx = (this.x - this.prevX) / dtMS;
+    const rawVy = (this.y - this.prevY) / dtMS;
 
     // 顺便更新"上一帧速度模长（px/s）"——供 CardFx.moveToWithOvershoot 等
-    // "判断当前速度是否达到过冲阈值"的逻辑读取。
-    // vx/vy 单位是 px/ms，乘 1000 转 px/s。
-    this.lastSpeedPxPerSec = Math.hypot(vx, vy) * 1000;
+    // "判断当前速度是否达到过冲阈值"的逻辑读取。用原始差分（非 EMA），
+    // 保证过冲触发阈值仍反映真实位移强度，不被平滑滞后污染。
+    this.lastSpeedPxPerSec = Math.hypot(rawVx, rawVy) * 1000;
 
     // 采样完立刻 snapshot 当前位置作为下一帧的 prev。
     // （之前的实现把 snapshot 放到 update 出口，会导致"出口→下一帧入口"之间
     // 没有任何 x 写入，差分始终为 0——这是个隐蔽 bug。）
     this.prevX = this.x;
     this.prevY = this.y;
+
+    // 1b. 对旋转用速度做 EMA：拖拽时 this.x 由 lerp+maxStep 推进，目标点又由
+    //     pointermove 异步跳变；再叠加 rAF 的 dt 抖动，单帧 raw vx 会在「顶速 /
+    //     追赶中 / 几乎贴手」之间跳。直接映射到 targetRot 就会出现旋转角闪抖。
+    //     lastSpeed 仍用 raw；只有视觉旋转跟平滑速度。
+    const smoothMS = Math.max(0, cfg.velocitySmoothMS ?? 36);
+    let vx: number;
+    let vy: number;
+    if (smoothMS > 0) {
+      const alpha = 1 - Math.exp(-dtMS / smoothMS);
+      this.velSmoothX += (rawVx - this.velSmoothX) * alpha;
+      this.velSmoothY += (rawVy - this.velSmoothY) * alpha;
+      vx = this.velSmoothX;
+      vy = this.velSmoothY;
+    } else {
+      this.velSmoothX = rawVx;
+      this.velSmoothY = rawVy;
+      vx = rawVx;
+      vy = rawVy;
+    }
 
     // 2. 方向投影：把速度投影到"与 (pivotOffsetX, pivotOffsetY) 向量垂直"的方向上。
     //    设 d = (ox, oy) 是从几何中心指向轴点的向量。
@@ -1931,17 +2001,27 @@ export class CardView extends Container {
     if (targetRot > maxRot) targetRot = maxRot;
     else if (targetRot < -maxRot) targetRot = -maxRot;
 
-    // 5. 驱动 velocityRotation：followLerp 拉向 target + friction 衰减到 0。
-    //    两个机制叠加形成"刚开始动→快速跟到目标→持续运动时维持→停下后自然回正"
-    //    的观感。followAlpha / frictionAlpha 都按 frameScale 做了帧率归一化，
-    //    保证不同帧率下行为一致。
+    // 4b. 拖拽急停 spring（回弹）段：位移方向与冲刺相反。
+    //     若仍按速度追 targetRot，会出现「冲刺正角 → 回弹瞬间反角」的明显甩抖。
+    //     回弹只负责位置，旋转目标归零并自然衰减——观感是过冲后牌面回正，而不是反向甩。
+    if (this.inertiaPhase === "spring") {
+      targetRot = 0;
+    }
+
+    // 5. 驱动 velocityRotation。
+    //    旧实现每帧同时 follow + friction：匀速拖动时 friction 持续把角度往 0 拉，
+    //    稳态只能到 ~65% target；一旦单帧速度抖动，角度会被「拉回又追赶」放大成角抖。
+    //    新策略：
+    //      - 仍在有效移动（|vEffective|≥minSpeed 且非 spring 回正）→ 只 follow，保持稳定倾角；
+    //      - 已停住 / spring 回正 → follow 到 0，并施加 friction 加速回正。
     const lerpRaw = Math.max(0, Math.min(1, cfg.followLerp));
     const followAlpha = 1 - Math.pow(1 - lerpRaw, frameScale);
     const frictionRaw = Math.max(0, Math.min(1, cfg.friction));
     const frictionAlpha = frictionRaw > 0 ? 1 - Math.pow(1 - frictionRaw, frameScale) : 0;
+    const moving = vEffective !== 0 && this.inertiaPhase !== "spring";
 
     this.velocityRotation += (targetRot - this.velocityRotation) * followAlpha;
-    if (frictionAlpha > 0) {
+    if (!moving && frictionAlpha > 0) {
       this.velocityRotation *= 1 - frictionAlpha;
     }
 
@@ -1972,6 +2052,12 @@ export class CardView extends Container {
    */
   private updateDragging(dtMS: number): void {
     if (!this.isDragging || dtMS <= 0) return;
+
+    // external：不写 this.x/y，仍每帧同步 dragTarget 给上层（换位/沙盒目标）。
+    if (this.positionDriver === "external") {
+      this.callbacks.onDragging?.(this, this.dragTargetX, this.dragTargetY);
+      return;
+    }
 
     const drag = CONFIG.dragHandCard;
     const lerpFactor = drag?.lerpFactor ?? 0.15;
@@ -2089,7 +2175,9 @@ export class CardView extends Container {
   private requestDragInertia(dirX = 0, dirY = 0, speedRatio = 1): void {
     if (this.inertiaPhase !== "none") return;
     const now = performance.now();
-    const cooldownMS = Math.max(0, CONFIG.cardOvershoot?.dragTriggerCooldownMS ?? 180);
+    // 配置为 0 时仍保留极短地板冷却，防止 pointer 采样噪声在同一甩动内连发过冲
+    // （连发时 rise/spring 与 lerp 来回抢写 x/y，旋转角会明显抖动）。
+    const cooldownMS = Math.max(80, CONFIG.cardOvershoot?.dragTriggerCooldownMS ?? 180);
     if (now - this.inertiaLastRequestTimeMS < cooldownMS) return;
     this.inertiaPending = true;
     this.inertiaPendingDirX = dirX;

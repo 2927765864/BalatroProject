@@ -10,6 +10,7 @@ import {
 } from "@game/config";
 import { uiHierarchy } from "@ui/hierarchy";
 import { setupControlPanel } from "@/debug/ControlPanel";
+import { ElasticRopeSandboxScene } from "@/scenes/ElasticRopeSandboxScene";
 
 /**
  * 入口
@@ -46,8 +47,25 @@ async function bootstrap(): Promise<void> {
   // 失败时 AssetManager 内部已捕获并打日志，CardView/DeckView 会自动退回程序化绘制。
   await assets.loadAll();
 
-  const game = new GameController(app);
-  game.start();
+  const scene = new URLSearchParams(location.search).get("scene");
+  const isElasticRopeSandbox = scene === "elastic-rope";
+
+  let game: GameController | null = null;
+  let sandbox: ElasticRopeSandboxScene | null = null;
+
+  if (isElasticRopeSandbox) {
+    sandbox = new ElasticRopeSandboxScene(app);
+    sandbox.start();
+    if (import.meta.env.DEV) {
+      const { selfCheckElasticRopeMotion } = await import("@/motion/ElasticRopeMotion");
+      const errs = selfCheckElasticRopeMotion();
+      if (errs.length) console.warn("[elastic-rope selfcheck]", errs);
+      else console.info("[elastic-rope selfcheck] ok");
+    }
+  } else {
+    game = new GameController(app);
+    game.start();
+  }
 
   document.getElementById("loading")?.remove();
 
@@ -55,6 +73,9 @@ async function bootstrap(): Promise<void> {
   setupControlPanel({
     worldRoot: app.worldRoot,
     onChange(key) {
+      // 沙盒场景：仅配置即时读 CONFIG，无 GameController 业务 apply。
+      if (!game) return;
+
       // 大部分参数（手牌数、动画时长、hoverLift...）都是业务每次执行时
       // 直接读 CONFIG.xxx，改完即生效。这里只处理少数需要主动通知引擎的：
 
@@ -147,8 +168,14 @@ async function bootstrap(): Promise<void> {
 
   // 开发期挂个全局调试入口，避免污染生产 API。
   if (import.meta.env.DEV) {
-    (window as unknown as { __game?: GameController; __config?: typeof CONFIG }).__game = game;
-    (window as unknown as { __config?: typeof CONFIG }).__config = CONFIG;
+    const w = window as unknown as {
+      __game?: GameController | null;
+      __sandbox?: ElasticRopeSandboxScene | null;
+      __config?: typeof CONFIG;
+    };
+    w.__game = game;
+    w.__sandbox = sandbox;
+    w.__config = CONFIG;
   }
 }
 

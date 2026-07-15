@@ -1415,6 +1415,210 @@ export function setupControlPanel(
     bindNumber("inp-playPileSettleEffectR3", "val-playPileSettleEffectR3", "playPileSettleEffect.r3", { digits: 2 });
     bindNumber("inp-playPileSettleEffectR4", "val-playPileSettleEffectR4", "playPileSettleEffect.r4", { digits: 2 });
 
+    // 弹性绳子牵引卡牌模型（顶级分类；沙盒 ?scene=elastic-rope）
+    bindToggle("inp-elasticRopeEnabled", "val-elasticRopeEnabled", "elasticRopeCard.enabled");
+    bindSectionExpand(
+      "inp-expandElasticSpring",
+      "val-expandElasticSpring",
+      "elasticRopeCard.expandedSections.spring",
+      "sect-elasticRope-spring",
+    );
+    bindNumber("inp-elasticMaxLen", "val-elasticMaxLen", "elasticRopeCard.spring.maxElasticLength", {
+      digits: 1,
+    });
+    bindNumber("inp-elasticStiffness", "val-elasticStiffness", "elasticRopeCard.spring.stiffness", {
+      digits: 1,
+    });
+    bindSectionExpand(
+      "inp-expandElasticAirDrag",
+      "val-expandElasticAirDrag",
+      "elasticRopeCard.expandedSections.airDrag",
+      "sect-elasticRope-airDrag",
+    );
+    bindCycleButton("btn-elasticAirDragMode", "val-elasticAirDragMode", "elasticRopeCard.airDrag.mode", [
+      { value: "linear" as const, label: "linear" },
+      { value: "quadratic" as const, label: "quadratic" },
+    ]);
+    bindNumber("inp-elasticLinearCoeff", "val-elasticLinearCoeff", "elasticRopeCard.airDrag.linearCoeff", {
+      digits: 2,
+    });
+    bindNumber(
+      "inp-elasticQuadraticCoeff",
+      "val-elasticQuadraticCoeff",
+      "elasticRopeCard.airDrag.quadraticCoeff",
+      { digits: 4 },
+    );
+    // Vterm 只读：Vterm = k * Lmax / c（linear）
+    {
+      const valueEl = document.getElementById("val-elasticVterm");
+      if (valueEl) {
+        const syncVterm = (): void => {
+          const er = CONFIG.elasticRopeCard;
+          const c = Math.max(1e-9, er.airDrag.linearCoeff);
+          const v =
+            er.airDrag.mode === "linear"
+              ? (er.spring.stiffness * er.spring.maxElasticLength) / c
+              : 0;
+          valueEl.textContent = er.airDrag.mode === "linear" ? String(Math.round(v)) : "n/a";
+        };
+        syncVterm();
+        syncers.push(syncVterm);
+        for (const id of [
+          "inp-elasticMaxLen",
+          "inp-elasticStiffness",
+          "inp-elasticLinearCoeff",
+          "btn-elasticAirDragMode",
+        ]) {
+          document.getElementById(id)?.addEventListener("click", syncVterm);
+          document.getElementById(id)?.addEventListener("input", syncVterm);
+          document.getElementById(id)?.addEventListener("change", syncVterm);
+        }
+      }
+    }
+    bindSectionExpand(
+      "inp-expandElasticIntegration",
+      "val-expandElasticIntegration",
+      "elasticRopeCard.expandedSections.integration",
+      "sect-elasticRope-integration",
+    );
+    bindNumber("inp-elasticMass", "val-elasticMass", "elasticRopeCard.integration.mass", {
+      digits: 2,
+    });
+    bindNumber("inp-elasticMaxDt", "val-elasticMaxDt", "elasticRopeCard.integration.maxDtSec", {
+      digits: 3,
+    });
+    bindNumber("inp-elasticSubsteps", "val-elasticSubsteps", "elasticRopeCard.integration.substeps", {
+      integer: true,
+    });
+    bindSectionExpand(
+      "inp-expandElasticSettle",
+      "val-expandElasticSettle",
+      "elasticRopeCard.expandedSections.settle",
+      "sect-elasticRope-settle",
+    );
+    bindNumber("inp-elasticSettleDist", "val-elasticSettleDist", "elasticRopeCard.settle.distancePx", {
+      digits: 1,
+    });
+    bindNumber(
+      "inp-elasticSettleSpeed",
+      "val-elasticSettleSpeed",
+      "elasticRopeCard.settle.speedPxPerSec",
+      { digits: 1 },
+    );
+    bindSectionExpand(
+      "inp-expandElasticRotation",
+      "val-expandElasticRotation",
+      "elasticRopeCard.expandedSections.rotation",
+      "sect-elasticRope-rotation",
+    );
+    bindToggle("inp-elasticRotEnabled", "val-elasticRotEnabled", "elasticRopeCard.rotation.enabled");
+    bindCycleButton(
+      "btn-elasticRotDynamics",
+      "val-elasticRotDynamics",
+      "elasticRopeCard.rotation.dynamics",
+      [
+        { value: "springDamper" as const, label: "springDamper" },
+        { value: "follow" as const, label: "follow" },
+        { value: "instant" as const, label: "instant" },
+      ],
+    );
+    bindCycleButton(
+      "btn-elasticRotMapMode",
+      "val-elasticRotMapMode",
+      "elasticRopeCard.rotation.mapMode",
+      [
+        { value: "linear" as const, label: "linear" },
+        { value: "power" as const, label: "power" },
+      ],
+    );
+    bindNumber(
+      "inp-elasticForceToAngle",
+      "val-elasticForceToAngle",
+      "elasticRopeCard.rotation.forceToAngle",
+      { digits: 6 },
+    );
+    bindNumber(
+      "inp-elasticResponseGamma",
+      "val-elasticResponseGamma",
+      "elasticRopeCard.rotation.responseGamma",
+      { digits: 2 },
+    );
+    bindNumber(
+      "inp-elasticMaxAngleDeg",
+      "val-elasticMaxAngleDeg",
+      "elasticRopeCard.rotation.maxAngleDeg",
+      { digits: 1 },
+    );
+    bindNumber(
+      "inp-elasticAngleFollow",
+      "val-elasticAngleFollow",
+      "elasticRopeCard.rotation.angleFollow",
+      { digits: 2 },
+    );
+    bindNumber("inp-elasticInertia", "val-elasticInertia", "elasticRopeCard.rotation.inertia", {
+      digits: 2,
+    });
+    bindNumber(
+      "inp-elasticAngularFreq",
+      "val-elasticAngularFreq",
+      "elasticRopeCard.rotation.angularFreq",
+      { digits: 2 },
+    );
+    bindNumber(
+      "inp-elasticDampingRatio",
+      "val-elasticDampingRatio",
+      "elasticRopeCard.rotation.dampingRatio",
+      { digits: 2 },
+    );
+    bindToggle(
+      "inp-elasticRotAffectsAnchor",
+      "val-elasticRotAffectsAnchor",
+      "elasticRopeCard.rotation.rotationAffectsAnchor",
+    );
+    bindSectionExpand(
+      "inp-expandElasticAnchor",
+      "val-expandElasticAnchor",
+      "elasticRopeCard.expandedSections.anchor",
+      "sect-elasticRope-anchor",
+    );
+    bindNumber("inp-elasticAnchorY", "val-elasticAnchorY", "elasticRopeCard.anchor.anchorY", {
+      digits: 1,
+    });
+    bindNumber("inp-elasticAnchorXMin", "val-elasticAnchorXMin", "elasticRopeCard.anchor.anchorXMin", {
+      digits: 1,
+    });
+    bindNumber("inp-elasticAnchorXMax", "val-elasticAnchorXMax", "elasticRopeCard.anchor.anchorXMax", {
+      digits: 1,
+    });
+    bindCycleButton(
+      "btn-elasticAnchorMapMode",
+      "val-elasticAnchorMapMode",
+      "elasticRopeCard.anchor.mapMode",
+      [
+        { value: "continuous" as const, label: "continuous" },
+        { value: "leftRightHalf" as const, label: "leftRightHalf" },
+      ],
+    );
+    bindSectionExpand(
+      "inp-expandElasticDebug",
+      "val-expandElasticDebug",
+      "elasticRopeCard.expandedSections.debug",
+      "sect-elasticRope-debug",
+    );
+    bindToggle("inp-elasticDrawRope", "val-elasticDrawRope", "elasticRopeCard.debug.drawRope");
+    bindToggle("inp-elasticDrawAnchor", "val-elasticDrawAnchor", "elasticRopeCard.debug.drawAnchor");
+    bindToggle("inp-elasticShowHud", "val-elasticShowHud", "elasticRopeCard.debug.showHudReadouts");
+    bindToggle(
+      "inp-elasticFollowPtr",
+      "val-elasticFollowPtr",
+      "elasticRopeCard.sandbox.followPointerWhileDown",
+    );
+    bindToggle(
+      "inp-elasticFreezeOnRelease",
+      "val-elasticFreezeOnRelease",
+      "elasticRopeCard.sandbox.freezeTargetOnRelease",
+    );
+
     // 卡牌移动旋转（velocity-based tilt）：与 dragHandCard 同属"卡牌逻辑"专区。
     bindSectionExpand("inp-expandCardMoveRotation", "val-expandCardMoveRotation", "cardVisuals.expandedSections.cardMoveRotation", "sect-cardMoveRotation-params");
     bindToggle("inp-cardMoveRotationEnabled", "val-cardMoveRotationEnabled", "cardMoveRotation.enabled");

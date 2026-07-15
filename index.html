@@ -1825,6 +1825,332 @@
             </div>
           </details>
 
+          <!-- 4b. 弹性绳子牵引卡牌模型（隔离沙盒；?scene=elastic-rope） -->
+          <details class="panel-group">
+            <summary>弹性绳子牵引卡牌模型</summary>
+
+            <div class="panel-row" style="opacity:0.85;font-size:11px;line-height:1.5;color:#aac;padding:6px 10px;">
+              规格见 docs/elastic-rope-traction-card-model.md。入口：URL 加 <code>?scene=elastic-rope</code>。抓起缩放/阴影仍读「拖拽手牌」等旧配置。
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>模型总开关</span>
+                <span id="val-elasticRopeEnabled">开</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;">
+                <input id="inp-elasticRopeEnabled" type="checkbox" />
+              </label>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>弹簧</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开</span>
+                <span id="val-expandElasticSpring" style="color: var(--accent);">开</span>
+                <input id="inp-expandElasticSpring" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+            <div id="sect-elasticRope-spring">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>弹性绳最大长度 Lmax (px)</span>
+                  <span id="val-elasticMaxLen">120</span>
+                </div>
+                <input id="inp-elasticMaxLen" type="number" step="5" min="1" max="2000" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>刚度 k</span>
+                  <span id="val-elasticStiffness">100</span>
+                </div>
+                <input id="inp-elasticStiffness" type="number" step="5" min="0" max="2000" />
+              </div>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>空气阻力</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开</span>
+                <span id="val-expandElasticAirDrag" style="color: var(--accent);">开</span>
+                <input id="inp-expandElasticAirDrag" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+            <div id="sect-elasticRope-airDrag">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阻力模式</span>
+                  <span id="val-elasticAirDragMode">linear</span>
+                </div>
+                <button id="btn-elasticAirDragMode" type="button" class="panel-btn">切换</button>
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>线性系数 c</span>
+                  <span id="val-elasticLinearCoeff">10</span>
+                </div>
+                <input id="inp-elasticLinearCoeff" type="number" step="0.5" min="0" max="500" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>二次系数 c2</span>
+                  <span id="val-elasticQuadraticCoeff">0.002</span>
+                </div>
+                <input id="inp-elasticQuadraticCoeff" type="number" step="0.0005" min="0" max="1" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>终端速度估算 Vterm (只读)</span>
+                  <span id="val-elasticVterm">1200</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>质量与积分</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开</span>
+                <span id="val-expandElasticIntegration" style="color: var(--accent);">开</span>
+                <input id="inp-expandElasticIntegration" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+            <div id="sect-elasticRope-integration">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>质量 m</span>
+                  <span id="val-elasticMass">1</span>
+                </div>
+                <input id="inp-elasticMass" type="number" step="0.1" min="0.01" max="100" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>最大 dt（秒）</span>
+                  <span id="val-elasticMaxDt">0.033</span>
+                </div>
+                <input id="inp-elasticMaxDt" type="number" step="0.001" min="0.004" max="0.25" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>子步数</span>
+                  <span id="val-elasticSubsteps">2</span>
+                </div>
+                <input id="inp-elasticSubsteps" type="number" step="1" min="1" max="16" />
+              </div>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>吸附</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开</span>
+                <span id="val-expandElasticSettle" style="color: var(--accent);">开</span>
+                <input id="inp-expandElasticSettle" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+            <div id="sect-elasticRope-settle">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>吸附距离 (px)</span>
+                  <span id="val-elasticSettleDist">3</span>
+                </div>
+                <input id="inp-elasticSettleDist" type="number" step="0.5" min="0" max="50" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>吸附速度 (px/s)</span>
+                  <span id="val-elasticSettleSpeed">30</span>
+                </div>
+                <input id="inp-elasticSettleSpeed" type="number" step="1" min="0" max="500" />
+              </div>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>旋转</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开</span>
+                <span id="val-expandElasticRotation" style="color: var(--accent);">开</span>
+                <input id="inp-expandElasticRotation" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+            <div id="sect-elasticRope-rotation">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用旋转</span>
+                  <span id="val-elasticRotEnabled">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-elasticRotEnabled" type="checkbox" />
+                </label>
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>动力学模式</span>
+                  <span id="val-elasticRotDynamics">springDamper</span>
+                </div>
+                <button id="btn-elasticRotDynamics" type="button" class="panel-btn">切换</button>
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>力到角映射</span>
+                  <span id="val-elasticRotMapMode">linear</span>
+                </div>
+                <button id="btn-elasticRotMapMode" type="button" class="panel-btn">切换</button>
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>力到角系数</span>
+                  <span id="val-elasticForceToAngle">0.000029</span>
+                </div>
+                <input id="inp-elasticForceToAngle" type="number" step="0.000001" min="0" max="0.01" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>响应指数 γ</span>
+                  <span id="val-elasticResponseGamma">1.5</span>
+                </div>
+                <input id="inp-elasticResponseGamma" type="number" step="0.1" min="0.05" max="4" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>最大角（度）</span>
+                  <span id="val-elasticMaxAngleDeg">20</span>
+                </div>
+                <input id="inp-elasticMaxAngleDeg" type="number" step="1" min="0" max="90" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>角跟随 (0–1)</span>
+                  <span id="val-elasticAngleFollow">0.35</span>
+                </div>
+                <input id="inp-elasticAngleFollow" type="number" step="0.05" min="0" max="1" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>角惯量 I</span>
+                  <span id="val-elasticInertia">1</span>
+                </div>
+                <input id="inp-elasticInertia" type="number" step="0.1" min="0.01" max="20" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>角频率 ωn (rad/s)</span>
+                  <span id="val-elasticAngularFreq">12</span>
+                </div>
+                <input id="inp-elasticAngularFreq" type="number" step="0.5" min="0.1" max="60" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阻尼比 ζ (1=临界)</span>
+                  <span id="val-elasticDampingRatio">1</span>
+                </div>
+                <input id="inp-elasticDampingRatio" type="number" step="0.05" min="0" max="5" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>旋转影响锚点</span>
+                  <span id="val-elasticRotAffectsAnchor">关</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-elasticRotAffectsAnchor" type="checkbox" />
+                </label>
+              </div>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>连接点</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开</span>
+                <span id="val-expandElasticAnchor" style="color: var(--accent);">开</span>
+                <input id="inp-expandElasticAnchor" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+            <div id="sect-elasticRope-anchor">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>锚点 Y（相对中心）</span>
+                  <span id="val-elasticAnchorY">-45</span>
+                </div>
+                <input id="inp-elasticAnchorY" type="number" step="1" min="-100" max="100" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>锚点 X 最小</span>
+                  <span id="val-elasticAnchorXMin">-25</span>
+                </div>
+                <input id="inp-elasticAnchorXMin" type="number" step="1" min="-80" max="80" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>锚点 X 最大</span>
+                  <span id="val-elasticAnchorXMax">25</span>
+                </div>
+                <input id="inp-elasticAnchorXMax" type="number" step="1" min="-80" max="80" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>映射模式</span>
+                  <span id="val-elasticAnchorMapMode">continuous</span>
+                </div>
+                <button id="btn-elasticAnchorMapMode" type="button" class="panel-btn">切换</button>
+              </div>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>调试与沙盒</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开</span>
+                <span id="val-expandElasticDebug" style="color: var(--accent);">开</span>
+                <input id="inp-expandElasticDebug" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+            <div id="sect-elasticRope-debug">
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>绘制绳</span>
+                  <span id="val-elasticDrawRope">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-elasticDrawRope" type="checkbox" />
+                </label>
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>绘制锚点</span>
+                  <span id="val-elasticDrawAnchor">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-elasticDrawAnchor" type="checkbox" />
+                </label>
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>显示读数 HUD</span>
+                  <span id="val-elasticShowHud">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-elasticShowHud" type="checkbox" />
+                </label>
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>按下跟手</span>
+                  <span id="val-elasticFollowPtr">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-elasticFollowPtr" type="checkbox" />
+                </label>
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>松手冻结目标</span>
+                  <span id="val-elasticFreezeOnRelease">开</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;">
+                  <input id="inp-elasticFreezeOnRelease" type="checkbox" />
+                </label>
+              </div>
+            </div>
+          </details>
+
           <!-- 5. 卡牌视效专项 -->
           <details class="panel-group">
             <summary>卡牌视效</summary>

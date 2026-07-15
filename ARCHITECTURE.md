@@ -71,6 +71,8 @@
 | `game/config.ts`              | 数值（手牌数、出牌次数、目标分、动画时长）                            |
 | `game/events.ts`              | `GameEvents` 事件契约                                                |
 | `game/GameController.ts`      | 总控：抽牌、选牌、出牌、弃牌、刷新 UI                                |
+| `motion/ElasticRopeMotion.ts` | 弹性绳子牵引移动核（纯力积分 + 角 springDamper，无 PIXI）；沙盒 `?scene=elastic-rope`；旋转阻尼见 `docs/elastic-rope-rotation-damping-plan.md` |
+| `scenes/ElasticRopeSandboxScene.ts` | 单卡隔离沙盒：external 位姿 + 调参面板 `elasticRopeCard`       |
 
 ---
 

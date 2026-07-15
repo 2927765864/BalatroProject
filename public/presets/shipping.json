@@ -28,7 +28,7 @@
         "colour3": 992312
       },
       "crt": {
-        "enabled": true,
+        "enabled": false,
         "preset": "subtle",
         "intensity": 0.21,
         "scanlineCount": 280,
@@ -244,12 +244,12 @@
     },
     "handSort": {
       "enabled": true,
-      "riseDurationMS": 100,
-      "springDurationMS": 110,
-      "overshootPx": 41,
+      "riseDurationMS": 90,
+      "springDurationMS": 90,
+      "overshootPx": 52,
       "refDistancePx": 65,
-      "durationPower": 0.8,
-      "minRiseDurationMS": 60,
+      "durationPower": 0.35,
+      "minRiseDurationMS": 100,
       "maxRiseDurationMS": 120
     },
     "playHandGroupShift": {
@@ -495,9 +495,10 @@
       "showPivot": false,
       "pivotOffsetX": -4,
       "pivotOffsetY": -43,
-      "rotationPerSpeed": 0.42,
+      "rotationPerSpeed": 0.34,
       "drawRotationPerSpeed": 0.13,
       "followLerp": 0.33,
+      "velocitySmoothMS": 36,
       "friction": 0.1,
       "minSpeed": 0.005,
       "overshootEnabled": true,
@@ -506,6 +507,66 @@
       "springStiffness": 0.1,
       "maxRotationRad": 1.85,
       "triggerStopRatio": 0
+    },
+    "elasticRopeCard": {
+      "enabled": true,
+      "spring": {
+        "maxElasticLength": 120,
+        "stiffness": 2000
+      },
+      "airDrag": {
+        "mode": "linear",
+        "linearCoeff": 45.5,
+        "quadraticCoeff": 0.3285
+      },
+      "integration": {
+        "mass": 1,
+        "maxDtSec": 0.03333333333333333,
+        "substeps": 2
+      },
+      "settle": {
+        "distancePx": 3,
+        "speedPxPerSec": 30
+      },
+      "rotation": {
+        "enabled": true,
+        "forceToAngle": 0.000007,
+        "maxAngleDeg": 60,
+        "angleFollow": 0.6,
+        "rotationAffectsAnchor": false,
+        "dynamics": "springDamper",
+        "mapMode": "power",
+        "responseGamma": 1.02,
+        "inertia": 0.5,
+        "angularFreq": 60,
+        "dampingRatio": 0.75
+      },
+      "anchor": {
+        "anchorY": -22,
+        "anchorXMin": -10,
+        "anchorXMax": 10,
+        "mapMode": "continuous"
+      },
+      "debug": {
+        "drawRope": true,
+        "drawAnchor": true,
+        "showHudReadouts": true,
+        "elasticColor": 6745770,
+        "rigidColor": 8956671
+      },
+      "sandbox": {
+        "followPointerWhileDown": true,
+        "freezeTargetOnRelease": true
+      },
+      "expandedSections": {
+        "spring": true,
+        "airDrag": true,
+        "integration": true,
+        "settle": true,
+        "rotation": true,
+        "anchor": true,
+        "debug": true
+      }
     },
     "cardVisuals": {
       "expandedSections": {
@@ -522,7 +583,7 @@
         "cardOps": false,
         "cardMoveRotation": false,
         "cardOvershoot": false,
-        "drawCard": true,
+        "drawCard": false,
         "drawFlip": false,
         "discard": false,
         "discardFlip": false,
@@ -1132,7 +1193,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "5"
+              "text": "0"
             }
           },
           {
@@ -1223,7 +1284,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "1"
+              "text": "0"
             }
           },
           {
@@ -1361,7 +1422,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "16"
+              "text": "0"
             }
           },
           {
