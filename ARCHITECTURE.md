@@ -66,7 +66,7 @@
 | `ui/components/Button.ts`     | 状态机按钮（normal/hover/down/disabled）                              |
 | `ui/components/ScorePanel.ts` | 左侧得分/筹码/倍率/牌型/出牌弃牌                                     |
 | `ui/HUD.ts`                   | 组装左侧侧栏、底部按钮、牌堆，提供手牌区域世界坐标范围                 |
-| `fx/CardFx.ts`                | 卡牌移动 / 飞出（基于 tween 的 Promise 封装）                         |
+| `fx/CardFx.ts`                | 卡牌移动 / 飞出（目标点 + 弹性绳 waitSettled；非位移仍可用 tween）     |
 | `fx/TextFx.ts`                | 弹字（计分爆出雏形）                                                 |
 | `game/config.ts`              | 数值（手牌数、出牌次数、目标分、动画时长）                            |
 | `game/events.ts`              | `GameEvents` 事件契约                                                |
@@ -126,8 +126,8 @@ UI 文本（牌型 / 总分 / 出牌次数）的更新是命令式的（`scorePa
 
 - **domain 层禁止 import PIXI / DOM**。这是单测、移植到 Worker 的前提。
 - **render / ui 不直接读全局 `window`**：所有尺寸基于 `worldWidth/worldHeight`。
-- **CardView 不持有 `targetX/targetY`**：动画由 `TweenManager` 写入实时位姿，而非视图自更新。
-- **同对象同字段的多条 tween 互斥**：`TweenManager.add` 会自动停掉冲突的旧 tween，避免抖动。
+- **CardView 位移由弹性绳驱动**：每张牌内嵌 `ElasticRopeMotion`；流程层只 `setMoveTarget`，位姿在 `CardView.update` 中积分。`positionDriver: "external"` 为主场景默认。
+- **同对象同字段的多条 tween 互斥**：`TweenManager.add` 会自动停掉冲突的旧 tween；位移坐标不应再与绳双写。
 - **事件 payload 类型集中在 `game/events.ts`**：扩展事件 = 改这一处。
 
 ---

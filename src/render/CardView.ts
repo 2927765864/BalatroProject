@@ -15,28 +15,26 @@ import { deferDestroyTexture } from "@core/DeferredTextureDestroy";
 import { CONFIG, isDrawingCards } from "@game/config";
 import { sampleCurve } from "@/debug/BezierCurveEditor";
 import { uiHierarchy } from "@ui/hierarchy";
+import { ElasticRopeMotion } from "@/motion/ElasticRopeMotion";
+import {
+  defaultElasticRopeAnchorLocal,
+  mapElasticRopeAnchorLocal,
+  readElasticRopeParams,
+} from "@/motion/elasticRopeUtils";
 import { CardSkin } from "./CardSkin";
 import { getPixelOutlineTexture } from "./PixelOutlineTexture";
 
 /**
  * 计算卡牌移动旋转的派生上限（弧度，无符号）。
- *   maxRot = (dragHandCard.maxSpeed / 1000) × cardMoveRotation.rotationPerSpeed
+ *   maxRot = (REF_SPEED / 1000) × cardMoveRotation.rotationPerSpeed
  *
- * 单位换算：maxSpeed 是 px/s，除以 1000 得 px/ms；
- * rotationPerSpeed 单位是 rad/(px/ms)；相乘即得弧度。
- *
- * 这是"卡牌按追踪速度上限匀速运动时"会达到的最大有效速度产生的旋转目标——
- * 即"理论上能达到的最大旋转角"。所以用它作为 targetRot 截断上限既安全又恰好。
- *
- * 任一相关配置改变（maxSpeed 或 rotationPerSpeed）时，maxRot 自动更新，
- * 无需用户手动同步——这也是把它从独立配置项改为派生量的初衷。
+ * 主场景位移已由弹性绳驱动；此处参考速度为常量（旧 dragHandCard.maxSpeed 默认 3000），
+ * 仅供 legacy velocity-rotation（positionDriver=internal）派生 maxRot。
  */
 export function computeMaxRot(card?: CardView): number {
-  let maxSpeed = CONFIG.dragHandCard?.maxSpeed ?? 0;
-  if (card?.isPlayCardMoving && CONFIG.playCardMoveControl?.enabled) {
-    maxSpeed = CONFIG.playCardMoveControl.startSpeed;
-  }
-  const speedPerMs = maxSpeed / 1000;
+  void card;
+  const refSpeedPxPerSec = 3000;
+  const speedPerMs = refSpeedPxPerSec / 1000;
   const cfg = CONFIG.cardMoveRotation;
   const k = (isDrawingCards && cfg?.drawRotationPerSpeed !== undefined) ? cfg.drawRotationPerSpeed : (cfg?.rotationPerSpeed ?? 0);
   return Math.abs(speedPerMs * k);
@@ -93,9 +91,8 @@ export interface CardViewOptions {
  *   2. 否则回退到 Graphics + Text 程序化绘制（与原型一致），便于素材未加载时也能看到牌。
  *
  * 设计要点：
- *   - 位姿的平滑插值不再在内部 ticker 里手写，而是由外部 TweenManager 统一驱动。
- *     CardView 只提供 x/y/rotation 字段供 tween 写入。
- *   - 不再持有 `targetX/targetY/targetRotation`，让 view 更像纯展示对象。
+ *   - 位移由内嵌 ElasticRopeMotion 驱动：流程层 setMoveTarget，本类 update 中 step。
+ *   - 拖拽只更新 dragTarget；缩放/阴影/hover 等视效仍在本类内部。
  *   - hover / click 通过回调向上抛出，不与 GameState 直接耦合。
  */
 export interface CardViewCallbacks {
@@ -133,18 +130,20 @@ export class CardView extends Container {
   isDragging = false;
   /**
    * 位置驱动模式：
-   *   - internal：默认，updateDragging 用 lerp/急停写 x/y（手牌主路径）
-   *   - external：沙盒弹性绳等外部积分器写 x/y；本类只维护 dragTarget / 缩放 / isDragging
-   * 见 docs/elastic-rope-traction-card-model.md §4
+   *   - internal：旧版 updateDragging lerp/急停（遗留，主场景不再使用）
+   *   - external：弹性绳积分写 x/y/rotation（主场景默认）
    */
-  positionDriver: "internal" | "external" = "internal";
+  positionDriver: "internal" | "external" = "external";
   isReturning = false;
-  /**
-   * 一次性标志：true 时下一次 layoutHand 调用 CardFx.moveToWithOvershoot 会强制走过冲路径，
-   * 不依赖 lastSpeed 判定阈值。用于发牌时——屏幕外瞬移过来 lastSpeed 不可靠，
-   * 用此标志显式触发"过冲反弹"。layoutHand 使用后会立即清零。
-   */
-  forceOvershootOnce = false;
+
+  /** 每张牌独立的弹性绳运动核（主场景 external 路径）。 */
+  private readonly ropeMotion = new ElasticRopeMotion();
+  /** 程序位移 / 归位的目标点（父容器本地坐标）。 */
+  private moveTargetX = 0;
+  private moveTargetY = 0;
+  /** 程序目标基角（弧度）；绳积分角叠在其上。 */
+  private moveTargetRotation = 0;
+  private hasMoveTarget = false;
   /**
    * 当前是否正在播放"选中/取消选中位移过弹动画"。
    * 由 GameController.toggleSelection 设为 true，动画结束时清零。
@@ -343,70 +342,11 @@ export class CardView extends Container {
   private velSmoothX = 0;
   private velSmoothY = 0;
   /**
-   * 最近一帧的卡牌位移速度（px/s）。由 updateMoveRotation 在差分后顺便写入，
-   * 供 GameController.layoutHand 在调用 CardFx.moveToWithOvershoot 时
-   * 作为"是否触发过冲"的判定依据。值始终非负（即速度模长）。
+   * 最近一帧的卡牌位移速度（px/s）。由 updateMoveRotation 在差分后顺便写入。
+   * 主路径位移过冲已由弹性绳接管；本字段保留给调试 / 未来视效。
    */
   private lastSpeedPxPerSec = 0;
 
-  // ── 拖拽中急停一次性过冲（drag-inertia overshoot）─────────────────
-  //
-  // 设计：拖拽中只跟随目标点的朴素 lerp（原始行为），不引入速度模型。
-  // 在 onPointerMove 里采样鼠标速度；每帧在 updateDragging 中检测"急停"——
-  // 上一次采样到的鼠标速度 ≥ maxSpeed × threshold，且接下来一段时间内没有任何
-  // 进一步的 pointermove 事件 → 触发一次性两段补间（rise + spring）：
-  //   rise   : 卡牌当前位置 → 沿运动方向越过目标 overshoot 像素的过冲点
-  //   spring : 过冲点 → 目标点（即当前 dragTarget）
-  // 两段都靠脚本驱动直接写 this.x / this.y，因此 updateMoveRotation 会
-  // 自然采到这段位移并产生卡牌移动旋转——保持"过冲是纯位移变化"的语义。
-  //
-  // 若过冲过程中用户重新挪动鼠标（dragTarget 明显变化），立刻取消过冲，
-  // 退回普通 lerp 跟随。
-  private inertiaPhase: "none" | "rise" | "spring" = "none";
-  private inertiaFromX = 0;
-  private inertiaFromY = 0;
-  private inertiaToX = 0;
-  private inertiaToY = 0;
-  private inertiaProgress = 0;
-  private inertiaPhaseDurationMS = 0;
-  // spring 段的最终落点（= 触发时刻的 dragTarget；如果中途 dragTarget 改变
-  // 量小于 inertia 取消阈值，仍然按这个最初锚定的目标走，避免抖动）。
-  private inertiaSpringTargetX = 0;
-  private inertiaSpringTargetY = 0;
-  private inertiaPending = false;
-  private inertiaPendingDirX = 0;
-  private inertiaPendingDirY = 0;
-  private inertiaPendingTargetX = 0;
-  private inertiaPendingTargetY = 0;
-  // 急停触发瞬间「高速段速度 / maxSpeed」的比例（0~1），用于线性映射过冲幅度。
-  // 由 requestDragInertia 写入，triggerDragInertia 消费。
-  private inertiaPendingSpeedRatio = 1;
-  private inertiaLastRequestTimeMS = -Infinity;
-  // 鼠标速度采样（仅在拖拽期间维护）。
-  // 采用"速度突降"信号检测急停：在 onPointerMove 里每次新采样完速度后，
-  // 比较 pointerPrevSampleSpeed（上一次）与 pointerLastSampleSpeed（本次），
-  // 若上次 ≥ 高速阈值且本次 ≤ 低速阈值，即触发 triggerDragInertia。
-  // 不再依赖"静默时长"——浏览器 pointermove 节流（约 15~20ms 一次）使得
-  // 静默 ≥30ms 在拖拽期间几乎不会出现，那种判定不可靠。
-  private pointerLastSampleTimeMS = 0; // performance.now()
-  private pointerLastMoveTimeMS = 0;
-  private pointerLastSampleX = 0;
-  private pointerLastSampleY = 0;
-  private pointerLastSampleSpeed = 0;  // px/s（本次采样，已 EMA 平滑）
-  private pointerPrevSampleSpeed = 0;  // px/s（上一次采样，用于"突降"判定）
-  // 上一帧的瞬时移动方向（单位向量）。用于：
-  //   1) A2：仅在「与上一帧方向一致」时更新 pointerFastDir，反向帧不再污染主方向；
-  //   2) 反向甩动检测——dot(prevMoveDir, curMoveDir) < 0 时视为反向，重置峰值与方向。
-  private pointerPrevMoveDirX = 0;
-  private pointerPrevMoveDirY = 0;
-  private pointerFastDirX = 0;         // 当前高速运动方向（单位向量），仅在同向高速时更新
-  private pointerFastDirY = 0;
-  // A6：拖拽期间观测到的鼠标"近期峰值速度"（px/s）。
-  // 在 onPointerMove 内对 pointerLastSampleSpeed 做带衰减的峰值跟踪：
-  //   - 新速度 > 当前峰值：直接覆盖
-  //   - 新速度 ≤ 当前峰值：按 pointerPeakDecayPerSec 做指数衰减（避免一次甩动后峰值永久驻留）
-  // 触发急停时用 (峰值 / dragPointerMaxSpeed) 计算 speedRatio，比单帧 prev 更接近用户感受。
-  private pointerPeakSpeed = 0;
   // 轴点可视化调试小点：直接挂在 CardView 自身（不进入 contentContainer / displayWrapper），
   // 因此它不参与卡牌内容的离屏烘焙，也不会跟着 velocityRotation 旋转，
   // 永远停在"轴点应该在的位置"——拖拽时若旋转补偿正确，卡牌上该点的图案会牢牢
@@ -454,6 +394,155 @@ export class CardView extends Container {
     this.jokerIndex = options?.jokerIndex ?? -1;
     this.draw();
     this.bindEvents();
+    this.ropeMotion.reset({ x: 0, y: 0, rotation: 0 });
+    // 程序位移默认锚点（非 0 的 py 才能产生绳倾角）；拖拽按下时会覆盖。
+    this.applyProgramRopeAnchor();
+    this.moveTargetX = 0;
+    this.moveTargetY = 0;
+    this.moveTargetRotation = 0;
+    this.hasMoveTarget = true;
+  }
+
+  /** 是否由本类内部弹性绳驱动位姿（主场景默认 external）。 */
+  private usesRopeDriver(): boolean {
+    return this.positionDriver === "external";
+  }
+
+  /**
+   * 程序位移用默认绳锚（牌心 X + CONFIG.elasticRopeCard.anchor.anchorY）。
+   * 必须在抓牌/弃牌/layout 的 setMoveTarget 路径调用：锚点 Y=0 时 θ* 恒为 0。
+   */
+  private applyProgramRopeAnchor(): void {
+    const a = defaultElasticRopeAnchorLocal();
+    this.ropeMotion.setAnchorLocal(a.x, a.y);
+  }
+
+  /**
+   * 将绳状态与当前视觉位姿对齐（瞬移 / 生成 / 打断后调用）。
+   * rotation 作为基角写入；绳相对角清零。
+   */
+  syncRopePose(opts?: { x?: number; y?: number; rotation?: number }): void {
+    const x = opts?.x ?? this.x;
+    const y = opts?.y ?? this.y;
+    const rot = opts?.rotation ?? this.rotation;
+    this.x = x;
+    this.y = y;
+    this.rotation = rot;
+    this.moveTargetX = x;
+    this.moveTargetY = y;
+    this.moveTargetRotation = rot;
+    this.hasMoveTarget = true;
+    this.ropeMotion.reset({ x, y, rotation: 0 });
+    this.ropeMotion.setTarget(x, y);
+    this.applyProgramRopeAnchor();
+  }
+
+  /**
+   * 设置程序位移目标。只改目标点，路径/速度/过冲由弹性绳处理。
+   * @param rotation 可选目标基角（扇形 layoutRotation 等）
+   */
+  setMoveTarget(x: number, y: number, rotation?: number): void {
+    this.moveTargetX = x;
+    this.moveTargetY = y;
+    this.hasMoveTarget = true;
+    if (rotation !== undefined) {
+      this.moveTargetRotation = rotation;
+    }
+    // 非拖拽位移统一用默认锚点，保证抓牌等路径有力矩臂产生倾角。
+    // 拖拽中的牌不会走 setMoveTarget（layoutHand 会 skip isDragging）。
+    if (!this.isDragging) {
+      this.applyProgramRopeAnchor();
+    }
+    this.ropeMotion.setTarget(x, y);
+  }
+
+  isRopeSettled(): boolean {
+    if (!this.usesRopeDriver()) {
+      return (
+        Math.hypot(this.x - this.moveTargetX, this.y - this.moveTargetY) < 2
+      );
+    }
+    return this.ropeMotion.isSettled(readElasticRopeParams());
+  }
+
+  /**
+   * 等待绳吸附完成（或超时硬贴目标）。依赖 App ticker 里的 card.update 步进。
+   */
+  waitSettled(timeoutMS = 8000): Promise<void> {
+    if (!this.isDragging && this.isRopeSettled()) {
+      return Promise.resolve();
+    }
+    const start = performance.now();
+    return new Promise((resolve) => {
+      const tick = (): void => {
+        const timedOut = performance.now() - start > timeoutMS;
+        if ((!this.isDragging && this.isRopeSettled()) || timedOut) {
+          if (timedOut && this.hasMoveTarget && !this.isDragging) {
+            this.syncRopePose({
+              x: this.moveTargetX,
+              y: this.moveTargetY,
+              rotation: this.moveTargetRotation,
+            });
+          }
+          resolve();
+          return;
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  /** 调试 / 沙盒：暴露运动核只读访问。 */
+  getRopeMotion(): ElasticRopeMotion {
+    return this.ropeMotion;
+  }
+
+  private stepElasticRope(dtMS: number): void {
+    if (this.isDragging) {
+      this.ropeMotion.setTarget(this.dragTargetX, this.dragTargetY);
+    } else if (this.hasMoveTarget) {
+      this.ropeMotion.setTarget(this.moveTargetX, this.moveTargetY);
+    }
+
+    const params = readElasticRopeParams();
+
+    // 总开关关闭：硬贴目标（仍走 external，避免卡死在半空）
+    if (!params.enabled) {
+      if (this.isDragging) {
+        this.x = this.dragTargetX;
+        this.y = this.dragTargetY;
+      } else if (this.hasMoveTarget) {
+        this.x = this.moveTargetX;
+        this.y = this.moveTargetY;
+        this.rotation = this.moveTargetRotation;
+        this.ropeMotion.reset({
+          x: this.x,
+          y: this.y,
+          rotation: 0,
+        });
+        this.ropeMotion.setTarget(this.x, this.y);
+      }
+      if (this.isReturning && !this.isDragging) this.isReturning = false;
+      if (this.isSwapAnimating && !this.isDragging) this.isSwapAnimating = false;
+      return;
+    }
+
+    const pose = this.ropeMotion.step(dtMS, params);
+    this.x = pose.x;
+    this.y = pose.y;
+    // 基角（layout / 弃牌随机角）+ 绳相对倾角。弃牌飞行不再冻结 rotation——
+    // 旧 discardFlying 是为 velocityRotation 设计的；冻结会让 setMoveTarget 的
+    // 目标角与绳倾角全部失效，弃牌看起来像「纯平移」。
+    this.rotation = this.moveTargetRotation + pose.rotation;
+
+    if (this.isReturning && !this.isDragging && this.isRopeSettled()) {
+      this.isReturning = false;
+    }
+    // swap 动画：已 settle 时清旗（代数由 swapMove 入口维护）
+    if (this.isSwapAnimating && !this.isDragging && this.isRopeSettled()) {
+      this.isSwapAnimating = false;
+    }
   }
 
   /** 是否为小丑牌（可拖拽排序/选中弹起，但不参与出牌/弃牌/点数花色理牌）。 */
@@ -914,16 +1003,17 @@ export class CardView extends Container {
   }
 
   /**
-   * 标记进入「弃牌飞行期」。期间禁用速度→旋转联动（velocityRotation 恒为 0），
-   * 使卡牌严格保持飞出瞬间设定的随机旋转角度（外层 this.rotation）直到弃牌结束。
-   * 立即清零当前速度旋转，避免飞出瞬间残留的拖尾旋转污染随机角度。
+   * 标记进入「弃牌飞行期」。
+   * 主场景 positionDriver=external 时，位姿由弹性绳写；本标志仅作遗留/internal
+   * 路径上禁用 velocityRotation 的哨兵。随机基角请通过 setMoveTarget(..., rot) 设定，
+   * 绳倾角会叠在基角上，不再冻结 this.rotation。
    */
   public beginDiscardFly(): void {
     this.discardFlying = true;
     this.velocityRotation = 0;
   }
 
-  /** 结束「弃牌飞行期」，恢复速度→旋转联动（牌随即被数据层回收）。 */
+  /** 结束「弃牌飞行期」（牌随即被数据层回收；清标志避免复用残留）。 */
   public endDiscardFly(): void {
     this.discardFlying = false;
   }
@@ -1338,6 +1428,11 @@ export class CardView extends Container {
       const localPos = event.getLocalPosition(this);
       this.mouseLocalX = localPos.x;
       this.mouseLocalY = localPos.y;
+      // 弹性绳锚点：按下时采样一次并锁定到 pointerup
+      if (this.usesRopeDriver()) {
+        const anchor = mapElasticRopeAnchorLocal(localPos.x, localPos.y);
+        this.ropeMotion.setAnchorLocal(anchor.x, anchor.y);
+      }
     }
 
     // 按下鼠标左键即刻进入拖拽态（按照需求：只要鼠标处于按下状态，就会进入拖拽态）
@@ -1369,38 +1464,21 @@ export class CardView extends Container {
     this.dragStartCardY = this.y;
     this.dragTargetX = this.x;
     this.dragTargetY = this.y;
-    // 拖拽开始：清空鼠标速度采样和惯性过冲状态，避免上次的状态残留。
-    this.inertiaPhase = "none";
-    this.inertiaPending = false;
-    this.inertiaPendingSpeedRatio = 1;
-    this.inertiaLastRequestTimeMS = -Infinity;
-    this.inertiaProgress = 0;
-    this.pointerLastSampleSpeed = 0;
-    this.pointerPrevSampleSpeed = 0;
-    this.pointerFastDirX = 0;
-    this.pointerFastDirY = 0;
-    this.pointerPrevMoveDirX = 0;
-    this.pointerPrevMoveDirY = 0;
-    this.pointerPeakSpeed = 0;
-    // 拖拽起点同步旋转速度采样，避免从静止到首帧位移被当成瞬时高速旋转。
+    // 拖拽开始：把当前视觉角吸收为基角，绳相对角从 0 起算，避免接续时角跳变
+    if (this.usesRopeDriver()) {
+      this.moveTargetRotation = this.rotation;
+      this.moveTargetX = this.x;
+      this.moveTargetY = this.y;
+      this.hasMoveTarget = true;
+      this.ropeMotion.reset({ x: this.x, y: this.y, rotation: 0 });
+      this.ropeMotion.setTarget(this.x, this.y);
+    }
+    // 拖拽起点同步速度采样基线，避免从静止到首帧位移被当成瞬时高速旋转。
     this.prevX = this.x;
     this.prevY = this.y;
     this.prevSampled = true;
     this.velSmoothX = 0;
     this.velSmoothY = 0;
-    this.pointerLastSampleTimeMS = performance.now();
-    this.pointerLastMoveTimeMS = this.pointerLastSampleTimeMS;
-    {
-      const parent = this.parent;
-      if (parent) {
-        const parentPos = event.getLocalPosition(parent);
-        this.pointerLastSampleX = parentPos.x;
-        this.pointerLastSampleY = parentPos.y;
-      } else {
-        this.pointerLastSampleX = event.global.x;
-        this.pointerLastSampleY = event.global.y;
-      }
-    }
 
     // 监听 root stage 的指针移动与释放，并且在按下时临时将 stage.eventMode 设为 "static"，
     // 从而保证即便划过非交互背景区域时，全局 move 和 up 事件也能 100% 触发，不会出现卡死 or 松开不回弹。
@@ -1437,138 +1515,6 @@ export class CardView extends Container {
       curY = event.global.y;
     }
 
-    // 鼠标速度采样：两次 pointermove 之间的位移 / 时间。
-    // 用 performance.now() 拿稳定的高分辨率时间戳。
-    const now = performance.now();
-    const dtSec = Math.max(0.001, (now - this.pointerLastSampleTimeMS) / 1000);
-    const moveDx = curX - this.pointerLastSampleX;
-    const moveDy = curY - this.pointerLastSampleY;
-    const moveDist = Math.hypot(moveDx, moveDy);
-    if (moveDist > 0.01) {
-      // 用上一次采样和本次的位移估算瞬时速度（px/s）。
-      // 注意采样链：pointerPrevSampleSpeed ← pointerLastSampleSpeed（旧值）
-      //              pointerLastSampleSpeed ← 本次计算结果
-      // 这两个量在 onPointerMove 内部紧接着用于"速度突降"急停判定。
-      const rawSpeed = moveDist / dtSec;
-
-      // A1：EMA 平滑，缓解单帧 dt 抖动造成的伪突降/伪峰值噪声。
-      // 时间常数取自配置 dragSpeedSmoothingMS（建议 16~32ms，0 表示禁用平滑）。
-      const smoothMS = Math.max(0, CONFIG.cardOvershoot?.dragSpeedSmoothingMS ?? 20);
-      const smoothedSpeed = smoothMS > 0
-        ? (() => {
-            // alpha = 1 - exp(-dt / tau)，dt 越大权重越倾向新样本。
-            const dtMS = dtSec * 1000;
-            const alpha = 1 - Math.exp(-dtMS / smoothMS);
-            return this.pointerLastSampleSpeed * (1 - alpha) + rawSpeed * alpha;
-          })()
-        : rawSpeed;
-
-      this.pointerPrevSampleSpeed = this.pointerLastSampleSpeed;
-      this.pointerLastSampleSpeed = smoothedSpeed;
-
-      // 当前帧瞬时方向（单位向量）。
-      const curMoveDirX = moveDx / moveDist;
-      const curMoveDirY = moveDy / moveDist;
-
-      // A2：反向检测——若与上一帧方向夹角 > 90°（点积 < 0），
-      // 视为方向突变（用户从向右改为向左）。此时：
-      //   - 清空峰值速度与 pointerFastDir（避免新方向首帧依然带着旧方向的过冲）
-      //   - 也清掉 prevSampleSpeed，避免立刻在反转点凑齐 wasFast + nowSlow 误触发
-      const prevDirLen = Math.hypot(this.pointerPrevMoveDirX, this.pointerPrevMoveDirY);
-      let reversed = false;
-      if (prevDirLen > 0.001) {
-        const dot = this.pointerPrevMoveDirX * curMoveDirX + this.pointerPrevMoveDirY * curMoveDirY;
-        if (dot < 0) {
-          reversed = true;
-          this.pointerPeakSpeed = 0;
-          this.pointerFastDirX = 0;
-          this.pointerFastDirY = 0;
-          this.pointerPrevSampleSpeed = 0;
-        }
-      }
-      this.pointerPrevMoveDirX = curMoveDirX;
-      this.pointerPrevMoveDirY = curMoveDirY;
-
-      // A6：峰值速度跟踪（带指数衰减）。
-      //   - 新速度更大 → 直接覆盖（捕获用户实际最快速度）
-      //   - 否则按 dragPeakDecayPerSec 衰减峰值，避免一次性峰值永久驻留
-      const peakDecayPerSec = Math.max(0, CONFIG.cardOvershoot?.dragPeakDecayPerSec ?? 4);
-      if (peakDecayPerSec > 0 && this.pointerPeakSpeed > 0) {
-        const decay = Math.exp(-peakDecayPerSec * dtSec);
-        this.pointerPeakSpeed *= decay;
-      }
-      if (smoothedSpeed > this.pointerPeakSpeed) {
-        this.pointerPeakSpeed = smoothedSpeed;
-      }
-
-      this.pointerLastSampleX = curX;
-      this.pointerLastSampleY = curY;
-      this.pointerLastSampleTimeMS = now;
-      this.pointerLastMoveTimeMS = now;
-
-      // ── 急停检测（速度突降信号）─────────────────────────────────
-      // 物理语义：手指上一次还快速移动（≥ 0.5×maxSpeed），本次突然降到很慢（≤ 0.3×maxSpeed）
-      // → 这就是急停。直接在采样处触发，不再依赖 updateDragging 轮询"静默时长"
-      // —— 浏览器 pointermove 节流（约 15~20ms 一次）让静默阈值永远达不到。
-      const overshootCfg = CONFIG.cardOvershoot;
-      if (
-        this.isDragging &&
-        overshootCfg?.enabled &&
-        overshootCfg.dragInertiaEnabled &&
-        this.inertiaPhase === "none"
-      ) {
-        // A5：判定与 ratio 计算改用「鼠标速度上限」dragPointerMaxSpeed
-        //     （独立于卡牌跟手速度 dragHandCard.maxSpeed），更贴合实际鼠标速度量级。
-        const maxSpd = Math.max(
-          1,
-          overshootCfg.dragPointerMaxSpeed ?? CONFIG.dragHandCard?.maxSpeed ?? 3000,
-        );
-        const highRatio = overshootCfg.tweenSpeedRatioThreshold ?? 0.5;
-        const rawLowRatio = overshootCfg.dragLowSpeedRatio ?? 0.3;
-        // low 必须低于 high，旧 shipping/local 配置缺字段时可能把它读成 0.5。
-        // 若出现 low >= high，按 high * 0.6 兜底，默认 high=0.5 时得到 0.3。
-        const lowRatio = rawLowRatio >= highRatio ? highRatio * 0.6 : rawLowRatio;
-        const highThreshold = maxSpd * highRatio;
-        const lowThreshold = maxSpd * lowRatio;
-
-        // A2：仅在「高速 && 与上一帧同向（未反向）」时更新主方向，
-        // 反向帧不再覆盖旧方向，避免触发瞬间方向被反向帧污染。
-        if (!reversed && this.pointerLastSampleSpeed >= highThreshold) {
-          this.pointerFastDirX = curMoveDirX;
-          this.pointerFastDirY = curMoveDirY;
-        }
-        const wasFast = this.pointerPrevSampleSpeed >= highThreshold;
-        const nowSlow = this.pointerLastSampleSpeed <= lowThreshold;
-        // 相对跌幅门槛：必须相对上一采样明显减速（默认至少掉 40%），
-        // 避免「高速段内单帧采样噪声刚好掉到 low 阈值」误触发急停。
-        // shipping 等预设若把 high 压得很低、cooldown=0、平滑=0，没有这条会连发过冲，
-        // 位置正反交替 → 旋转角剧烈抖动。
-        const minDropRatio = 0.4;
-        const droppedHardEnough =
-          this.pointerPrevSampleSpeed > 1e-3 &&
-          this.pointerLastSampleSpeed <= this.pointerPrevSampleSpeed * (1 - minDropRatio);
-        // 反向帧不视为合法的"突降终点"——这一帧的低速只是穿越零点的瞬间值。
-        if (wasFast && nowSlow && droppedHardEnough && !reversed) {
-          // 本次 pointermove 的 dragTarget 必须先同步，否则 triggerDragInertia 会用到上一帧
-          // 的旧落点，造成过冲方向/回弹落点看起来反了。
-          const targetDx = curX - this.dragStartPointerX;
-          const targetDy = curY - this.dragStartPointerY;
-          this.dragTargetX = this.dragStartCardX + targetDx;
-          this.dragTargetY = this.dragStartCardY + targetDy;
-          // A6：用「峰值速度 / maxSpd」作为 speedRatio——更接近用户感受的最快速度，
-          // 不会被减速过程末段的中等 prev 速度低估。
-          const speedRatio = this.pointerPeakSpeed / maxSpd;
-          this.requestDragInertia(this.pointerFastDirX, this.pointerFastDirY, speedRatio);
-          // 触发后立刻把"上一次速度"和峰值清零，避免下一次 pointermove 速度恰好再次掉到
-          // 低速时被二次匹配（prev 已经是低速、不再满足 wasFast）。
-          this.pointerPrevSampleSpeed = 0;
-          this.pointerLastSampleSpeed = 0;
-          this.pointerPeakSpeed = 0;
-          this.pointerLastMoveTimeMS = now;
-        }
-      }
-    }
-
     // 累计相对起点的偏移量（dragMaxDistance 仍按"距点击位置"算，沿用原语义）。
     const dx = curX - this.dragStartPointerX;
     const dy = curY - this.dragStartPointerY;
@@ -1580,58 +1526,9 @@ export class CardView extends Container {
     if (this.isDragging) {
       const newTargetX = this.dragStartCardX + dx;
       const newTargetY = this.dragStartCardY + dy;
-
-      // 如果当前正处于"急停过冲"过程中，且鼠标 dragTarget 与触发时锚定的目标
-      // 偏移超过阈值，说明用户重新挪动鼠标了 → 立刻取消过冲，回到普通跟随。
-      if (this.inertiaPhase !== "none") {
-        const cancelEps = Math.max(2, CONFIG.cardOvershoot?.dragCancelDistancePx ?? 24);
-        const dxFromAnchor = newTargetX - this.inertiaSpringTargetX;
-        const dyFromAnchor = newTargetY - this.inertiaSpringTargetY;
-        if (Math.hypot(dxFromAnchor, dyFromAnchor) > cancelEps) {
-          // A4：取消时把卡牌位置往 spring 终点（= 触发时锚定的 dragTarget）方向收一收，
-          //     避免遗留在过冲点造成"反向甩动时起点偏远"的累积漂移。
-          //     限制最大回拉距离为 cancelEps，避免出现明显瞬移。
-          // external 模式位置由外核写，禁止此处改 x/y。
-          if (this.positionDriver !== "external") {
-            const pullX = this.inertiaSpringTargetX - this.x;
-            const pullY = this.inertiaSpringTargetY - this.y;
-            const pullLen = Math.hypot(pullX, pullY);
-            if (pullLen > 0) {
-              const pullStep = Math.min(pullLen, cancelEps);
-              this.x += (pullX / pullLen) * pullStep;
-              this.y += (pullY / pullLen) * pullStep;
-            }
-          }
-          this.inertiaPhase = "none";
-          this.inertiaProgress = 0;
-          // 位置被脚本回拉后，重置速度采样基线，避免下一帧 updateMoveRotation
-          // 把这次「人为位移」当成真实高速，造成旋转角突刺。
-          this.prevX = this.x;
-          this.prevY = this.y;
-          this.velSmoothX = 0;
-          this.velSmoothY = 0;
-          // A3：取消时一并重置冷却时间戳，让"取消 → 立即满足新的急停判定"
-          //     不会被 dragTriggerCooldownMS 闸住——这种取消明显是用户主动操作，
-          //     冷却的设计目的（防止采样抖动反复触发）不适用于此场景。
-          this.inertiaLastRequestTimeMS = -Infinity;
-        }
-      }
-      if (this.inertiaPending) {
-        const cancelEps = Math.max(2, CONFIG.cardOvershoot?.dragCancelDistancePx ?? 24);
-        const dxFromAnchor = newTargetX - this.inertiaPendingTargetX;
-        const dyFromAnchor = newTargetY - this.inertiaPendingTargetY;
-        if (Math.hypot(dxFromAnchor, dyFromAnchor) > cancelEps) {
-          this.inertiaPending = false;
-          // A3：同上——pending 被新方向取消时也清掉冷却，否则反向甩动后续急停被吞掉。
-          this.inertiaLastRequestTimeMS = -Infinity;
-        }
-      }
-
       this.dragTargetX = newTargetX;
       this.dragTargetY = newTargetY;
-
-      // 通知上层（GameController）：拖拽位置已更新一次。
-      // 传 dragTarget 而非 this.x —— 详见 CardViewCallbacks.onDragging 注释。
+      // 通知上层（GameController）：逻辑目标已更新；位姿由弹性绳在 update 中写。
       this.callbacks.onDragging?.(this, newTargetX, newTargetY);
     }
   }
@@ -1785,22 +1682,21 @@ export class CardView extends Container {
       this.bakeCardTexture();
     }
 
-    // 0a. 卡牌移动旋转——速度采样阶段（必须在任何位置修改之前进行）。
-    //     用上一帧 update 入口保存的 prevX/prevY 与本帧入口的 this.x/this.y 做差，
-    //     得到"上一帧入口 → 本帧入口"完整一帧之间所有来源（tween、drag lerp 等）
-    //     累积的位移，再除以 dtMS 得到 px/ms 量纲的瞬时平均速度。
-    //     这是统一捕获手段：无论 drag / 归位 tween / select / fly / 未来的发牌弃牌，
-    //     最终都会写到 this.x/this.y 上，速度采样不需要每个调用点单独处理。
-    //     必须在 updateDragging 等位置修改之前调用——否则本帧 drag 写入会被算到下一帧
-    //     的 prev 上、被自身吃掉，差分恒为 0（这是原始实现的 bug）。
+    // 0a. 速度旋转采样（rope external 时内部 early-return，旋转由绳写）
     this.updateMoveRotation(dtMS);
 
-    // 0b. 更新拖拽追赶逻辑
+    // 0b. 拖拽目标同步（逻辑 dragTarget；坐标由绳或旧 lerp 写）
     this.updateDragging(dtMS);
+
+    // 0c. 弹性绳积分：写 x/y/rotation（主场景 positionDriver=external）
+    if (this.usesRopeDriver()) {
+      this.stepElasticRope(dtMS);
+    }
+
     this.updateDragScale(dtMS);
 
-    // 如果处于从拖拽结束返回原位的过程中，且已经非常接近目标位置，重置 isReturning 状态
-    if (this.isReturning && !this.isDragging) {
+    // 归位完成判定（rope 在 stepElasticRope 内也会清 isReturning）
+    if (this.isReturning && !this.isDragging && !this.usesRopeDriver()) {
       const dist = Math.hypot(this.x - this.layoutX, this.y - this.layoutY);
       if (dist < 2) {
         this.isReturning = false;
@@ -2001,24 +1897,14 @@ export class CardView extends Container {
     if (targetRot > maxRot) targetRot = maxRot;
     else if (targetRot < -maxRot) targetRot = -maxRot;
 
-    // 4b. 拖拽急停 spring（回弹）段：位移方向与冲刺相反。
-    //     若仍按速度追 targetRot，会出现「冲刺正角 → 回弹瞬间反角」的明显甩抖。
-    //     回弹只负责位置，旋转目标归零并自然衰减——观感是过冲后牌面回正，而不是反向甩。
-    if (this.inertiaPhase === "spring") {
-      targetRot = 0;
-    }
-
     // 5. 驱动 velocityRotation。
-    //    旧实现每帧同时 follow + friction：匀速拖动时 friction 持续把角度往 0 拉，
-    //    稳态只能到 ~65% target；一旦单帧速度抖动，角度会被「拉回又追赶」放大成角抖。
-    //    新策略：
-    //      - 仍在有效移动（|vEffective|≥minSpeed 且非 spring 回正）→ 只 follow，保持稳定倾角；
-    //      - 已停住 / spring 回正 → follow 到 0，并施加 friction 加速回正。
+    //    仍在有效移动 → 只 follow；已停住 → follow 到 0 并 friction 回正。
+    //    （主场景 external 已 early-return；本路径仅 internal 遗留。）
     const lerpRaw = Math.max(0, Math.min(1, cfg.followLerp));
     const followAlpha = 1 - Math.pow(1 - lerpRaw, frameScale);
     const frictionRaw = Math.max(0, Math.min(1, cfg.friction));
     const frictionAlpha = frictionRaw > 0 ? 1 - Math.pow(1 - frictionRaw, frameScale) : 0;
-    const moving = vEffective !== 0 && this.inertiaPhase !== "spring";
+    const moving = vEffective !== 0;
 
     this.velocityRotation += (targetRot - this.velocityRotation) * followAlpha;
     if (!moving && frictionAlpha > 0) {
@@ -2032,280 +1918,12 @@ export class CardView extends Container {
   }
 
   /**
-   * 拖拽中卡牌位置追踪。
-   *
-   * 主轴：朝 dragTargetX/Y 的纯指数 lerp（项目原始行为）。
-   *
-   * 在此之上叠加"急停一次性过冲"——急停信号在 onPointerMove 内部直接产生
-   * （基于"上一次采样高速 → 本次采样低速"的速度突降判定），命中即调用
-   * triggerDragInertia 触发一段脚本式两段补间：
-   *   rise   段：从当前卡牌位置 → 沿运动方向越过 dragTarget overshootPx 像素的过冲点
-   *   spring 段：从过冲点 → dragTarget（spring 段不再写 rotation，只写 x/y）
-   *
-   * 整段过冲只发生一次，不会来回振荡。Tween 由这里手写驱动（不走 TweenManager，
-   * 因为它在 drag 期间被 killOf 隔离了），写入的全部是 this.x / this.y，所以
-   * updateMoveRotation 会自然采到这一段位移并产生卡牌移动旋转——
-   * 这正是"过冲是位移的一部分"语义的体现。
-   *
-   * 如果在过冲过程中用户重新挪动鼠标（dragTarget 明显变化），过冲会被取消，
-   * 退回普通 lerp 跟随，避免与玩家意图相悖。
+   * 拖拽中：不写 x/y（由弹性绳 step 写）。
+   * 每帧仍回调 onDragging，使鼠标静止、牌仍在追赶时也能完成换位判定。
    */
   private updateDragging(dtMS: number): void {
     if (!this.isDragging || dtMS <= 0) return;
-
-    // external：不写 this.x/y，仍每帧同步 dragTarget 给上层（换位/沙盒目标）。
-    if (this.positionDriver === "external") {
-      this.callbacks.onDragging?.(this, this.dragTargetX, this.dragTargetY);
-      return;
-    }
-
-    const drag = CONFIG.dragHandCard;
-    const lerpFactor = drag?.lerpFactor ?? 0.15;
-    const maxSpeed = drag?.maxSpeed ?? 3000; // px/s
-
-    // ── 一次性过冲动画：若已在 rise/spring 阶段，按曲线推进位置 ──
-    if (this.inertiaPhase !== "none") {
-      this.advanceInertiaPhase(dtMS);
-      // 推进过冲段时不再额外做朝目标 lerp，避免和脚本写入打架。
-      // 仍通知上层：view.x 在过冲中持续变化，换位判定要跟视觉中线。
-      this.callbacks.onDragging?.(this, this.dragTargetX, this.dragTargetY);
-      return;
-    }
-
-    // ── 主轴 lerp 跟随（原始实现） ──
-    const diffX = this.dragTargetX - this.x;
-    const diffY = this.dragTargetY - this.y;
-    const distance = Math.sqrt(diffX * diffX + diffY * diffY);
-
-    if (distance > 0.01) {
-      const actualLerp = 1 - Math.pow(1 - lerpFactor, dtMS / 16.666);
-      let step = distance * Math.min(1, Math.max(0, actualLerp));
-      const maxStep = (maxSpeed / 1000) * dtMS;
-      if (step > maxStep) step = maxStep;
-      this.x += (diffX / distance) * step;
-      this.y += (diffY / distance) * step;
-    }
-
-    // 急停主检测在 onPointerMove 内部（基于"速度突降"信号）。但某些快速急停
-    // 不会产生低速 pointermove 样本，而是直接停止发 pointermove；这里用
-    // "高速后静默一小段时间"作为兜底，避免明明速度够却漏触发。
-    if (!this.inertiaPending && CONFIG.cardOvershoot?.enabled && CONFIG.cardOvershoot.dragInertiaEnabled) {
-      const now = performance.now();
-      const overshootCfg = CONFIG.cardOvershoot;
-      // A5：与 onPointerMove 一致，使用鼠标速度上限 dragPointerMaxSpeed 作为分母。
-      const maxSpd = Math.max(
-        1,
-        overshootCfg.dragPointerMaxSpeed ?? CONFIG.dragHandCard?.maxSpeed ?? 3000,
-      );
-      const highThreshold = maxSpd * (overshootCfg.tweenSpeedRatioThreshold ?? 0.5);
-      const quietMS = Math.max(0, overshootCfg.dragQuietTriggerMS ?? 45);
-      const wasFast = this.pointerLastSampleSpeed >= highThreshold;
-      const quietLongEnough = quietMS > 0 && now - this.pointerLastMoveTimeMS >= quietMS;
-      const hasDirection = Math.hypot(this.pointerFastDirX, this.pointerFastDirY) >= 0.001;
-      if (wasFast && quietLongEnough && hasDirection) {
-        // A6：静默兜底也用峰值速度（与突降分支保持一致），避免低估甩动峰值。
-        const speedSample = Math.max(this.pointerPeakSpeed, this.pointerLastSampleSpeed);
-        const speedRatio = speedSample / maxSpd;
-        this.requestDragInertia(this.pointerFastDirX, this.pointerFastDirY, speedRatio);
-        this.pointerPrevSampleSpeed = 0;
-        this.pointerLastSampleSpeed = 0;
-        this.pointerPeakSpeed = 0;
-        this.pointerLastMoveTimeMS = now;
-      }
-    }
-
-    // 命中急停后不立刻改写位置，而是挂起一次 pending；等普通 lerp 把卡牌追到
-    // 目标附近后再启动小过冲，避免高速拖拽时一帧吸附到鼠标造成瞬移。
-    if (this.inertiaPending) {
-      // 使用「按触发速度插值后」的实际过冲幅度作为启动距离阈值——
-      // 否则慢速急停（小过冲）下，启动距离仍按最大幅度算，会让等待变长。
-      const overshootPx = this.resolveDragOvershootPx(this.inertiaPendingSpeedRatio);
-      const startDistance = Math.max(2, overshootPx);
-      const pendingDist = Math.hypot(this.dragTargetX - this.x, this.dragTargetY - this.y);
-      if (pendingDist <= startDistance) {
-        this.inertiaPending = false;
-        this.triggerDragInertia(
-          this.inertiaPendingDirX,
-          this.inertiaPendingDirY,
-          this.inertiaPendingSpeedRatio,
-        );
-      }
-    }
-
-    // 每帧同步换位判定：view.x 由 lerp 推进，即使 pointermove 停了（鼠标不动、
-    // 牌还在追），也能在视觉中线越过邻牌槽位时完成换位，避免只靠 pointermove
-    // 时出现的「卡牌过线了但顺序还没更新」的延迟感。
     this.callbacks.onDragging?.(this, this.dragTargetX, this.dragTargetY);
-  }
-
-  /**
-   * 根据急停触发瞬间的高速段速度比例（speed / maxSpeed），
-   * 线性映射拖拽急停过冲幅度。
-   *
-   * 映射区间：
-   *   ratio ≤ dragOvershootMinSpeedRatio → dragMinOvershootPx
-   *   ratio ≥ 1.0                        → dragOvershootPx
-   *   中间                                → 线性插值
-   *
-   * 用 clamp 而非外推：极少数情况下 prev 速度可能略大于 maxSpeed
-   * （dragHandCard 的 maxStep 是速度上限，但 pointermove 采样速度是
-   * 真实瞬时速度，不受此限），不能因此放大到超过 dragOvershootPx。
-   */
-  private resolveDragOvershootPx(speedRatio: number): number {
-    const overshoot = CONFIG.cardOvershoot;
-    if (!overshoot) return 0;
-    const maxPx = Math.max(0, overshoot.dragOvershootPx ?? 14);
-    const minPx = Math.max(0, overshoot.dragMinOvershootPx ?? maxPx);
-    const minRatio = Math.max(0, Math.min(1, overshoot.dragOvershootMinSpeedRatio ?? 0.5));
-    if (maxPx <= 0) return 0;
-    // minRatio = 1 时区间退化，直接用 maxPx 避免除零。
-    if (minRatio >= 1) return maxPx;
-    const r = Math.max(0, Math.min(1, (speedRatio - minRatio) / (1 - minRatio)));
-    return minPx + (maxPx - minPx) * r;
-  }
-
-  /**
-   * 请求一次拖拽急停过冲。
-   *
-   * 这里**不直接播放**，只记录方向和当时的目标点。卡牌继续按原始 lerp 追随鼠标；
-   * 当它追到 dragTarget 附近（距离 <= tweenOvershootPx）后，updateDragging 才调用
-   * triggerDragInertia 播放真正的 14px 小过冲。这样既保留正确的高速运动方向，
-   * 又不会在卡牌滞后鼠标很远时一帧吸附到鼠标造成瞬移。
-   */
-  private requestDragInertia(dirX = 0, dirY = 0, speedRatio = 1): void {
-    if (this.inertiaPhase !== "none") return;
-    const now = performance.now();
-    // 配置为 0 时仍保留极短地板冷却，防止 pointer 采样噪声在同一甩动内连发过冲
-    // （连发时 rise/spring 与 lerp 来回抢写 x/y，旋转角会明显抖动）。
-    const cooldownMS = Math.max(80, CONFIG.cardOvershoot?.dragTriggerCooldownMS ?? 180);
-    if (now - this.inertiaLastRequestTimeMS < cooldownMS) return;
-    this.inertiaPending = true;
-    this.inertiaPendingDirX = dirX;
-    this.inertiaPendingDirY = dirY;
-    this.inertiaPendingTargetX = this.dragTargetX;
-    this.inertiaPendingTargetY = this.dragTargetY;
-    // 触发瞬间的高速段速度比例 → 触发后线性映射过冲幅度。clamp 到 [0, 某个上限] 以兜底异常输入。
-    this.inertiaPendingSpeedRatio = Math.max(0, Math.min(1.5, speedRatio));
-    this.inertiaLastRequestTimeMS = now;
-  }
-
-  /**
-   * 触发一次性的拖拽过冲两段补间（rise + spring）。
-   *
-   * 触发时机已经被 requestDragInertia 延迟到"卡牌接近 dragTarget"之后，因此本函数
-   * 不再改写/吸附 this.x/y。rise 段从当前卡牌位置出发，冲到 dragTarget 外侧
-   * tweenOvershootPx 像素处；spring 段再回到 dragTarget。
-   *
-   * 过冲方向：优先使用最近一次高速 pointermove 的真实运动方向，避免减速/刹车时
-   * 最后一帧低速抖动把方向带反；没有可用高速方向时才退回到 dragTarget 相对当前
-   * 卡牌位置的方向。
-   */
-  private triggerDragInertia(dirX = 0, dirY = 0, speedRatio = 1): void {
-    const overshoot = CONFIG.cardOvershoot;
-    if (!overshoot) return;
-    // 根据触发瞬间的高速段速度比例线性映射过冲幅度（dragMinOvershootPx ~ dragOvershootPx）。
-    const overshootPx = this.resolveDragOvershootPx(speedRatio);
-    if (overshootPx <= 0) return;
-
-    // 锚定本次过冲的终点为"触发时刻的 dragTarget"。
-    const targetX = this.dragTargetX;
-    const targetY = this.dragTargetY;
-
-    // 过冲方向：优先使用高速 pointermove 的真实运动方向。
-    let dx = dirX;
-    let dy = dirY;
-    let dlen = Math.hypot(dx, dy);
-    if (dlen >= 0.001) {
-      dx /= dlen;
-      dy /= dlen;
-    } else {
-      // 无高速方向时，退回到当前卡牌 → 目标的方向。
-      dx = targetX - this.x;
-      dy = targetY - this.y;
-      dlen = Math.hypot(dx, dy);
-      if (dlen < 0.001) {
-        // 卡牌已经几乎与目标重合——再退化为沿"上一帧实际位移方向"（prevX/prevY 差分）。
-        dx = this.x - this.prevX;
-        dy = this.y - this.prevY;
-        const fallbackLen = Math.hypot(dx, dy);
-        if (fallbackLen < 0.001) return;
-        dx /= fallbackLen;
-        dy /= fallbackLen;
-      } else {
-        dx /= dlen;
-        dy /= dlen;
-      }
-    }
-
-    const overX = targetX + dx * overshootPx;
-    const overY = targetY + dy * overshootPx;
-
-    // 第一段：从当前卡牌位置 → 过冲点。由于 requestDragInertia 已经等到卡牌
-    // 接近 dragTarget 后才调用这里，这段位移很短，不会产生瞬移感。
-    this.inertiaPhase = "rise";
-    this.inertiaFromX = this.x;
-    this.inertiaFromY = this.y;
-    this.inertiaToX = overX;
-    this.inertiaToY = overY;
-    this.inertiaSpringTargetX = targetX;
-    this.inertiaSpringTargetY = targetY;
-    this.inertiaProgress = 0;
-    this.inertiaPhaseDurationMS = Math.max(1, Math.round(overshoot.dragRiseDurationMS ?? 112));
-  }
-
-  /**
-   * 推进 inertiaPhase（rise → spring → none）。
-   * 每帧根据曲线采样把 this.x / this.y 写到目标处，过程中由 updateMoveRotation
-   * 自然采到位移并产生旋转——这正是"过冲是位移"的语义。
-   */
-  private advanceInertiaPhase(dtMS: number): void {
-    const overshoot = CONFIG.cardOvershoot;
-    if (!overshoot) {
-      this.inertiaPhase = "none";
-      return;
-    }
-
-    this.inertiaProgress = Math.min(1, this.inertiaProgress + dtMS / this.inertiaPhaseDurationMS);
-    const p = this.inertiaProgress;
-
-    // 缓动：拖拽急停使用独立 dragRiseCurve / dragSpringCurve。
-    // 关闭时各自退化为 cubicOut。
-    const curve = this.inertiaPhase === "rise"
-      ? overshoot.dragRiseCurve
-      : overshoot.dragSpringCurve;
-    // 与 CardFx.moveToWithOvershoot 同源：只用曲线的 p1.y / p2.y 作为缓动 y(t)，
-    // 不掺合 startScale/endScale（这两个字段在 overshoot 语境下没有几何意义）。
-    let t: number;
-    if (curve && curve.enabled !== false) {
-      const p1y = curve.p1.y;
-      const p2y = curve.p2.y;
-      const it = 1 - p;
-      t = 3 * it * it * p * p1y + 3 * it * p * p * p2y + p * p * p;
-    } else {
-      t = 1 - Math.pow(1 - p, 3); // cubicOut 兜底
-    }
-
-    this.x = this.inertiaFromX + (this.inertiaToX - this.inertiaFromX) * t;
-    this.y = this.inertiaFromY + (this.inertiaToY - this.inertiaFromY) * t;
-
-    if (this.inertiaProgress >= 1) {
-      if (this.inertiaPhase === "rise") {
-        // rise 完成 → 切到 spring：从过冲点回到目标点。
-        this.inertiaPhase = "spring";
-        this.inertiaFromX = this.x;
-        this.inertiaFromY = this.y;
-        this.inertiaToX = this.inertiaSpringTargetX;
-        this.inertiaToY = this.inertiaSpringTargetY;
-        this.inertiaProgress = 0;
-        this.inertiaPhaseDurationMS = Math.max(1, Math.round(overshoot.dragSpringDurationMS ?? 100));
-      } else {
-        // spring 完成 → 收尾：钉到目标点，退出过冲态。
-        this.x = this.inertiaSpringTargetX;
-        this.y = this.inertiaSpringTargetY;
-        this.inertiaPhase = "none";
-        this.inertiaProgress = 0;
-      }
-    }
   }
 
   /**

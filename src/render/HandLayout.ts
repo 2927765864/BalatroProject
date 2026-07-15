@@ -7,7 +7,7 @@ import { CONFIG } from "@game/config";
  *
  * 将位置计算与动画驱动解耦：
  *   - HandLayout.compute() 只算出每张牌的 (x, y, rotation)。
- *   - 上层把这些目标值喂给 TweenManager。
+ *   - 上层把这些目标值喂给 CardView.setMoveTarget（弹性绳）。
  *
  * 参数全部基于世界坐标系，外部不应再读 window.innerWidth。
  *

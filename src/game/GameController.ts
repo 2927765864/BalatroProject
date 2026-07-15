@@ -83,7 +83,7 @@ export class GameController {
    *
    * 用途：layoutHand 中据此决定剩余手牌走 CardFx.swapMove（playHandSwap 物理挤位，
    * 利落挤位）。一旦进入补牌阶段（drawToFull），本标志已置回 false，发出的新牌就会
-   * 正确走 moveToWithOvershoot（距离驱动时长），而不是被误判成"挤位"用 110ms 飞完，
+   * 正确走 setMoveTarget/弹性绳归位，而不是被误判成"挤位"短路径，
    * 避免补牌"移动速度异常快"。
    */
   private isPlayPhaseSwapping = false;
@@ -406,12 +406,17 @@ export class GameController {
       view.x = view.layoutX;
       view.y = view.layoutY;
       view.rotation = 0;
+      view.syncRopePose({
+        x: view.layoutX,
+        y: view.layoutY,
+        rotation: 0,
+      });
     });
   }
 
   /**
    * 按 CONFIG.joker 重新计算顶部小丑槽位姿。
-   * 动画路径与 layoutHand 同构（swapMove / moveToWithOvershoot / select 豁免）。
+   * 动画路径与 layoutHand 同构（swapMove / 绳目标归位 / select 豁免）。
    * 公开以便 ControlPanel 改 spacing / baseX / baseY / slotCount 后即时生效。
    */
   layoutJokers(opts?: {
@@ -454,9 +459,12 @@ export class GameController {
         return;
       }
 
-      // force=true 时无视 swap 弹性豁免（与 layoutHand 一致）。
+      // force=true 时无视 swap 豁免（与 layoutHand 一致）。
       if (!opts?.force && view.isSwapAnimating) {
-        if (this.tween.hasTweenFor(view)) return;
+        if (!view.isRopeSettled()) {
+          view.setMoveTarget(slot.x, slot.y, slot.rotation);
+          return;
+        }
         view.isSwapAnimating = false;
       }
 
@@ -546,16 +554,11 @@ export class GameController {
         rotation: view.layoutRotation,
       };
       const isRise = direction === "rise";
+      void isRise;
       CardFx.selectMove(this.tween, view, target, direction, {
-        startSpeed: isRise
-          ? (cv.selectMoveStartSpeed ?? 600)
-          : (cv.selectFallStartSpeed ?? cv.selectMoveStartSpeed ?? 500),
-        overshoot: isRise
-          ? (cv.selectMoveOvershoot ?? 0)
-          : (cv.selectFallOvershoot ?? cv.selectMoveOvershoot ?? 0),
-        stiffness: isRise
-          ? (cv.selectMoveStiffness ?? 10)
-          : (cv.selectFallStiffness ?? cv.selectMoveStiffness ?? 10),
+        startSpeed: 0,
+        overshoot: 0,
+        stiffness: 0,
         onSettle: () => {
           view.isSelectAnimating = false;
         },
@@ -565,36 +568,29 @@ export class GameController {
 
   // --- 抽牌 / 布局 -------------------------------------------------
 
+  /**
+   * 估测弹性绳飞向目标的「主行程」时长（用于抓牌翻面节奏 / 交错发车）。
+   * 过冲振荡不计入；终端速度近似 V ≈ k·Lmax / c（线性阻尼）。
+   */
   private getAnimationDuration(
     card: CardView,
     target: { x: number; y: number },
     speedRatio = 1.0
   ): number {
-    const cfg = GameConfig.cardOvershoot;
-    if (!cfg?.enabled) {
-      const fallbackDist = Math.hypot(target.x - card.x, target.y - card.y);
-      const avgSpeed = Math.max(1, cfg?.tweenReturnAvgSpeed ?? 1400);
-      const minMS = Math.max(1, cfg?.tweenReturnMinMS ?? 140);
-      const maxMS = Math.max(minMS, cfg?.tweenReturnMaxMS ?? 420);
-      return Math.min(maxMS, Math.max(minMS, (fallbackDist / avgSpeed) * 1000)) / speedRatio;
-    }
+    const dist = Math.hypot(target.x - card.x, target.y - card.y);
+    if (dist < 1e-3) return 0;
 
-    const dx = target.x - card.x;
-    const dy = target.y - card.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    if (dist < 1e-3) {
-      return 0;
-    }
-
-    const avgSpeed = Math.max(1, cfg.tweenReturnAvgSpeed ?? 1400);
-    const minMS = Math.max(1, cfg.tweenReturnMinMS ?? 140);
-    const maxMS = Math.max(minMS, cfg.tweenReturnMaxMS ?? 420);
-    const naturalMS = (dist / avgSpeed) * 1000;
+    const er = GameConfig.elasticRopeCard;
+    const k = Math.max(0, er?.spring?.stiffness ?? 100);
+    const Lmax = Math.max(1, er?.spring?.maxElasticLength ?? 120);
+    const c = Math.max(0.05, er?.airDrag?.linearCoeff ?? 10);
+    const vTerm = Math.max(80, (k * Lmax) / c);
+    // 粗估：主行程 + 少量 settle 余量
+    const naturalMS = (dist / vTerm) * 1000 * 1.8;
+    const minMS = 100;
+    const maxMS = 2200;
     const riseMS = Math.min(maxMS, Math.max(minMS, naturalMS));
-
-    // 所谓的卡牌到达指定位置，应该不包含过冲，也不包含回弹等时间，因此只返回 riseMS (且应用速度比例)
-    return riseMS / speedRatio;
+    return riseMS / Math.max(0.01, speedRatio);
   }
 
   private async drawToFull(): Promise<void> {
@@ -623,7 +619,12 @@ export class GameController {
         view.rotation = GameConfig.drawCard?.useInitialRotation
           ? (GameConfig.drawCard.initialRotationDeg * Math.PI) / 180
           : 0;
-        view.forceOvershootOnce = true;
+        // 从发牌堆瞬移生成：同步绳状态，随后 layoutHand 只设目标点
+        view.syncRopePose({
+          x: view.x,
+          y: view.y,
+          rotation: view.rotation,
+        });
 
         const currentHand = [...this.store.getState().hand];
         const insertIndex = Math.floor(Math.random() * (currentHand.length + 1));
@@ -644,12 +645,13 @@ export class GameController {
         const slot = slots[insertIndex]!;
 
         // 抽牌后：手牌数量变化，必须强制对齐（force），不豁免任何"正在弹性"的牌。
+        // layoutHand 对全体手牌只 setMoveTarget；新牌路径/速率/过冲完全由弹性绳处理。
         this.layoutHand({ force: true, speedRatio });
+        // 显式再钉一次本张目标（防御 layout 分支漏设），不写 x/y/tween。
+        view.setMoveTarget(slot.x, slot.y, slot.rotation);
 
+        // 翻面节奏用绳主行程估时（仅驱动 flip 通道，不驱动位移）。
         const duration = this.getAnimationDuration(view, slot, speedRatio);
-
-        // 抓牌翻面：卡牌背面朝上从发牌堆飞出，飞行途中绕竖中轴线翻面，到位后继续翻面到正面。
-        // 把飞行时长传入，让翻面节奏与飞行同步（两段时机各带随机抖动，见 CONFIG.drawFlip）。
         view.startDrawFlip(duration);
 
         const nextCardAdvance = GameConfig.drawCard?.nextCardAdvanceMS ?? 0;
@@ -665,11 +667,17 @@ export class GameController {
         }
 
         if (i < drawn.length - 1) {
+          // 错开发车：只等间隔，不 await 整段 settle（下一张可提前飞出）。
           await sleep(delayMS);
         } else {
-          await sleep(duration);
+          // 最后一张：等到本张绳吸附；循环后再等全手牌，覆盖前序牌的过冲回落。
+          await view.waitSettled();
         }
       }
+      // 确保本轮抓出的牌及挤位中的旧牌都绳吸附完成后再解除 isDrawing。
+      await Promise.all(
+        this.store.getState().hand.map((c) => c.waitSettled())
+      );
     } finally {
       setDrawingCards(false);
       // drawToFull 是 async：start() 里若未 await，会在手牌仍为空时提前 updateButtons，
@@ -735,9 +743,9 @@ export class GameController {
    *
    * @param opts.swapFor 可选——本次重排是「手动理牌换位」触发的，集合中的 CardView
    *                     是被让位的相邻牌，应走 CardFx.swapMove（rise + 过冲 + spring）
-   *                     而非默认的 moveToWithOvershoot（距离驱动归位手感）。
+   *                     而非默认的绳目标归位。
    *                     不在集合中、且未被 isDragging/isSelectAnimating 跳过的牌仍走
-   *                     moveToWithOvershoot，保证发牌/松手归位等其它场景行为不变。
+   *                     绳目标归位，保证发牌/松手归位等其它场景行为不变。
    * @param opts.sortFor 可选——本次重排是「点数/花色理牌」触发的，集合中的牌走
    *                     CardFx.sortMove（距离自适应速度的 rise→spring）。
    *                     调用前 hand 数组已按最终顺序排好，本函数开头写的 zIndex
@@ -801,7 +809,7 @@ export class GameController {
       //
       // 【重要】标志为 true 时一律跳过，即使当前尚无活跃 tween。
       // 原因：toggleSelection 的顺序是「置位 isSelectAnimating → layoutHand → selectMove」。
-      // 若在"尚无 tween"时自愈清旗并走 moveToWithOvershoot，会与随后启动的 selectMove 竞态；
+      // 若在标志未稳时自愈清旗并走常规归位，会与随后启动的 selectMove 竞态；
       // 更糟的是 CardView 快速点击路径在 onClick 之后还会立刻调 onDragEnd→layoutHand，
       // 若此时标志已被清掉，归位动画会直接互斥掉 selectMove——表现为选中参数"完全不起作用"。
       // 残留标志的清理由 selectMove.onSettle / onDragStart.killOf 路径负责。
@@ -811,27 +819,21 @@ export class GameController {
 
       // 「手动理牌换位让位」分支：本次 layoutHand 由 reorderHandWhileDragging 触发，
       // view 在被让位集合里——走专属的 CardFx.swapMove（固定时长 + 固定过冲），
-      // 不复用 moveToWithOvershoot 的距离驱动模型（短距离会被阈值短路成无过冲单段）。
+      // 仍走 swapMove（绳目标），与常规归位分支区分以便维护 isSwapAnimating。
       if (opts?.swapFor?.has(view)) {
         CardFx.swapMove(this.tween, view, slot);
         return;
       }
 
-      // 「swap 弹性豁免」分支：view 当前正在播放 swapMove 的 rise→spring 弹性动画，
-      // 且本帧不在 swapFor/sortFor 中（说明拖拽牌已不再覆盖它）。如果继续走下面的
-      // moveToWithOvershoot，会通过 TweenManager 同字段互斥停掉 rise 阶段；
-      // 让它自己跑完 rise→spring，最终位置已经是新 slot，不会错位。
-      // opts.force=true 时（手牌数量变化等强制对齐场景）跳过此豁免。
-      //
-      // 自愈兜底：若标志为 true 但 TweenManager 中实际已无该 view 的活跃 tween
-      // （动画在异常路径下被中断且标志未及时清零），则视为标志残留，清零后
-      // 落入下方常规重排路径——避免该牌被永久豁免、停留在错位。
+      // 「swap 豁免」：换位牌仍在飞向目标时，不要被常规 layout 重设目标打断。
+      // force=true 时无视。自愈：标志为 true 但已 settle → 清旗后走常规路径。
       if (!opts?.force && view.isSwapAnimating) {
-        if (this.tween.hasTweenFor(view)) {
+        if (!view.isRopeSettled()) {
+          // 目标可能已变（快速连续换位）：仅更新目标，保持 swap 标志
+          view.setMoveTarget(slot.x, slot.y, slot.rotation);
           return;
         }
         view.isSwapAnimating = false;
-        // 落入下面的 moveToWithOvershoot 常规分支。
       }
 
       // 「【出牌】手牌换位」分支：出牌"挤位阶段"，手牌的其他牌向中位移位（利落短动画）。
@@ -839,25 +841,18 @@ export class GameController {
       // 若用 isPlaying 会让 drawToFull 发出的新牌也误走这条 swapMove（固定 110ms），
       // 导致补牌移动速度异常快。补牌阶段本标志已为 false，自然落入下面的距离驱动归位。
       if (this.isPlayPhaseSwapping) {
-        CardFx.swapMove(this.tween, view, slot, GameConfig.playHandSwap);
+        CardFx.swapMove(this.tween, view, slot);
         return;
       }
 
-      // 过冲反弹判定（v2：距离驱动）：
-      //   过冲幅度与 rise 段时长完全由 CardFx.moveToWithOvershoot 内部按
-      //   "起点 → 终点"距离自适应计算，调用方无需提供速度信息。
-      //   forceOvershoot=true 仍可强制满额过冲（保留给发牌场景作为语义兼容；
-      //   实际不再必要，因为发牌的瞬移距离远大于 tweenFullOvershootDistancePx，
-      //   自然就会得到满额过冲）。
-      const force = view.forceOvershootOnce === true;
-      if (force) view.forceOvershootOnce = false;
+      // 弹性绳：只设目标槽位，速度/过冲由 CardView 牵引模型处理。
       CardFx.moveToWithOvershoot(
         this.tween,
         view,
         slot,
         GameConfig.animation.moveDurationMS,
         0,
-        force,
+        false,
         opts?.speedRatio ?? 1.0
       );
     });
@@ -975,7 +970,7 @@ export class GameController {
 
     let newIndex = i;
     // 本次手势中被「跨过 / 让位」的相邻牌——它们将走 CardFx.swapMove 走利落的过冲动画，
-    // 而不是默认的 moveToWithOvershoot（短距离会被距离阈值短路为无过冲）。
+    // 而不是默认归位分支（便于维护 isSwapAnimating）。
     const swapFor = new Set<CardView>();
 
     // 向左检查：拖拽牌中线穿过左邻牌槽位中线 left.layoutX 时换位。
@@ -1066,17 +1061,12 @@ export class GameController {
         rotation: view.layoutRotation,
       };
       const isRise = direction === "rise";
-      // 上移/下移参数独立；旧 preset 缺下移字段时回退到上移参数或合理默认值。
+      void isRise;
+      // 位移参数已退役；过冲/速度由弹性绳统一处理。
       CardFx.selectMove(this.tween, view, target, direction, {
-        startSpeed: isRise
-          ? (cv.selectMoveStartSpeed ?? 600)
-          : (cv.selectFallStartSpeed ?? cv.selectMoveStartSpeed ?? 500),
-        overshoot: isRise
-          ? (cv.selectMoveOvershoot ?? 0)
-          : (cv.selectFallOvershoot ?? cv.selectMoveOvershoot ?? 0),
-        stiffness: isRise
-          ? (cv.selectMoveStiffness ?? 10)
-          : (cv.selectFallStiffness ?? cv.selectMoveStiffness ?? 10),
+        startSpeed: 0,
+        overshoot: 0,
+        stiffness: 0,
         onSettle: () => {
           view.isSelectAnimating = false;
         },
@@ -1176,10 +1166,7 @@ export class GameController {
     }
     // 先写入偏移，避免位移过程中 layoutHand 把牌拽回旧 baseY。
     this.handPlayYOffset += deltaY;
-    await CardFx.shiftHandGroupY(this.tween, hand, deltaY, {
-      moveCurve: cfg.moveCurve,
-      startSpeed: cfg.startSpeed,
-    });
+    await CardFx.shiftHandGroupY(this.tween, hand, deltaY);
   }
 
   /**
@@ -1271,7 +1258,7 @@ export class GameController {
         ({ views } = await this.playPipeline.run(selectedSnapshot, result));
       } finally {
         // 出牌堆流程结束、进入补牌前关闭挤位标志：drawToFull 发出的新牌将走
-        // 距离驱动的归位动画（moveToWithOvershoot），而非固定短时长的挤位动画。
+        // 绳目标归位，而非出牌挤位专用 swap 分支。
         this.isPlayPhaseSwapping = false;
       }
 
@@ -1473,6 +1460,7 @@ export class GameController {
       const intervalMS = Math.max(0, (discardCfg?.intervalMS ?? 0) / speedRatio);
 
       // 视觉：从左到右逐张错开飞向弃牌堆（屏幕正右方外、垂直居中），飞行途中翻约 90° 压成一条线。
+      const flyPromises: Promise<void>[] = [];
       for (let i = 0; i < recycling.length; i++) {
         const v = recycling[i]!;
         v.selected = false;
@@ -1489,25 +1477,28 @@ export class GameController {
         v.zIndex = -0.1 - i * 0.001;
         const randomRotation = this.computeDiscardRandomRotation();
 
+        // 翻面节奏参考时长仅驱动 flip 通道；位移完全由弹性绳 setMoveTarget 完成。
         v.startDiscardFlip(flyDurationMS);
-        // 进入弃牌飞行期：禁用速度→旋转联动，保持飞出瞬间的随机旋转角度直到弃牌结束。
         v.beginDiscardFly();
-        // 不 await 单张飞出，让下一张能按 intervalMS 错开发车。
-        void CardFx.flyToDiscardPile(
-          this.tween,
-          v,
-          GameConfig.world.width,
-          GameConfig.world.height,
-          flyDurationMS,
-          randomRotation
+        // 随机基角写入 moveTargetRotation；绳相对倾角在飞行中叠加，settle 后回落到基角。
+        // 不 await 单张，按 intervalMS 错开发车；全部 waitSettled 后再 endDiscardFly。
+        flyPromises.push(
+          CardFx.flyToDiscardPile(
+            this.tween,
+            v,
+            GameConfig.world.width,
+            GameConfig.world.height,
+            flyDurationMS,
+            randomRotation
+          )
         );
         if (i < recycling.length - 1 && intervalMS > 0) {
           await sleep(intervalMS);
         }
       }
 
-      // 等待最后一张飞出动画完成
-      await sleep(flyDurationMS);
+      // 等待全部弃牌绳吸附完成（替代固定 flyDurationMS）
+      await Promise.all(flyPromises);
       // 最后一张弃牌后额外等待（受 speedRatio 缩放）
       const lastCardWaitMS = Math.max(0, (discardCfg?.lastCardWaitMS ?? 0) / speedRatio);
       if (lastCardWaitMS > 0) {

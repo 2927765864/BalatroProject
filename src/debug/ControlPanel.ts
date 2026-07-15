@@ -159,16 +159,10 @@ export function setupControlPanel(
   let hoverScaleCurvePanel: BezierCurvePanel | null = null;
   let dragScaleInCurvePanel: BezierCurvePanel | null = null;
   let dragScaleOutCurvePanel: BezierCurvePanel | null = null;
-  let tweenRiseCurvePanel: BezierCurvePanel | null = null;
-  let tweenSpringCurvePanel: BezierCurvePanel | null = null;
-  let dragRiseCurvePanel: BezierCurvePanel | null = null;
-  let dragSpringCurvePanel: BezierCurvePanel | null = null;
   let bgBlockFadeCurvePanel: BezierCurvePanel | null = null;
   let bgBlockScaleCurvePanel: BezierCurvePanel | null = null;
   let jokerBgBlockFadeCurvePanel: BezierCurvePanel | null = null;
   let jokerBgBlockScaleCurvePanel: BezierCurvePanel | null = null;
-  let playCardMoveCurvePanel: BezierCurvePanel | null = null;
-  let playHandGroupShiftCurvePanel: BezierCurvePanel | null = null;
 
   // 收集所有"按 CONFIG 当前值刷新自身"的回调，preset 加载后批量重跑。
   const syncers: Array<() => void> = [];
@@ -1200,24 +1194,14 @@ export function setupControlPanel(
     bindToggle("inp-mouse3DTiltSmoothEnabled", "val-mouse3DTiltSmoothEnabled", "cardVisuals.mouse3DTiltSmoothEnabled");
     bindNumber("inp-mouse3DTiltSmoothing", "val-mouse3DTiltSmoothing", "cardVisuals.mouse3DTiltSmoothing", { digits: 2 });
 
-    // === 卡牌操作逻辑（含选中位移：启动速度 / 过冲 / 回弹刚度） ===
+    // === 卡牌操作逻辑（选中高度 + 开关；位移由弹性绳） ===
     bindSectionExpand("inp-expandCardOps", "val-expandCardOps", "cardVisuals.expandedSections.cardOps", "sect-cardOps-params");
     bindNumber("inp-clickThresholdMS", "val-clickThresholdMS", "cardVisuals.clickThresholdMS", { integer: true });
     bindNumber("inp-clickDistanceThreshold", "val-clickDistanceThreshold", "cardVisuals.clickDistanceThreshold", { integer: true });
     bindToggle("inp-selectMoveEnabled", "val-selectMoveEnabled", "cardVisuals.selectMoveEnabled");
     bindNumber("inp-selectRiseY", "val-selectRiseY", "cardVisuals.selectRiseY", { digits: 1 });
-    // 上移（选中）
-    bindNumber("inp-selectMoveStartSpeed", "val-selectMoveStartSpeed", "cardVisuals.selectMoveStartSpeed", { integer: true });
-    bindNumber("inp-selectMoveOvershoot", "val-selectMoveOvershoot", "cardVisuals.selectMoveOvershoot", { digits: 1 });
-    bindNumber("inp-selectMoveStiffness", "val-selectMoveStiffness", "cardVisuals.selectMoveStiffness", { digits: 2 });
-    // 下移（取消选中）
-    bindNumber("inp-selectFallStartSpeed", "val-selectFallStartSpeed", "cardVisuals.selectFallStartSpeed", { integer: true });
-    bindNumber("inp-selectFallOvershoot", "val-selectFallOvershoot", "cardVisuals.selectFallOvershoot", { digits: 1 });
-    bindNumber("inp-selectFallStiffness", "val-selectFallStiffness", "cardVisuals.selectFallStiffness", { digits: 2 });
 
     bindSectionExpand("inp-expandDragHandCard", "val-expandDragHandCard", "cardVisuals.expandedSections.dragHandCard", "sect-dragHandCard-params");
-    bindNumber("inp-dragMaxSpeed", "val-dragMaxSpeed", "dragHandCard.maxSpeed", { integer: true });
-    bindNumber("inp-dragLerpFactor", "val-dragLerpFactor", "dragHandCard.lerpFactor", { digits: 2 });
     bindNumber("inp-dragScaleTarget", "val-dragScaleTarget", "dragHandCard.dragScaleTarget", { digits: 2 });
     bindNumber("inp-dragScaleInDurationMS", "val-dragScaleInDurationMS", "dragHandCard.dragScaleInDurationMS", { integer: true });
     bindNumber("inp-dragScaleOutDurationMS", "val-dragScaleOutDurationMS", "dragHandCard.dragScaleOutDurationMS", { integer: true });
@@ -1283,110 +1267,34 @@ export function setupControlPanel(
     bindNumber("inp-discardFlipAngleJitterDeg", "val-discardFlipAngleJitterDeg", "discardFlip.flipAngleJitterDeg", { integer: true });
     bindNumber("inp-discardFlipRandomRotationDeg", "val-discardFlipRandomRotationDeg", "discardFlip.randomRotationDeg", { integer: true });
 
-    // === 卡牌换位（手动理牌）===
-    // 让位牌走 CardFx.swapMove：物理模型 startSpeed / overshoot / stiffness（与 selectMove 同构）。
-    // 打断后按当前距离重算时长，快速往返不会因固定时长而变慢。
-    bindSectionExpand("inp-expandHandSwap", "val-expandHandSwap", "cardVisuals.expandedSections.handSwap", "sect-handSwap-params");
-    bindToggle("inp-handSwapEnabled", "val-handSwapEnabled", "handSwap.enabled");
-    bindNumber("inp-handSwapStartSpeed", "val-handSwapStartSpeed", "handSwap.startSpeed", { integer: true });
-    bindNumber("inp-handSwapOvershootPx", "val-handSwapOvershootPx", "handSwap.overshootPx", { digits: 1 });
-    bindNumber("inp-handSwapStiffness", "val-handSwapStiffness", "handSwap.stiffness", { digits: 2 });
-
-    // === 卡牌换位【理牌】（点数/花色按钮）===
-    // 走 CardFx.sortMove：形态同 swap，rise 时长按距离幂次缩放，距离越大速度越大。
+    // === 卡牌换位【理牌】（点数/花色按钮）=== 位移由弹性绳；enabled 控制是否动画
     bindSectionExpand("inp-expandHandSort", "val-expandHandSort", "cardVisuals.expandedSections.handSort", "sect-handSort-params");
     bindToggle("inp-handSortEnabled", "val-handSortEnabled", "handSort.enabled");
-    bindNumber("inp-handSortRiseDurationMS", "val-handSortRiseDurationMS", "handSort.riseDurationMS", { integer: true });
-    bindNumber("inp-handSortSpringDurationMS", "val-handSortSpringDurationMS", "handSort.springDurationMS", { integer: true });
-    bindNumber("inp-handSortOvershootPx", "val-handSortOvershootPx", "handSort.overshootPx", { digits: 1 });
-    bindNumber("inp-handSortRefDistancePx", "val-handSortRefDistancePx", "handSort.refDistancePx", { integer: true });
-    bindNumber("inp-handSortDurationPower", "val-handSortDurationPower", "handSort.durationPower", { digits: 2 });
-    bindNumber("inp-handSortMinRiseDurationMS", "val-handSortMinRiseDurationMS", "handSort.minRiseDurationMS", { integer: true });
-    bindNumber("inp-handSortMaxRiseDurationMS", "val-handSortMaxRiseDurationMS", "handSort.maxRiseDurationMS", { integer: true });
 
     // === 【出牌】卡牌整体位移效果 ===
     bindSectionExpand("inp-expandPlayHandGroupShift", "val-expandPlayHandGroupShift", "cardVisuals.expandedSections.playHandGroupShift", "sect-playHandGroupShift-params");
     bindToggle("inp-playHandGroupShiftEnabled", "val-playHandGroupShiftEnabled", "playHandGroupShift.enabled");
     bindNumber("inp-playHandGroupShiftDistancePx", "val-playHandGroupShiftDistancePx", "playHandGroupShift.distancePx", { integer: true });
-    bindNumber("inp-playHandGroupShiftStartSpeed", "val-playHandGroupShiftStartSpeed", "playHandGroupShift.startSpeed", { integer: true });
     bindNumber("inp-playHandGroupShiftPreDownWaitMS", "val-playHandGroupShiftPreDownWaitMS", "playHandGroupShift.preDownWaitMS", { integer: true });
     bindNumber("inp-playHandGroupShiftPostDownWaitMS", "val-playHandGroupShiftPostDownWaitMS", "playHandGroupShift.postDownWaitMS", { integer: true });
     bindNumber("inp-playHandGroupShiftPreUpWaitMS", "val-playHandGroupShiftPreUpWaitMS", "playHandGroupShift.preUpWaitMS", { integer: true });
     bindNumber("inp-playHandGroupShiftPostUpWaitMS", "val-playHandGroupShiftPostUpWaitMS", "playHandGroupShift.postUpWaitMS", { integer: true });
 
-    const playHandGroupShiftCurveMount = document.getElementById("mount-playHandGroupShiftCurve");
-    if (playHandGroupShiftCurveMount && !playHandGroupShiftCurvePanel) {
-      playHandGroupShiftCurvePanel = buildCurvePanel(playHandGroupShiftCurveMount, CONFIG.playHandGroupShift.moveCurve, {
-        label: "速率曲线",
-        onChange: () => {
-          notify("playHandGroupShift.moveCurve", CONFIG.playHandGroupShift.moveCurve);
-        }
-      });
-      syncers.push(() => {
-        if (playHandGroupShiftCurvePanel) {
-          playHandGroupShiftCurvePanel.setCurve(CONFIG.playHandGroupShift.moveCurve);
-        }
-      });
-    }
-
-    // === 【出牌】手牌换位 ===
-    bindSectionExpand("inp-expandPlayHandSwap", "val-expandPlayHandSwap", "cardVisuals.expandedSections.playHandSwap", "sect-playHandSwap-params");
-    bindToggle("inp-playHandSwapEnabled", "val-playHandSwapEnabled", "playHandSwap.enabled");
-    bindNumber("inp-playHandSwapStartSpeed", "val-playHandSwapStartSpeed", "playHandSwap.startSpeed", { integer: true });
-    bindNumber("inp-playHandSwapOvershootPx", "val-playHandSwapOvershootPx", "playHandSwap.overshootPx", { digits: 1 });
-    bindNumber("inp-playHandSwapStiffness", "val-playHandSwapStiffness", "playHandSwap.stiffness", { digits: 2 });
-
-    // === 【出牌】出牌堆的位移 ===
+    // === 【出牌】出牌堆的位移（节奏 + 间距；运动由弹性绳） ===
     bindSectionExpand("inp-expandPlayPileDisplacement", "val-expandPlayPileDisplacement", "cardVisuals.expandedSections.playPileDisplacement", "sect-playPileDisplacement-params");
     bindToggle("inp-playPileDisplacementEnabled", "val-playPileDisplacementEnabled", "playPileDisplacement.enabled");
     bindNumber("inp-playPileDisplacementCardSpacing", "val-playPileDisplacementCardSpacing", "playPileDisplacement.cardSpacing", { integer: true });
-    bindNumber("inp-playPileDisplacementRiseDurationMS", "val-playPileDisplacementRiseDurationMS", "playPileDisplacement.riseDurationMS", { integer: true });
-    bindNumber("inp-playPileDisplacementSpringDurationMS", "val-playPileDisplacementSpringDurationMS", "playPileDisplacement.springDurationMS", { integer: true });
-    bindNumber("inp-playPileDisplacementOvershootPx", "val-playPileDisplacementOvershootPx", "playPileDisplacement.overshootPx", { digits: 1 });
     bindNumber("inp-playPileDisplacementFirstIntervalMS", "val-playPileDisplacementFirstIntervalMS", "playPileDisplacement.firstIntervalMS", { integer: true });
     bindNumber("inp-playPileDisplacementIntervalReductionMS", "val-playPileDisplacementIntervalReductionMS", "playPileDisplacement.intervalReductionMS", { integer: true });
     bindNumber("inp-playPileDisplacementLastIntervalMS", "val-playPileDisplacementLastIntervalMS", "playPileDisplacement.lastIntervalMS", { integer: true });
 
-    // === 【出牌】出牌移动控制 ===
-    bindSectionExpand("inp-expandPlayCardMove", "val-expandPlayCardMove", "cardVisuals.expandedSections.playCardMove", "sect-playCardMove-params");
-    bindToggle("inp-playCardMoveEnabled", "val-playCardMoveEnabled", "playCardMove.enabled");
-    bindNumber("inp-playCardMoveOvershoot1Px", "val-playCardMoveOvershoot1Px", "playCardMove.overshoot1Px", { digits: 1 });
-    bindNumber("inp-playCardMoveOvershoot2Px", "val-playCardMoveOvershoot2Px", "playCardMove.overshoot2Px", { digits: 1 });
-    bindNumber("inp-playCardMoveStiffness", "val-playCardMoveStiffness", "playCardMove.stiffness", { digits: 1 });
-
-    // === 【出牌】手牌堆到出牌堆的移动控制 ===
-    bindSectionExpand("inp-expandPlayCardMoveControl", "val-expandPlayCardMoveControl", "cardVisuals.expandedSections.playCardMoveControl", "sect-playCardMoveControl-params");
-    bindToggle("inp-playCardMoveControlEnabled", "val-playCardMoveControlEnabled", "playCardMoveControl.enabled");
-    bindNumber("inp-playCardMoveControlStartSpeed", "val-playCardMoveControlStartSpeed", "playCardMoveControl.startSpeed", { integer: true });
-
-    const playCardMoveCurveMount = document.getElementById("mount-playCardMoveCurve");
-    if (playCardMoveCurveMount && !playCardMoveCurvePanel) {
-      playCardMoveCurvePanel = buildCurvePanel(playCardMoveCurveMount, CONFIG.playCardMoveControl.moveCurve, {
-        label: "移动速率曲线",
-        onChange: () => {
-          notify("playCardMoveControl.moveCurve", CONFIG.playCardMoveControl.moveCurve);
-        }
-      });
-
-      syncers.push(() => {
-        if (playCardMoveCurvePanel) {
-          playCardMoveCurvePanel.setCurve(CONFIG.playCardMoveControl.moveCurve);
-        }
-      });
-    }
-
-    // === 【出牌】出牌堆上移效果 ===
+    // === 【出牌】出牌堆上移效果（抬升高度 peak≈v×t/2 + 节奏 + 阴影） ===
     bindSectionExpand("inp-expandPlayPileLiftEffect", "val-expandPlayPileLiftEffect", "cardVisuals.expandedSections.playPileLiftEffect", "sect-playPileLiftEffect-params");
     bindToggle("inp-playPileLiftEffectEnabled", "val-playPileLiftEffectEnabled", "playPileLiftEffect.enabled");
     bindNumber("inp-playPileLiftEffectStartSpeed", "val-playPileLiftEffectStartSpeed", "playPileLiftEffect.startSpeed", { integer: true });
     bindNumber("inp-playPileLiftEffectDecelerateTime", "val-playPileLiftEffectDecelerateTime", "playPileLiftEffect.decelerateTime", { digits: 2 });
-    bindNumber("inp-playPileLiftEffectOvershoot", "val-playPileLiftEffectOvershoot", "playPileLiftEffect.overshoot", { digits: 1 });
-    bindNumber("inp-playPileLiftEffectSpringStiffness", "val-playPileLiftEffectSpringStiffness", "playPileLiftEffect.springStiffness", { digits: 1 });
     bindNumber("inp-playPileLiftEffectInterval", "val-playPileLiftEffectInterval", "playPileLiftEffect.interval", { integer: true });
     bindNumber("inp-playPileLiftEffectStayDuration", "val-playPileLiftEffectStayDuration", "playPileLiftEffect.stayDuration", { integer: true });
-    bindNumber("inp-playPileLiftEffectDropStartSpeed", "val-playPileLiftEffectDropStartSpeed", "playPileLiftEffect.dropStartSpeed", { integer: true });
-    bindNumber("inp-playPileLiftEffectDropOvershoot", "val-playPileLiftEffectDropOvershoot", "playPileLiftEffect.dropOvershoot", { digits: 1 });
-    bindNumber("inp-playPileLiftEffectDropSpringStiffness", "val-playPileLiftEffectDropSpringStiffness", "playPileLiftEffect.dropSpringStiffness", { digits: 1 });
     bindColor("inp-playPileLiftEffectShadowColor", "val-playPileLiftEffectShadowColor", "playPileLiftEffect.shadowColor");
     bindNumber("inp-playPileLiftEffectShadowAlpha", "val-playPileLiftEffectShadowAlpha", "playPileLiftEffect.shadowAlpha", { digits: 2 });
     bindNumber("inp-playPileLiftEffectShadowLightX", "val-playPileLiftEffectShadowLightX", "playPileLiftEffect.shadowLightX", { digits: 1 });
@@ -1628,11 +1536,11 @@ export function setupControlPanel(
     bindNumber("inp-cardMoveRotationPerSpeed", "val-cardMoveRotationPerSpeed", "cardMoveRotation.rotationPerSpeed", { digits: 3 });
     bindNumber("inp-cardMoveRotationDrawPerSpeed", "val-cardMoveRotationDrawPerSpeed", "cardMoveRotation.drawRotationPerSpeed", { digits: 3 });
 
-    // 最大旋转角是派生量（dragHandCard.maxSpeed × cardMoveRotation.rotationPerSpeed / 1000），
+    // 最大旋转角是派生量（参考速度 3000px/s × cardMoveRotation.rotationPerSpeed / 1000），
     // input 在 HTML 中已经标了 readonly+disabled，所以这里不挂 change 监听，
     // 只做"只读 sync"。两条更新路径：
     //   (a) 挂在 syncers 里 —— refreshAllControls / preset 加载 / 撤回反撤回 时触发；
-    //   (b) 在两个上游 input（追踪速度上限、单位速度→旋转角系数）上各加一个 input/change
+    //   (b) 在上游 input（单位速度→旋转角系数）上各加一个 input/change
     //       监听，用户实时拖动时也能让派生值跟着变（普通 bindNumber 的 input 事件只
     //       notify、不触发 syncers，所以必须手动挂）。
     //
@@ -1651,8 +1559,8 @@ export function setupControlPanel(
           input.dataset["derivedMaxRotHook"] = "1";
           syncers.push(sync);
 
-          // 上游输入实时联动。三个上游 id：inp-dragMaxSpeed / inp-cardMoveRotationPerSpeed / inp-playCardMoveControlStartSpeed。
-          for (const upstreamId of ["inp-dragMaxSpeed", "inp-cardMoveRotationPerSpeed", "inp-playCardMoveControlStartSpeed"]) {
+          // 上游输入实时联动：单位速度→旋转角系数。
+          for (const upstreamId of ["inp-cardMoveRotationPerSpeed", "inp-cardMoveRotationDrawPerSpeed"]) {
             const up = document.getElementById(upstreamId) as HTMLInputElement | null;
             if (up && up.dataset["derivedMaxRotHook"] !== "1") {
               up.dataset["derivedMaxRotHook"] = "1";
@@ -1667,102 +1575,6 @@ export function setupControlPanel(
     bindNumber("inp-cardMoveRotationFollowLerp", "val-cardMoveRotationFollowLerp", "cardMoveRotation.followLerp", { digits: 2 });
     bindNumber("inp-cardMoveRotationFriction", "val-cardMoveRotationFriction", "cardMoveRotation.friction", { digits: 2 });
     bindNumber("inp-cardMoveRotationMinSpeed", "val-cardMoveRotationMinSpeed", "cardMoveRotation.minSpeed", { digits: 3 });
-
-    // === 卡牌过冲反弹（overshoot / spring-back）===
-    bindSectionExpand("inp-expandCardOvershoot", "val-expandCardOvershoot", "cardVisuals.expandedSections.cardOvershoot", "sect-cardOvershoot-params");
-    bindToggle("inp-cardOvershootEnabled", "val-cardOvershootEnabled", "cardOvershoot.enabled");
-    // 组 1：归位 / 发牌
-    bindNumber("inp-tweenOvershootPx", "val-tweenOvershootPx", "cardOvershoot.tweenOvershootPx", { digits: 1 });
-    bindNumber("inp-tweenMinOvershootPx", "val-tweenMinOvershootPx", "cardOvershoot.tweenMinOvershootPx", { digits: 1 });
-    // v2：距离驱动的过冲幅度 + 目标平均速度自适应 rise 时长
-    bindNumber("inp-tweenMinOvershootDistancePx", "val-tweenMinOvershootDistancePx", "cardOvershoot.tweenMinOvershootDistancePx", { digits: 1 });
-    bindNumber("inp-tweenFullOvershootDistancePx", "val-tweenFullOvershootDistancePx", "cardOvershoot.tweenFullOvershootDistancePx", { digits: 1 });
-    bindNumber("inp-tweenReturnAvgSpeed", "val-tweenReturnAvgSpeed", "cardOvershoot.tweenReturnAvgSpeed", { digits: 0 });
-    bindNumber("inp-tweenReturnMinMS", "val-tweenReturnMinMS", "cardOvershoot.tweenReturnMinMS", { digits: 0 });
-    bindNumber("inp-tweenReturnMaxMS", "val-tweenReturnMaxMS", "cardOvershoot.tweenReturnMaxMS", { digits: 0 });
-    // 兼容字段：tweenSpeedRatioThreshold 仍被组 2 急停消费；tweenRiseRatio 已弃用（仅供旧 preset 加载，不再生效）
-    bindNumber("inp-tweenSpeedRatioThreshold", "val-tweenSpeedRatioThreshold", "cardOvershoot.tweenSpeedRatioThreshold", { digits: 2 });
-    bindNumber("inp-tweenRiseRatio", "val-tweenRiseRatio", "cardOvershoot.tweenRiseRatio", { digits: 2 });
-    bindNumber("inp-tweenSpringStiffness", "val-tweenSpringStiffness", "cardOvershoot.tweenSpringStiffness", { digits: 1 });
-
-    const tweenRiseCurveMount = document.getElementById("mount-tweenRiseCurve");
-    if (tweenRiseCurveMount && !tweenRiseCurvePanel) {
-      tweenRiseCurvePanel = buildCurvePanel(tweenRiseCurveMount, CONFIG.cardOvershoot.tweenRiseCurve, {
-        label: "第一段（rise）缓动曲线",
-        onChange: () => {
-          notify("cardOvershoot.tweenRiseCurve", CONFIG.cardOvershoot.tweenRiseCurve);
-        }
-      });
-
-      syncers.push(() => {
-        if (tweenRiseCurvePanel) {
-          tweenRiseCurvePanel.setCurve(CONFIG.cardOvershoot.tweenRiseCurve);
-        }
-      });
-    }
-
-    const tweenSpringCurveMount = document.getElementById("mount-tweenSpringCurve");
-    if (tweenSpringCurveMount && !tweenSpringCurvePanel) {
-      tweenSpringCurvePanel = buildCurvePanel(tweenSpringCurveMount, CONFIG.cardOvershoot.tweenSpringCurve, {
-        label: "第二段（spring）缓动曲线",
-        onChange: () => {
-          notify("cardOvershoot.tweenSpringCurve", CONFIG.cardOvershoot.tweenSpringCurve);
-        }
-      });
-
-      syncers.push(() => {
-        if (tweenSpringCurvePanel) {
-          tweenSpringCurvePanel.setCurve(CONFIG.cardOvershoot.tweenSpringCurve);
-        }
-      });
-    }
-
-    // 组 2：拖拽中急停（一次性过冲，独立曲线 / 幅度 / 时长）
-    bindToggle("inp-dragInertiaEnabled", "val-dragInertiaEnabled", "cardOvershoot.dragInertiaEnabled");
-    bindNumber("inp-dragLowSpeedRatio", "val-dragLowSpeedRatio", "cardOvershoot.dragLowSpeedRatio", { digits: 2 });
-    bindNumber("inp-dragQuietTriggerMS", "val-dragQuietTriggerMS", "cardOvershoot.dragQuietTriggerMS", { digits: 0 });
-    bindNumber("inp-dragTriggerCooldownMS", "val-dragTriggerCooldownMS", "cardOvershoot.dragTriggerCooldownMS", { digits: 0 });
-    bindNumber("inp-dragOvershootPx", "val-dragOvershootPx", "cardOvershoot.dragOvershootPx", { digits: 1 });
-    bindNumber("inp-dragMinOvershootPx", "val-dragMinOvershootPx", "cardOvershoot.dragMinOvershootPx", { digits: 1 });
-    bindNumber("inp-dragOvershootMinSpeedRatio", "val-dragOvershootMinSpeedRatio", "cardOvershoot.dragOvershootMinSpeedRatio", { digits: 2 });
-    bindNumber("inp-dragRiseDurationMS", "val-dragRiseDurationMS", "cardOvershoot.dragRiseDurationMS", { digits: 0 });
-    bindNumber("inp-dragSpringDurationMS", "val-dragSpringDurationMS", "cardOvershoot.dragSpringDurationMS", { digits: 0 });
-    bindNumber("inp-dragCancelDistancePx", "val-dragCancelDistancePx", "cardOvershoot.dragCancelDistancePx", { digits: 1 });
-    bindNumber("inp-dragPointerMaxSpeed", "val-dragPointerMaxSpeed", "cardOvershoot.dragPointerMaxSpeed", { digits: 0 });
-    bindNumber("inp-dragSpeedSmoothingMS", "val-dragSpeedSmoothingMS", "cardOvershoot.dragSpeedSmoothingMS", { digits: 0 });
-    bindNumber("inp-dragPeakDecayPerSec", "val-dragPeakDecayPerSec", "cardOvershoot.dragPeakDecayPerSec", { digits: 1 });
-
-    const dragRiseCurveMount = document.getElementById("mount-dragRiseCurve");
-    if (dragRiseCurveMount && !dragRiseCurvePanel) {
-      dragRiseCurvePanel = buildCurvePanel(dragRiseCurveMount, CONFIG.cardOvershoot.dragRiseCurve, {
-        label: "拖拽第一段（rise）缓动曲线",
-        onChange: () => {
-          notify("cardOvershoot.dragRiseCurve", CONFIG.cardOvershoot.dragRiseCurve);
-        }
-      });
-
-      syncers.push(() => {
-        if (dragRiseCurvePanel) {
-          dragRiseCurvePanel.setCurve(CONFIG.cardOvershoot.dragRiseCurve);
-        }
-      });
-    }
-
-    const dragSpringCurveMount = document.getElementById("mount-dragSpringCurve");
-    if (dragSpringCurveMount && !dragSpringCurvePanel) {
-      dragSpringCurvePanel = buildCurvePanel(dragSpringCurveMount, CONFIG.cardOvershoot.dragSpringCurve, {
-        label: "拖拽回弹（spring）缓动曲线",
-        onChange: () => {
-          notify("cardOvershoot.dragSpringCurve", CONFIG.cardOvershoot.dragSpringCurve);
-        }
-      });
-
-      syncers.push(() => {
-        if (dragSpringCurvePanel) {
-          dragSpringCurvePanel.setCurve(CONFIG.cardOvershoot.dragSpringCurve);
-        }
-      });
-    }
 
     // === 6. 文字视效专项 ===
     bindSectionExpand("inp-expandPlayPileSettleText", "val-expandPlayPileSettleText", "cardVisuals.expandedSections.playPileSettleText", "sect-playPileSettleText-params");
@@ -2039,15 +1851,10 @@ export function setupControlPanel(
       hoverScaleCurvePanel?.destroy();
       dragScaleInCurvePanel?.destroy();
       dragScaleOutCurvePanel?.destroy();
-      tweenRiseCurvePanel?.destroy();
-      tweenSpringCurvePanel?.destroy();
-      dragRiseCurvePanel?.destroy();
-      dragSpringCurvePanel?.destroy();
       bgBlockFadeCurvePanel?.destroy();
       bgBlockScaleCurvePanel?.destroy();
       jokerBgBlockFadeCurvePanel?.destroy();
       jokerBgBlockScaleCurvePanel?.destroy();
-      playCardMoveCurvePanel?.destroy();
       removeHistoryShortcuts();
       removeHierarchyHistory();
       for (const name of eventsToStop) {

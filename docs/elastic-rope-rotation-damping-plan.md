@@ -15,7 +15,7 @@
    - 外部 npm 动画库（react-spring / framer-motion / wobble）**运行时依赖**（允许对照其公式与参数心智，但代码自写）
    - 用平移 `airDrag.linearCoeff` 直接当角阻尼系数
    - 完整 `p × F`（含 \(F_y\)）作为默认驱动（会破坏「纯上下不拧」）
-2. **不得改动手牌主路径**：`GameController`、`CardView.updateDragging`、主局 `dragHandCard` 行为不变。
+2. **主路径已接入弹性绳**（见 `docs/elastic-rope-traction-card-model.md` 状态）：旋转阻尼公式仍以本文为准；位移后端为绳积分而非 lerp。
 3. **默认行为兼容**：shipping / DEFAULT 中 `dynamics` 默认 **`springDamper`**（本方案目标即上阻尼）；若需 A/B，允许面板切回 `follow` / `instant`。旧 JSON 缺字段时由 `mergeConfig` 用 DEFAULT 补齐。
 4. **每个实现步骤**必须同时满足：理论依据 → 具体实现 → 参考依据；禁止未引用的「经验改法」。
 5. **禁止**把 react-spring 的 `duration` 模式混进积分器（与绳文档同一禁令）。

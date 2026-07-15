@@ -288,12 +288,8 @@ export interface RuntimeConfig {
     distanceRatio: number;
     scaleRatio: number;
   };
-  /** 拖拽手牌相关参数 */
+  /** 拖拽手牌相关参数（缩放视效；位移跟手由弹性绳） */
   dragHandCard: {
-    /** 追踪速度上限 (像素/秒) */
-    maxSpeed: number;
-    /** 追踪插值系数 (0-1) */
-    lerpFactor: number;
     /** 拖拽时的目标缩放 (>=1 通常) */
     dragScaleTarget: number;
     /** 进入拖拽时的缩放过渡时长 (毫秒) */
@@ -416,88 +412,12 @@ export interface RuntimeConfig {
     randomRotationDeg: number;
   };
   /**
-   * 卡牌换位（手动理牌）
-   *
-   * 触发场景：玩家拖拽手牌时，拖拽牌中心 x 越过相邻牌当前槽位中线 →
-   * GameController.reorderHandWhileDragging 在 hand 数组中 splice 互换位置 →
-   * 被让位的相邻牌走此动画到新槽位。
-   *
-   * 与「归位/发牌（cardOvershoot 组 1）」和「拖拽急停（cardOvershoot 组 2）」完全独立。
-   *
-   * 物理模型（与 selectMove 同构，仅作用轴向不同）：
-   *   rise   ：当前位置 → 沿目标方向越过 overshootPx 的过冲点（rotation 在此段做到位）
-   *            初速度 startSpeed（px/s），Easing.quadOut 恒定减速到 0
-   *            时长 T = 2 * D / startSpeed（D = 起点→过冲点距离）
-   *   spring ：过冲点 → 真正落点（只动 x/y）
-   *            时长 = round(1000 / stiffness)
-   *
-   * 用「速度 / 过冲 / 刚度」而非固定时长：打断后立刻按当前剩余距离重算，
-   * 短距离自动变短、速度不锐减——快速左右往返时仍保持利落。
-   */
-  handSwap: {
-    /** 总开关。关闭后让位走单段补间，无过冲。 */
-    enabled: boolean;
-    /**
-     * rise 段初速度（px/s）。物理关系：时长 T = 2 * D / startSpeed。
-     * 建议 800~3000；越大越过目标越快。
-     */
-    startSpeed: number;
-    /**
-     * 过冲幅度（像素，沿运动方向投影）。
-     * 建议不超过 handLayout.cardSpacing 的 25%~40%（默认 spacing=65 → 约 12~26），
-     * 过大视觉上会撞到下一张牌造成穿插错觉。
-     */
-    overshootPx: number;
-    /**
-     * 回弹刚度。spring 段时长（ms）= round(1000 / stiffness)。
-     * 数值越大回弹越"硬"/越快。建议 5~20。
-     */
-    stiffness: number;
-  };
-  /**
    * 卡牌换位【理牌】
-   *
-   * 触发场景：玩家点击 HUD「点数 / 花色」按钮 → GameController 按规则重排 hand 数组 →
-   * 立刻按最终下标写 zIndex（落点靠左下层、靠右上层）→ 每张牌走 CardFx.sortMove 到位。
-   *
-   * 动画形态与 handSwap 同构（rise → 过冲 → spring），但时长按移动距离自适应：
-   *   riseMS = clamp(riseDurationMS * (dist / refDistancePx)^durationPower, minRiseMS, maxRiseMS)
-   *   - durationPower = 0：固定时长 → 速度严格 ∝ 距离（远牌明显更快）
-   *   - durationPower = 1：时长 ∝ 距离 → 速度恒定
-   *   建议 0~0.35，既保证远牌更快，又避免极近距离拖沓、极远距离瞬移。
-   *
-   * spring 段保持固定 springDurationMS，保证过冲回弹手感一致。
+   * 触发：点数/花色按钮。位移由弹性绳；enabled=false 时瞬移。
    */
   handSort: {
-    /** 总开关。关闭后理牌走单段补间，无过冲。 */
+    /** 总开关。关闭后理牌瞬移到目标位。 */
     enabled: boolean;
-    /**
-     * rise 段基准时长（ms）：当移动距离 = refDistancePx 时使用此值。
-     * 建议 100~160。
-     */
-    riseDurationMS: number;
-    /** spring 段时长（ms，固定，不过距离缩放）。建议 80~140。 */
-    springDurationMS: number;
-    /**
-     * 过冲幅度（像素，沿运动方向投影）。
-     * 理牌可跨越多格，过冲可比手动换位略大一点。建议 10~20。
-     */
-    overshootPx: number;
-    /**
-     * 基准距离（像素）：移动距离等于此值时，rise 段使用完整 riseDurationMS。
-     * 建议 ≈ handLayout.cardSpacing（默认 65）。
-     */
-    refDistancePx: number;
-    /**
-     * 距离→时长幂次（0~1）。
-     * riseMS ∝ (dist/ref)^durationPower；速度 ∝ dist^(1-durationPower)。
-     * 0 = 固定时长（远牌最快），1 = 恒速。建议 0.15~0.3。
-     */
-    durationPower: number;
-    /** rise 段时长下限（ms），避免极短距离瞬移或过快。建议 40~80。 */
-    minRiseDurationMS: number;
-    /** rise 段时长上限（ms），避免极远距离拖沓。建议 180~320。 */
-    maxRiseDurationMS: number;
   };
   /**
    * 【出牌】卡牌整体位移效果
@@ -510,13 +430,6 @@ export interface RuntimeConfig {
     enabled: boolean;
     /** 手牌整体下移距离（px，正值向下）。上移距离与此相同。 */
     distancePx: number;
-    /**
-     * 整体位移速率曲线（三次贝塞尔，端点固定 0→1）。
-     * 与 startSpeed 共同决定时长：duration ≈ |distance| * slope / startSpeed。
-     */
-    moveCurve: BezierCurveConfig;
-    /** 启动速度（px/s），用于由距离推导位移时长。 */
-    startSpeed: number;
     /** 按钮隐藏后、开始下移前的等待（ms）。 */
     preDownWaitMS: number;
     /** 下移完成后、进入手牌打出流程前的等待（ms）。 */
@@ -526,63 +439,28 @@ export interface RuntimeConfig {
     /** 上移完成后、开始发新牌前的等待（ms）。 */
     postUpWaitMS: number;
   };
-  /**
-   * 【出牌】手牌换位（挤位阶段）
-   * 物理模型与 handSwap 相同：startSpeed / overshootPx / stiffness。
-   */
-  playHandSwap: {
-    enabled: boolean;
-    /** rise 段初速度（px/s）。出牌挤位通常更快，建议 1500~4000。 */
-    startSpeed: number;
-    overshootPx: number;
-    /** 回弹刚度；时长 ms = round(1000 / stiffness)。建议 10~25。 */
-    stiffness: number;
-  };
   /** 【出牌】出牌堆的位移 */
   playPileDisplacement: {
     enabled: boolean;
     cardSpacing: number;
-    riseDurationMS: number;
-    springDurationMS: number;
-    overshootPx: number;
     firstIntervalMS: number;
     intervalReductionMS: number;
     lastIntervalMS: number;
   };
-  /** 【出牌】出牌移动控制 */
-  playCardMove: {
-    enabled: boolean;
-    overshoot1Px: number;
-    overshoot2Px: number;
-    stiffness: number;
-  };
-  /** 【出牌】手牌堆到出牌堆的移动控制 */
-  playCardMoveControl: {
-    enabled: boolean;
-    moveCurve: BezierCurveConfig;
-    startSpeed: number;
-  };
   /** 【出牌】出牌堆上移效果 */
   playPileLiftEffect: {
     enabled: boolean;
-    /** 卡牌向上移动的启动速度 */
+    /**
+     * 抬升高度系数：与 decelerateTime 合成 peakDist = startSpeed * decelerateTime / 2。
+     * 位移仍由弹性绳完成；本字段只决定目标抬升量。
+     */
     startSpeed: number;
-    /** 减速为0所需时间（1以内，精确到小数点后两位） */
+    /** 抬升高度系数：减速时间（秒） */
     decelerateTime: number;
-    /** 过冲幅度 */
-    overshoot: number;
-    /** 回弹刚度（越大回弹力度越强，速度越快） */
-    springStiffness: number;
     /** 每张要抬起的牌之间的时间间隔 */
     interval: number;
     /** 所有应该上移的牌上移后，停留时间，用来延迟进入结算的时机 (ms) */
     stayDuration: number;
-    /** 下移的过冲幅度 */
-    dropOvershoot: number;
-    /** 下移回弹刚度 */
-    dropSpringStiffness: number;
-    /** 下移的启动速度 */
-    dropStartSpeed: number;
     /** 上移阴影颜色 */
     shadowColor: number;
     /** 上移阴影透明度 */
@@ -722,7 +600,7 @@ export interface RuntimeConfig {
    *   2. 方向投影：旋转目标只取与"轴点→中心"垂直方向上的速度分量。
    *      轴点放在卡牌中上部时，该方向就是水平方向，所以垂直拖动几乎不产生旋转目标。
    *   3. 目标旋转角 = clamp(vEffective * rotationPerSpeed, ±maxRot)，
-   *      其中 maxRot = (dragHandCard.maxSpeed / 1000) * rotationPerSpeed
+   *      其中 maxRot = (3000 / 1000) * rotationPerSpeed（参考速度常量）
    *      ——即"卡牌能达到的最高速度下产生的旋转角"，作为派生上限自动同步，
    *      无需手动设置（也避免手动值与速度上限不匹配造成的死区或溢出）。
    *   4. 平滑跟随：velocityRotation 以 followLerp 的速率追目标，
@@ -730,184 +608,6 @@ export interface RuntimeConfig {
    *   5. 绕轴点效果：通过对 displayWrapper.position 做反向补偿，
    *      使最终视觉效果等价于"以 pivotOffset 处为不动点旋转 velocityRotation"。
    */
-  /**
-   * 卡牌过冲反弹（overshoot / spring-back）
-   *
-   * 把"快速移动 → 抵达最终落点"的场景统一加上"略微越过落点再回弹"的视觉细节。
-   * 适用三类运动：
-   *   1. 归位（拖拽松手后回到 layout 位置）
-   *   2. 发牌（牌从屏幕外飞到手牌位置）
-   *   3. 拖拽急停（鼠标快速移动后骤停，卡牌冲过手指位置再拉回）
-   *
-   * 分两组参数：
-   *   - tween*：作用于"归位"和"发牌"两类 Tween 路径，由 CardFx.moveToWithOvershoot 消费。
-   *   - drag* ：作用于拖拽中（CardView.updateDragging）的速度模型，让急停时自然过冲。
-   *
-   * 归位/发牌触发条件：最近一帧实际速度低于最小速度比例时不触发；达到最小速度比例后，
-   *                   过冲幅度随速度线性增长，最高速度使用最大过冲幅度。
-   */
-  cardOvershoot: {
-    /** 总开关 */
-    enabled: boolean;
-
-    // ── 组 1：归位 / 发牌（Tween 路径） ──────────────────────────
-    //
-    // 【模型】距离驱动的过冲幅度 + 目标平均速度自适应时长。
-    //
-    // 过去版本以"释放瞬间卡牌速度"作为过冲幅度的输入，但快速甩牌时
-    // 卡牌实际位置滞后于鼠标，"卡牌位置→layout 目标"距离一定很大；
-    // 而定住释放时距离很小。距离差异天然区分了"重弹/轻弹/不弹"语义，
-    // 比速度更稳定（速度受 lerp、ticker 节流、ease 形状影响）且更符合
-    // 物理直觉：远距离归位 = 弹簧拉得远 = 弹回来的过冲也大。
-    //
-    // 时长（rise 段）则按"目标平均速度 + 上下限"自适应——保证不同
-    // 释放距离下"该牌归位的速度感"始终一致，避免远距离归位"嗖"地
-    // 飞回去、近距离归位拖拖拉拉的体验失衡。
-
-    /** 距离 ≥ tweenFullOvershootDistancePx 时使用的最大过冲幅度（像素，沿运动方向投影）。建议 8~30。 */
-    tweenOvershootPx: number;
-    /** 距离 = tweenMinOvershootDistancePx 时使用的最小过冲幅度（像素）。建议 2~10。 */
-    tweenMinOvershootPx: number;
-    /**
-     * 触发过冲所需的最小起点距离（像素）。
-     * 释放瞬间 |card → layoutTarget| < 此值时，认为是"轻微归位"，不触发过冲，
-     * 直接走单段 moveTo。建议 16~60。
-     */
-    tweenMinOvershootDistancePx: number;
-    /**
-     * 过冲幅度饱和距离（像素）：距离 ≥ 此值时使用 tweenOvershootPx 满额过冲。
-     * tweenMinOvershootDistancePx ~ 此值之间，过冲幅度从 tweenMinOvershootPx
-     * 线性插值到 tweenOvershootPx。建议 180~400（≈ 卡牌甩到屏幕半幅的距离）。
-     * 必须 > tweenMinOvershootDistancePx，否则插值退化。
-     */
-    tweenFullOvershootDistancePx: number;
-    /**
-     * 归位目标平均速度（px/s）：rise 段时长 = 距离 / 此值，从而无论
-     * 释放距离远近，视觉"归位速度"都接近该值。
-     * 建议 800~2000。值越大，归位越急；越小越温吞。
-     */
-    tweenReturnAvgSpeed: number;
-    /** rise 段时长下限（ms）：自适应时长被 clamp 到这个下限，避免极短距离瞬移。建议 100~180。 */
-    tweenReturnMinMS: number;
-    /** rise 段时长上限（ms）：自适应时长被 clamp 到这个上限，避免极远距离拖沓。建议 360~600。 */
-    tweenReturnMaxMS: number;
-    /**
-     * 【已弃用】最小触发速度比例（0~1）。
-     * 组 1（归位/发牌）已迁移到"距离驱动"模型，不再读取此值。
-     * 仍保留是因为组 2（拖拽急停）共用此字段作为"高速判定阈值"。
-     */
-    tweenSpeedRatioThreshold: number;
-    /**
-     * 【已弃用】rise 段时长占比。
-     * 组 1 改为按"目标平均速度+上下限"自适应 riseMS，不再读取此值。
-     * 保留以兼容 UI 输入框；可在后续版本中彻底移除。
-     */
-    tweenRiseRatio: number;
-    /** 第一段（start → 过冲点）缓动曲线（贝塞尔）。建议偏减速形状，便于和过冲衔接。 */
-    tweenRiseCurve: BezierCurveConfig;
-    /** 弹簧回弹刚度（无量纲）：第二段时长 = round(1000 / 此值)。建议 5~30。 */
-    tweenSpringStiffness: number;
-    /** 第二段（过冲点 → 终点）缓动曲线（贝塞尔）。建议类似 cubicOut，柔和回拉。 */
-    tweenSpringCurve: BezierCurveConfig;
-
-    // ── 组 2：拖拽中急停（一次性过冲） ──────────────────────────
-    /**
-     * 是否启用拖拽急停过冲。
-     * 开启后，鼠标在拖拽中急停时（基于"速度突降"信号判定，详见 dragLowSpeedRatio），
-     * 触发一次性"rise + spring"两段补间：
-     *   rise   : 卡牌当前位置 → 沿运动方向越过 dragTarget tweenOvershootPx 像素的过冲点
-     *   spring : 过冲点 → dragTarget
-     * 整个过程只过冲一次，不振荡。
-     *
-     * 关闭后退化为原始朝目标 lerp，急停时卡牌瞬间停在 dragTarget 附近。
-     *
-     * 注：rise / spring 段的过冲幅度、时长占比、缓动曲线、回弹刚度
-     * 直接复用上面"组 1"里 tween* 系列参数，保证两条路径的过冲手感一致；
-     * 拖拽总时长固定为 animation.moveDurationMS / 2（拖拽急停比归位更"急"）。
-     */
-    dragInertiaEnabled: boolean;
-    /**
-     * 拖拽急停【最大】过冲幅度（像素）。
-     * 当急停触发瞬间「高速段速度」达到 maxSpeed 时使用此幅度。
-     * 与 dragMinOvershootPx + dragOvershootMinSpeedRatio 一起线性映射。
-     */
-    dragOvershootPx: number;
-    /**
-     * 拖拽急停【最小】过冲幅度（像素）。
-     * 当急停触发瞬间「高速段速度」刚好达到 dragOvershootMinSpeedRatio × maxSpeed 时
-     * 使用此幅度；速度更低也不会更低（但本来低于 tweenSpeedRatioThreshold 就不会触发急停）。
-     * 建议 2~8，明显小于 dragOvershootPx。
-     */
-    dragMinOvershootPx: number;
-    /**
-     * 拖拽急停过冲幅度的「最小速度比例」（0~1）：
-     * 急停触发瞬间，prev pointermove 采样的瞬时速度 / maxSpeed 若 ≤ 此比例，
-     * 使用 dragMinOvershootPx；若 ≥ 1.0（达到 maxSpeed），使用 dragOvershootPx；
-     * 中间按线性插值。
-     *
-     * 与 tweenSpeedRatioThreshold 解耦：tweenSpeedRatioThreshold 决定「是否触发急停」，
-     * 而本字段只决定「触发后过冲幅度的线性映射下界」。建议 ≥ tweenSpeedRatioThreshold，
-     * 否则下半段映射区间不会被实际使用。建议 0.5~0.7。
-     */
-    dragOvershootMinSpeedRatio: number;
-    /** 拖拽急停第一段（当前位置 → 过冲点）时长。 */
-    dragRiseDurationMS: number;
-    /** 拖拽急停第二段（过冲点 → 手指落点）时长。 */
-    dragSpringDurationMS: number;
-    /** 拖拽急停第一段缓动曲线。 */
-    dragRiseCurve: BezierCurveConfig;
-    /** 拖拽急停第二段回弹曲线。 */
-    dragSpringCurve: BezierCurveConfig;
-    /**
-     * 急停静默兜底时长（ms）：如果最后一次 pointermove 已经达到高速阈值，
-     * 之后超过这段时间没有新的 pointermove，也视为急停。
-     * 设为 0 时禁用静默兜底，只使用"高速 → 低速"速度突降信号。
-     */
-    dragQuietTriggerMS: number;
-    /** 触发冷却（ms）：一次拖拽急停过冲请求后，至少间隔这段时间才允许下一次。 */
-    dragTriggerCooldownMS: number;
-    /**
-     * 急停触发的"低速比例"阈值（0~1）：
-     * 触发判定 = 上一次 pointermove 采样的瞬时速度 ≥ maxSpeed × tweenSpeedRatioThreshold
-     *           && 本次采样的瞬时速度 ≤ maxSpeed × dragLowSpeedRatio。
-     *
-     * 物理语义：手指曾经处于"快速移动"状态，最新一次采样突然降到"明显慢"——
-     * 这就是"急停"。原来基于"30ms 静默"的判定在浏览器 pointermove 节流（每帧都发）
-     * 下永远无法满足，所以改成这套"速度突降"信号。
-     *
-     * 建议 0.2~0.4：太低（如 0.05）需要鼠标几乎完全静止才触发，错过半急停；
-     * 太高（如 0.6）容易把正常减速也当作急停反复触发。默认 0.3。
-     */
-    dragLowSpeedRatio: number;
-    /**
-     * 过冲取消阈值（像素）：在 rise/spring 进行期间，
-     * 如果 dragTarget 相对触发时锚定的目标偏移超过此值（意味着用户重新挪动了鼠标），
-     * 立刻取消过冲、回到普通 lerp 跟随。建议 12~40。
-     */
-    dragCancelDistancePx: number;
-    /**
-     * 鼠标速度上限（px/s）——所有「速度 / maxSpeed」计算的统一分母。
-     * 注意与 dragHandCard.maxSpeed 区分：后者是「卡牌跟手能被推到的最大速度」，
-     * 而鼠标本身的瞬时速度（pointermove 采样）可以远超那个值（甩动时 6000~10000 px/s）。
-     * 若混用同一分母会导致 ratio 长期撞顶到 1.0，线性映射区间形同虚设。
-     * 建议 5000~8000（屏幕分辨率/玩家习惯而异）。
-     */
-    dragPointerMaxSpeed: number;
-    /**
-     * 鼠标速度采样的 EMA 平滑时间常数（ms）。
-     * 0 = 禁用平滑，直接用 raw = 位移 / dt。值越大越平滑但越滞后。
-     * 主要作用：抑制 pointermove dt 抖动（8ms vs 24ms）导致的伪突降/伪峰值。
-     * 建议 16~32（约 1~2 帧）。
-     */
-    dragSpeedSmoothingMS: number;
-    /**
-     * 峰值速度衰减率（1/s）。pointerPeakSpeed 在没有更高速度刷新时按
-     * peak *= exp(-rate * dt) 衰减，避免一次甩动后的峰值永久驻留导致后续
-     * 慢速急停也用满档过冲幅度。
-     * 0 = 不衰减（峰值始终保持）。建议 3~8。
-     */
-    dragPeakDecayPerSec: number;
-  };
   cardMoveRotation: {
     /** 总开关 */
     enabled: boolean;
@@ -1044,18 +744,13 @@ export interface RuntimeConfig {
       selectMove: boolean;
       cardOps: boolean;
       cardMoveRotation: boolean;
-      cardOvershoot: boolean;
       drawCard: boolean;
       drawFlip: boolean;
       discard: boolean;
       discardFlip: boolean;
-      handSwap: boolean;
       handSort: boolean;
       playHandGroupShift: boolean;
-      playHandSwap: boolean;
       playPileDisplacement: boolean;
-      playCardMove: boolean;
-      playCardMoveControl: boolean;
       playPileLiftEffect: boolean;
       playPileSettleEffect: boolean;
       playPileSettleText: boolean;
@@ -1073,7 +768,7 @@ export interface RuntimeConfig {
     };
 
     /**
-     * 选中与取消卡牌的位移效果（两段补间：启动速度减速过冲 → 刚度回弹）
+     * 选中与取消卡牌的位移效果（弹性绳飞向 layout 目标；过冲由绳自然产生）
      *
      * 触发：快速点击手牌 → toggleSelection 翻转 view.selected（仅对那张牌）。
      * 模型（与出牌堆抬升 / dropCardScoring 同构）：
@@ -1093,38 +788,8 @@ export interface RuntimeConfig {
     selectRiseY: number;
 
     // ── 上移（选中 rise）────────────────────────────────
-    /**
-     * 【上移】启动速度（像素/秒）。
-     * 从当前位置冲向过冲点时的初速度；配合 quadOut 恒定减速到 0。
-     * 物理关系：时长 T = 2 * D / startSpeed。建议 300~1200。
-     */
-    selectMoveStartSpeed: number;
-    /**
-     * 【上移】过冲幅度（像素）：第一段终点 y = (基准 y - selectRiseY) - overshoot。
-     * 设为 0 等同于关掉过冲（第一段直接到位，无第二段回弹）。
-     */
-    selectMoveOvershoot: number;
-    /**
-     * 【上移】回弹刚度（无单位，建议 3~30）。
-     * 回弹段时长（ms）= round(1000 / stiffness)。数值越大回弹越"硬"。
-     */
-    selectMoveStiffness: number;
 
     // ── 下移（取消选中 fall）────────────────────────────
-    /**
-     * 【下移】启动速度（像素/秒）。取消选中时从弹起位冲向过冲点（目标下方）。
-     * 建议可略低于上移，让落下稍柔和。
-     */
-    selectFallStartSpeed: number;
-    /**
-     * 【下移】过冲幅度（像素）：第一段终点 y = 基准 y + overshoot（向下多走）。
-     */
-    selectFallOvershoot: number;
-    /**
-     * 【下移】回弹刚度（无单位，建议 3~30）。
-     * 回弹段时长（ms）= round(1000 / stiffness)。
-     */
-    selectFallStiffness: number;
     // 1. 常态呼吸晃动
     breathingEnabled: boolean;
     breathingSpeed: number;
@@ -1375,7 +1040,7 @@ export interface RuntimeConfig {
    * 小丑牌系统
    *
    * 设计原则：小丑牌 ≈ 可拖拽排序 / 可选中弹起、但无法出牌 / 弃牌 / 点数花色理牌 的「手牌」。
-   * 所有数值与手感参数完全复用手牌专区（cardVisuals / cardShadow / handSwap 等），
+   * 所有数值与手感参数完全复用手牌专区（cardVisuals / cardShadow / elasticRopeCard 等），
    * 本节点只负责：
    *   1) 布局（顶部槽位）；
    *   2) 对「复用的手牌效果专区」再套一层总开关（effects.*）。
@@ -1522,8 +1187,6 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     scaleRatio: 0.88,
   }),
   dragHandCard: Object.freeze({
-    maxSpeed: 3000,
-    lerpFactor: 0.15,
     dragScaleTarget: 1.15,
     dragScaleInDurationMS: 180,
     dragScaleOutDurationMS: 180,
@@ -1567,85 +1230,30 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     flipAngleJitterDeg: 15,
     randomRotationDeg: 20,
   }),
-  handSwap: Object.freeze({
-    enabled: true,
-    // 约等价于旧默认 rise 110ms @ spacing 65 + overshoot 12：v0 ≈ 2*77/0.11 ≈ 1400
-    startSpeed: 1400,
-    overshootPx: 12,
-    // spring 110ms → stiffness ≈ 1000/110 ≈ 9
-    stiffness: 9,
-  }),
   handSort: Object.freeze({
     enabled: true,
-    riseDurationMS: 130,
-    springDurationMS: 110,
-    overshootPx: 14,
-    refDistancePx: 65,
-    durationPower: 0.2,
-    minRiseDurationMS: 60,
-    maxRiseDurationMS: 220,
   }),
   playHandGroupShift: Object.freeze({
     enabled: true,
     distancePx: 40,
-    moveCurve: Object.freeze({
-      enabled: true,
-      startScale: 0,
-      endScale: 1,
-      p1: { x: 0.25, y: 0.1 },
-      p2: { x: 0.25, y: 1.0 },
-    }) as BezierCurveConfig,
-    startSpeed: 800,
     preDownWaitMS: 80,
     postDownWaitMS: 60,
     preUpWaitMS: 80,
     postUpWaitMS: 60,
   }),
-  playHandSwap: Object.freeze({
-    enabled: true,
-    // 约等价于旧默认 rise 60ms / spring 50ms
-    startSpeed: 2600,
-    overshootPx: 12,
-    stiffness: 20,
-  }),
   playPileDisplacement: Object.freeze({
     enabled: true,
     cardSpacing: 70,
-    riseDurationMS: 60,
-    springDurationMS: 50,
-    overshootPx: 12,
     firstIntervalMS: 400,
     intervalReductionMS: 80,
     lastIntervalMS: 160,
-  }),
-  playCardMove: Object.freeze({
-    enabled: true,
-    overshoot1Px: 40,
-    overshoot2Px: 12,
-    stiffness: 12,
-  }),
-  playCardMoveControl: Object.freeze({
-    enabled: true,
-    moveCurve: Object.freeze({
-      enabled: true,
-      startScale: 0,
-      endScale: 1,
-      p1: { x: 0.1, y: 0.85 },
-      p2: { x: 0.25, y: 1.0 },
-    }) as BezierCurveConfig,
-    startSpeed: 4000,
   }),
   playPileLiftEffect: Object.freeze({
     enabled: true,
     startSpeed: 400,
     decelerateTime: 0.35,
-    overshoot: 15,
-    springStiffness: 15,
     interval: 150,
     stayDuration: 0,
-    dropOvershoot: 10,
-    dropSpringStiffness: 12,
-    dropStartSpeed: 300,
     shadowColor: 0x000000,
     shadowAlpha: 0.35,
     shadowLightX: 720,
@@ -1790,74 +1398,6 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       p2: { x: 0.25, y: 1.0 },
     }) as BezierCurveConfig,
   }),
-  cardOvershoot: Object.freeze({
-    enabled: true,
-    // 归位/发牌（Tween 路径，距离驱动）：
-    //   距离 < 30px：不过冲
-    //   距离 30~280px：过冲幅度 6 → 14 像素线性插值
-    //   距离 ≥ 280px：14 像素满额
-    // rise 时长：距离 / 1400 px/s，clamp 到 [140, 420] ms
-    tweenOvershootPx: 14,
-    tweenMinOvershootPx: 6,
-    tweenMinOvershootDistancePx: 30,
-    tweenFullOvershootDistancePx: 280,
-    tweenReturnAvgSpeed: 1400,
-    tweenReturnMinMS: 140,
-    tweenReturnMaxMS: 420,
-    tweenSpeedRatioThreshold: 0.5,
-    tweenRiseRatio: 0.75,
-    tweenRiseCurve: Object.freeze({
-      enabled: true,
-      startScale: 0,
-      endScale: 1,
-      // 类似 cubicOut 的减速形状：开头快、末尾接近水平，便于和过冲点衔接。
-      p1: { x: 0.18, y: 0.85 },
-      p2: { x: 0.32, y: 1.0 },
-    }) as BezierCurveConfig,
-    tweenSpringStiffness: 10, // → 第二段约 100ms
-    tweenSpringCurve: Object.freeze({
-      enabled: true,
-      startScale: 0,
-      endScale: 1,
-      // cubicOut 风格：从过冲点柔和回拉到终点。
-      p1: { x: 0.22, y: 1.0 },
-      p2: { x: 0.36, y: 1.0 },
-    }) as BezierCurveConfig,
-    // 拖拽中急停一次性过冲
-    dragInertiaEnabled: true,
-    // 过冲幅度按急停触发瞬间「高速段速度」在 [dragOvershootMinSpeedRatio×maxSpeed, maxSpeed]
-    // 之间线性插值到 [dragMinOvershootPx, dragOvershootPx]。
-    dragOvershootPx: 14,
-    dragMinOvershootPx: 4,
-    dragOvershootMinSpeedRatio: 0.5,
-    dragRiseDurationMS: 112,
-    dragSpringDurationMS: 100,
-    dragRiseCurve: Object.freeze({
-      enabled: true,
-      startScale: 0,
-      endScale: 1,
-      p1: { x: 0.18, y: 0.85 },
-      p2: { x: 0.32, y: 1.0 },
-    }) as BezierCurveConfig,
-    dragSpringCurve: Object.freeze({
-      enabled: true,
-      startScale: 0,
-      endScale: 1,
-      p1: { x: 0.22, y: 1.0 },
-      p2: { x: 0.36, y: 1.0 },
-    }) as BezierCurveConfig,
-    dragQuietTriggerMS: 45,
-    dragTriggerCooldownMS: 180,
-    // 急停信号：上一次采样高速 (>= 0.5×maxSpeed) 且本次采样降到 (<= 0.3×maxSpeed)
-    dragLowSpeedRatio: 0.3,
-    dragCancelDistancePx: 24,
-    // 鼠标速度上限（独立于 dragHandCard.maxSpeed）。
-    dragPointerMaxSpeed: 6000,
-    // 鼠标速度 EMA 平滑窗口（≈1.5 帧）。
-    dragSpeedSmoothingMS: 24,
-    // 峰值速度衰减率：≈250ms 衰减到约 1/e，足以保留单次甩动的峰值但不会跨次驻留。
-    dragPeakDecayPerSec: 4,
-  }),
   cardMoveRotation: Object.freeze({
     enabled: true,
     // 默认不显示轴点（仅调参时打开）。
@@ -1866,7 +1406,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     pivotOffsetX: 0,
     pivotOffsetY: -35,
     // 1 px/ms ≈ 1000 px/s（正常拖拽速度）× 0.06 ≈ 0.06 rad ≈ 3.4°
-    // 注：旋转上限 maxRot 由 (dragHandCard.maxSpeed/1000) × rotationPerSpeed 派生，
+    // 注：旋转上限 maxRot 由 (3000/1000) × rotationPerSpeed 派生（参考速度常量），
     //     不再作为独立配置项存储。默认 (3000/1000)*0.06 = 0.18 rad ≈ 10.3°。
     rotationPerSpeed: 0.06,
     drawRotationPerSpeed: 0.15,
@@ -1951,18 +1491,13 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       selectMove: true,
       cardOps: true,
       cardMoveRotation: true,
-      cardOvershoot: true,
       drawCard: true,
       drawFlip: true,
       discard: true,
       discardFlip: true,
-      handSwap: true,
       handSort: true,
       playHandGroupShift: true,
-      playHandSwap: true,
       playPileDisplacement: true,
-      playCardMove: true,
-      playCardMoveControl: true,
       playPileLiftEffect: true,
       playPileSettleEffect: true,
       playPileSettleText: true,
@@ -1980,14 +1515,6 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     }),
     selectMoveEnabled: true,
     selectRiseY: 30,
-    // 上移：≈ 600 px/s，弹起 30+8px 时第一段约 127ms，偏干脆。
-    selectMoveStartSpeed: 600,
-    selectMoveOvershoot: 8,
-    selectMoveStiffness: 10,
-    // 下移：默认略慢、过冲略小，落下比弹起稍柔和。
-    selectFallStartSpeed: 500,
-    selectFallOvershoot: 6,
-    selectFallStiffness: 10,
     breathingEnabled: true,
     breathingSpeed: 0.002,
     breathingAmplitude: 3,
@@ -2135,47 +1662,6 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
   uiNodes: {},
 }) as RuntimeConfig;
 
-/**
- * 将旧版「固定时长」handSwap / playHandSwap 配置迁移为物理模型。
- * 旧字段：riseDurationMS / springDurationMS
- * 新字段：startSpeed / stiffness（overshootPx 共用）
- *
- * 换算（用「一格间距 + 过冲」作为典型 rise 距离，近似还原旧手感）：
- *   startSpeed ≈ 2 * (spacing + overshoot) / (riseMS/1000)
- *   stiffness  ≈ 1000 / springMS
- *
- * 若已有 startSpeed+stiffness 则原样返回（去掉遗留时长字段）。
- */
-function migrateSwapPhysicsCfg(
-  raw: Record<string, unknown>,
-  spacingPx: number
-): RuntimeConfig["handSwap"] {
-  const enabled = raw.enabled !== false;
-  const overshootPx = Math.max(0, Number(raw.overshootPx ?? 12));
-
-  const hasPhysics =
-    raw.startSpeed != null &&
-    raw.stiffness != null &&
-    Number.isFinite(Number(raw.startSpeed)) &&
-    Number.isFinite(Number(raw.stiffness));
-
-  if (hasPhysics) {
-    return {
-      enabled,
-      startSpeed: Math.max(1, Number(raw.startSpeed)),
-      overshootPx,
-      stiffness: Math.max(0.001, Number(raw.stiffness)),
-    };
-  }
-
-  const riseMS = Math.max(1, Number(raw.riseDurationMS ?? 110));
-  const springMS = Math.max(1, Number(raw.springDurationMS ?? 110));
-  const D = Math.max(1, spacingPx + overshootPx);
-  const startSpeed = Math.max(1, Math.round((2 * D) / (riseMS / 1000)));
-  const stiffness = Math.max(0.001, Math.round((1000 / springMS) * 100) / 100);
-
-  return { enabled, startSpeed, overshootPx, stiffness };
-}
 
 /**
  * 激活状态的默认配置，初始为出厂设置 DEFAULT_CONFIG 的深拷贝。
@@ -2261,54 +1747,13 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
         p2: { ...src.dragHandCard.dragScaleOutCurve.p2 },
       } : undefined as any,
     },
-    cardOvershoot: {
-      ...src.cardOvershoot,
-      tweenRiseCurve: src.cardOvershoot.tweenRiseCurve ? {
-        ...src.cardOvershoot.tweenRiseCurve,
-        p1: { ...src.cardOvershoot.tweenRiseCurve.p1 },
-        p2: { ...src.cardOvershoot.tweenRiseCurve.p2 },
-      } : undefined as any,
-      tweenSpringCurve: src.cardOvershoot.tweenSpringCurve ? {
-        ...src.cardOvershoot.tweenSpringCurve,
-        p1: { ...src.cardOvershoot.tweenSpringCurve.p1 },
-        p2: { ...src.cardOvershoot.tweenSpringCurve.p2 },
-      } : undefined as any,
-      dragRiseCurve: src.cardOvershoot.dragRiseCurve ? {
-        ...src.cardOvershoot.dragRiseCurve,
-        p1: { ...src.cardOvershoot.dragRiseCurve.p1 },
-        p2: { ...src.cardOvershoot.dragRiseCurve.p2 },
-      } : undefined as any,
-      dragSpringCurve: src.cardOvershoot.dragSpringCurve ? {
-        ...src.cardOvershoot.dragSpringCurve,
-        p1: { ...src.cardOvershoot.dragSpringCurve.p1 },
-        p2: { ...src.cardOvershoot.dragSpringCurve.p2 },
-      } : undefined as any,
-    },
     drawCard: { ...src.drawCard },
     drawFlip: { ...src.drawFlip },
     discard: { ...src.discard },
     discardFlip: { ...src.discardFlip },
-    handSwap: { ...src.handSwap },
     handSort: { ...src.handSort },
-    playHandGroupShift: {
-      ...src.playHandGroupShift,
-      moveCurve: src.playHandGroupShift.moveCurve ? {
-        ...src.playHandGroupShift.moveCurve,
-        p1: { ...src.playHandGroupShift.moveCurve.p1 },
-        p2: { ...src.playHandGroupShift.moveCurve.p2 },
-      } : undefined as any,
-    },
-    playHandSwap: { ...src.playHandSwap },
+    playHandGroupShift: { ...src.playHandGroupShift },
     playPileDisplacement: { ...src.playPileDisplacement },
-    playCardMove: { ...src.playCardMove },
-    playCardMoveControl: {
-      ...src.playCardMoveControl,
-      moveCurve: src.playCardMoveControl.moveCurve ? {
-        ...src.playCardMoveControl.moveCurve,
-        p1: { ...src.playCardMoveControl.moveCurve.p1 },
-        p2: { ...src.playCardMoveControl.moveCurve.p2 },
-      } : undefined as any,
-    },
     playPileLiftEffect: { ...src.playPileLiftEffect },
     playPileSettleEffect: { ...src.playPileSettleEffect },
     playPileSettleTextEffect: {
@@ -2520,44 +1965,6 @@ export function applyConfig(source: unknown): void {
       },
     };
   }
-  if (incoming.cardOvershoot) {
-    merged.cardOvershoot = {
-      ...merged.cardOvershoot,
-      ...incoming.cardOvershoot,
-      tweenRiseCurve: incoming.cardOvershoot.tweenRiseCurve
-        ? {
-            ...merged.cardOvershoot.tweenRiseCurve,
-            ...incoming.cardOvershoot.tweenRiseCurve,
-            p1: { ...(merged.cardOvershoot.tweenRiseCurve?.p1 ?? {}), ...(incoming.cardOvershoot.tweenRiseCurve.p1 ?? {}) },
-            p2: { ...(merged.cardOvershoot.tweenRiseCurve?.p2 ?? {}), ...(incoming.cardOvershoot.tweenRiseCurve.p2 ?? {}) },
-          }
-        : merged.cardOvershoot.tweenRiseCurve,
-      tweenSpringCurve: incoming.cardOvershoot.tweenSpringCurve
-        ? {
-            ...merged.cardOvershoot.tweenSpringCurve,
-            ...incoming.cardOvershoot.tweenSpringCurve,
-            p1: { ...(merged.cardOvershoot.tweenSpringCurve?.p1 ?? {}), ...(incoming.cardOvershoot.tweenSpringCurve.p1 ?? {}) },
-            p2: { ...(merged.cardOvershoot.tweenSpringCurve?.p2 ?? {}), ...(incoming.cardOvershoot.tweenSpringCurve.p2 ?? {}) },
-          }
-        : merged.cardOvershoot.tweenSpringCurve,
-      dragRiseCurve: incoming.cardOvershoot.dragRiseCurve
-        ? {
-            ...merged.cardOvershoot.dragRiseCurve,
-            ...incoming.cardOvershoot.dragRiseCurve,
-            p1: { ...(merged.cardOvershoot.dragRiseCurve?.p1 ?? {}), ...(incoming.cardOvershoot.dragRiseCurve.p1 ?? {}) },
-            p2: { ...(merged.cardOvershoot.dragRiseCurve?.p2 ?? {}), ...(incoming.cardOvershoot.dragRiseCurve.p2 ?? {}) },
-          }
-        : merged.cardOvershoot.dragRiseCurve,
-      dragSpringCurve: incoming.cardOvershoot.dragSpringCurve
-        ? {
-            ...merged.cardOvershoot.dragSpringCurve,
-            ...incoming.cardOvershoot.dragSpringCurve,
-            p1: { ...(merged.cardOvershoot.dragSpringCurve?.p1 ?? {}), ...(incoming.cardOvershoot.dragSpringCurve.p1 ?? {}) },
-            p2: { ...(merged.cardOvershoot.dragSpringCurve?.p2 ?? {}), ...(incoming.cardOvershoot.dragSpringCurve.p2 ?? {}) },
-          }
-        : merged.cardOvershoot.dragSpringCurve,
-    };
-  }
   if (incoming.drawCard) {
     merged.drawCard = {
       ...merged.drawCard,
@@ -2582,15 +1989,6 @@ export function applyConfig(source: unknown): void {
       ...incoming.discardFlip,
     };
   }
-  if (incoming.handSwap) {
-    merged.handSwap = migrateSwapPhysicsCfg(
-      {
-        ...merged.handSwap,
-        ...incoming.handSwap,
-      },
-      merged.handLayout?.cardSpacing ?? 65
-    );
-  }
   if (incoming.handSort) {
     merged.handSort = {
       ...merged.handSort,
@@ -2601,55 +1999,12 @@ export function applyConfig(source: unknown): void {
     merged.playHandGroupShift = {
       ...merged.playHandGroupShift,
       ...incoming.playHandGroupShift,
-      moveCurve: incoming.playHandGroupShift.moveCurve
-        ? {
-            ...merged.playHandGroupShift.moveCurve,
-            ...incoming.playHandGroupShift.moveCurve,
-            p1: {
-              ...(merged.playHandGroupShift.moveCurve?.p1 ?? {}),
-              ...(incoming.playHandGroupShift.moveCurve.p1 ?? {}),
-            },
-            p2: {
-              ...(merged.playHandGroupShift.moveCurve?.p2 ?? {}),
-              ...(incoming.playHandGroupShift.moveCurve.p2 ?? {}),
-            },
-          }
-        : merged.playHandGroupShift.moveCurve,
     };
-  }
-  if (incoming.playHandSwap) {
-    merged.playHandSwap = migrateSwapPhysicsCfg(
-      {
-        ...merged.playHandSwap,
-        ...incoming.playHandSwap,
-      },
-      merged.handLayout?.cardSpacing ?? 65
-    );
   }
   if (incoming.playPileDisplacement) {
     merged.playPileDisplacement = {
       ...merged.playPileDisplacement,
       ...incoming.playPileDisplacement,
-    };
-  }
-  if (incoming.playCardMove) {
-    merged.playCardMove = {
-      ...merged.playCardMove,
-      ...incoming.playCardMove,
-    };
-  }
-  if (incoming.playCardMoveControl) {
-    merged.playCardMoveControl = {
-      ...merged.playCardMoveControl,
-      ...incoming.playCardMoveControl,
-      moveCurve: incoming.playCardMoveControl.moveCurve
-        ? {
-            ...merged.playCardMoveControl.moveCurve,
-            ...incoming.playCardMoveControl.moveCurve,
-            p1: { ...(merged.playCardMoveControl.moveCurve?.p1 ?? {}), ...(incoming.playCardMoveControl.moveCurve.p1 ?? {}) },
-            p2: { ...(merged.playCardMoveControl.moveCurve?.p2 ?? {}), ...(incoming.playCardMoveControl.moveCurve.p2 ?? {}) },
-          }
-        : merged.playCardMoveControl.moveCurve,
     };
   }
   if (incoming.playPileLiftEffect) {
@@ -2812,18 +2167,13 @@ export function applyConfig(source: unknown): void {
   CONFIG.dragHandCard = merged.dragHandCard;
   CONFIG.cardMoveRotation = merged.cardMoveRotation;
   CONFIG.elasticRopeCard = merged.elasticRopeCard;
-  CONFIG.cardOvershoot = merged.cardOvershoot;
   CONFIG.drawCard = merged.drawCard;
   CONFIG.drawFlip = merged.drawFlip;
   CONFIG.discard = merged.discard;
   CONFIG.discardFlip = merged.discardFlip;
-  CONFIG.handSwap = merged.handSwap;
   CONFIG.handSort = merged.handSort;
   CONFIG.playHandGroupShift = merged.playHandGroupShift;
-  CONFIG.playHandSwap = merged.playHandSwap;
   CONFIG.playPileDisplacement = merged.playPileDisplacement;
-  CONFIG.playCardMove = merged.playCardMove;
-  CONFIG.playCardMoveControl = merged.playCardMoveControl;
   CONFIG.playPileLiftEffect = merged.playPileLiftEffect;
   CONFIG.playPileSettleEffect = merged.playPileSettleEffect;
   CONFIG.playPileSettleTextEffect = merged.playPileSettleTextEffect;
@@ -2952,44 +2302,6 @@ export function applyShippingDefaults(source: unknown): void {
       ...incoming.cardMoveRotation,
     };
   }
-  if (incoming.cardOvershoot) {
-    activeDefaultConfig.cardOvershoot = {
-      ...activeDefaultConfig.cardOvershoot,
-      ...incoming.cardOvershoot,
-      tweenRiseCurve: incoming.cardOvershoot.tweenRiseCurve
-        ? {
-            ...activeDefaultConfig.cardOvershoot.tweenRiseCurve,
-            ...incoming.cardOvershoot.tweenRiseCurve,
-            p1: { ...(activeDefaultConfig.cardOvershoot.tweenRiseCurve?.p1 ?? {}), ...(incoming.cardOvershoot.tweenRiseCurve.p1 ?? {}) },
-            p2: { ...(activeDefaultConfig.cardOvershoot.tweenRiseCurve?.p2 ?? {}), ...(incoming.cardOvershoot.tweenRiseCurve.p2 ?? {}) },
-          }
-        : activeDefaultConfig.cardOvershoot.tweenRiseCurve,
-      tweenSpringCurve: incoming.cardOvershoot.tweenSpringCurve
-        ? {
-            ...activeDefaultConfig.cardOvershoot.tweenSpringCurve,
-            ...incoming.cardOvershoot.tweenSpringCurve,
-            p1: { ...(activeDefaultConfig.cardOvershoot.tweenSpringCurve?.p1 ?? {}), ...(incoming.cardOvershoot.tweenSpringCurve.p1 ?? {}) },
-            p2: { ...(activeDefaultConfig.cardOvershoot.tweenSpringCurve?.p2 ?? {}), ...(incoming.cardOvershoot.tweenSpringCurve.p2 ?? {}) },
-          }
-        : activeDefaultConfig.cardOvershoot.tweenSpringCurve,
-      dragRiseCurve: incoming.cardOvershoot.dragRiseCurve
-        ? {
-            ...activeDefaultConfig.cardOvershoot.dragRiseCurve,
-            ...incoming.cardOvershoot.dragRiseCurve,
-            p1: { ...(activeDefaultConfig.cardOvershoot.dragRiseCurve?.p1 ?? {}), ...(incoming.cardOvershoot.dragRiseCurve.p1 ?? {}) },
-            p2: { ...(activeDefaultConfig.cardOvershoot.dragRiseCurve?.p2 ?? {}), ...(incoming.cardOvershoot.dragRiseCurve.p2 ?? {}) },
-          }
-        : activeDefaultConfig.cardOvershoot.dragRiseCurve,
-      dragSpringCurve: incoming.cardOvershoot.dragSpringCurve
-        ? {
-            ...activeDefaultConfig.cardOvershoot.dragSpringCurve,
-            ...incoming.cardOvershoot.dragSpringCurve,
-            p1: { ...(activeDefaultConfig.cardOvershoot.dragSpringCurve?.p1 ?? {}), ...(incoming.cardOvershoot.dragSpringCurve.p1 ?? {}) },
-            p2: { ...(activeDefaultConfig.cardOvershoot.dragSpringCurve?.p2 ?? {}), ...(incoming.cardOvershoot.dragSpringCurve.p2 ?? {}) },
-          }
-        : activeDefaultConfig.cardOvershoot.dragSpringCurve,
-    };
-  }
   if (incoming.drawCard) {
     activeDefaultConfig.drawCard = {
       ...activeDefaultConfig.drawCard,
@@ -3014,15 +2326,6 @@ export function applyShippingDefaults(source: unknown): void {
       ...incoming.discardFlip,
     };
   }
-  if (incoming.handSwap) {
-    activeDefaultConfig.handSwap = migrateSwapPhysicsCfg(
-      {
-        ...activeDefaultConfig.handSwap,
-        ...incoming.handSwap,
-      },
-      activeDefaultConfig.handLayout?.cardSpacing ?? 65
-    );
-  }
   if (incoming.handSort) {
     activeDefaultConfig.handSort = {
       ...activeDefaultConfig.handSort,
@@ -3033,55 +2336,12 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.playHandGroupShift = {
       ...activeDefaultConfig.playHandGroupShift,
       ...incoming.playHandGroupShift,
-      moveCurve: incoming.playHandGroupShift.moveCurve
-        ? {
-            ...activeDefaultConfig.playHandGroupShift.moveCurve,
-            ...incoming.playHandGroupShift.moveCurve,
-            p1: {
-              ...(activeDefaultConfig.playHandGroupShift.moveCurve?.p1 ?? {}),
-              ...(incoming.playHandGroupShift.moveCurve.p1 ?? {}),
-            },
-            p2: {
-              ...(activeDefaultConfig.playHandGroupShift.moveCurve?.p2 ?? {}),
-              ...(incoming.playHandGroupShift.moveCurve.p2 ?? {}),
-            },
-          }
-        : activeDefaultConfig.playHandGroupShift.moveCurve,
     };
-  }
-  if (incoming.playHandSwap) {
-    activeDefaultConfig.playHandSwap = migrateSwapPhysicsCfg(
-      {
-        ...activeDefaultConfig.playHandSwap,
-        ...incoming.playHandSwap,
-      },
-      activeDefaultConfig.handLayout?.cardSpacing ?? 65
-    );
   }
   if (incoming.playPileDisplacement) {
     activeDefaultConfig.playPileDisplacement = {
       ...activeDefaultConfig.playPileDisplacement,
       ...incoming.playPileDisplacement,
-    };
-  }
-  if (incoming.playCardMove) {
-    activeDefaultConfig.playCardMove = {
-      ...activeDefaultConfig.playCardMove,
-      ...incoming.playCardMove,
-    };
-  }
-  if (incoming.playCardMoveControl) {
-    activeDefaultConfig.playCardMoveControl = {
-      ...activeDefaultConfig.playCardMoveControl,
-      ...incoming.playCardMoveControl,
-      moveCurve: incoming.playCardMoveControl.moveCurve
-        ? {
-            ...activeDefaultConfig.playCardMoveControl.moveCurve,
-            ...incoming.playCardMoveControl.moveCurve,
-            p1: { ...(activeDefaultConfig.playCardMoveControl.moveCurve?.p1 ?? {}), ...(incoming.playCardMoveControl.moveCurve.p1 ?? {}) },
-            p2: { ...(activeDefaultConfig.playCardMoveControl.moveCurve?.p2 ?? {}), ...(incoming.playCardMoveControl.moveCurve.p2 ?? {}) },
-          }
-        : activeDefaultConfig.playCardMoveControl.moveCurve,
     };
   }
   if (incoming.playPileLiftEffect) {

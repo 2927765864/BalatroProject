@@ -97,8 +97,6 @@
       "scaleRatio": 0.95
     },
     "dragHandCard": {
-      "maxSpeed": 4000,
-      "lerpFactor": 0.85,
       "dragScaleTarget": 1.1,
       "dragScaleInDurationMS": 50,
       "dragScaleOutDurationMS": 20,
@@ -127,88 +125,9 @@
           "x": 0.6,
           "y": 1
         }
-      }
-    },
-    "cardOvershoot": {
-      "enabled": true,
-      "tweenOvershootPx": 70,
-      "tweenMinOvershootPx": 10,
-      "tweenMinOvershootDistancePx": 124,
-      "tweenFullOvershootDistancePx": 1000,
-      "tweenReturnAvgSpeed": 3000,
-      "tweenReturnMinMS": 140,
-      "tweenReturnMaxMS": 420,
-      "tweenSpeedRatioThreshold": 0.1,
-      "tweenRiseRatio": 0.5,
-      "tweenRiseCurve": {
-        "enabled": true,
-        "startScale": 0,
-        "endScale": 1,
-        "p1": {
-          "x": 0,
-          "y": 0
-        },
-        "p2": {
-          "x": 0.58,
-          "y": 1
-        }
       },
-      "tweenSpringStiffness": 15,
-      "tweenSpringCurve": {
-        "enabled": true,
-        "startScale": 0,
-        "endScale": 1,
-        "p1": {
-          "x": 0.22,
-          "y": 1
-        },
-        "p2": {
-          "x": 0.36,
-          "y": 1
-        }
-      },
-      "dragInertiaEnabled": true,
-      "dragOvershootPx": 50,
-      "dragMinOvershootPx": 0,
-      "dragOvershootMinSpeedRatio": 0.1,
-      "dragRiseDurationMS": 20,
-      "dragSpringDurationMS": 80,
-      "dragRiseCurve": {
-        "enabled": true,
-        "startScale": 0,
-        "endScale": 1,
-        "p1": {
-          "x": 0.42,
-          "y": 0
-        },
-        "p2": {
-          "x": 0.58,
-          "y": 1
-        }
-      },
-      "dragSpringCurve": {
-        "enabled": true,
-        "startScale": 0,
-        "endScale": 1,
-        "p1": {
-          "x": 0.42,
-          "y": 0
-        },
-        "p2": {
-          "x": 0.58,
-          "y": 1
-        }
-      },
-      "dragQuietTriggerMS": 0,
-      "dragTriggerCooldownMS": 0,
-      "dragLowSpeedRatio": 0.6,
-      "dragCancelDistancePx": 40,
-      "dragPointerMaxSpeed": 6000,
-      "dragSpeedSmoothingMS": 0,
-      "dragPeakDecayPerSec": 4,
-      "dragVelFollow": 0.54,
-      "dragMaxOvershootPx": 36,
-      "dragConvergenceEpsilon": 5
+      "maxSpeed": 4000,
+      "lerpFactor": 0.85
     },
     "drawCard": {
       "lastCardAdvanceMS": 80,
@@ -236,12 +155,6 @@
       "flipAngleJitterDeg": 15,
       "randomRotationDeg": 180
     },
-    "handSwap": {
-      "enabled": true,
-      "startSpeed": 2600,
-      "overshootPx": 28,
-      "stiffness": 7.5
-    },
     "handSort": {
       "enabled": true,
       "riseDurationMS": 90,
@@ -255,6 +168,10 @@
     "playHandGroupShift": {
       "enabled": true,
       "distancePx": 120,
+      "preDownWaitMS": 0,
+      "postDownWaitMS": 300,
+      "preUpWaitMS": 200,
+      "postUpWaitMS": 90,
       "moveCurve": {
         "enabled": true,
         "startScale": 0,
@@ -268,68 +185,35 @@
           "y": 1
         }
       },
-      "startSpeed": 1200,
-      "preDownWaitMS": 0,
-      "postDownWaitMS": 300,
-      "preUpWaitMS": 200,
-      "postUpWaitMS": 90
-    },
-    "playHandSwap": {
-      "enabled": true,
-      "startSpeed": 3100,
-      "overshootPx": 28,
-      "stiffness": 20
+      "startSpeed": 1200
     },
     "playPileDisplacement": {
       "enabled": true,
       "cardSpacing": 110,
-      "riseDurationMS": 60,
-      "springDurationMS": 50,
-      "overshootPx": 28,
       "firstIntervalMS": 180,
       "intervalReductionMS": 10,
-      "lastIntervalMS": 170
-    },
-    "playCardMove": {
-      "enabled": true,
-      "overshoot1Px": 34,
-      "overshoot2Px": 21,
-      "stiffness": 18
-    },
-    "playCardMoveControl": {
-      "enabled": true,
-      "moveCurve": {
-        "enabled": true,
-        "startScale": 0,
-        "endScale": 1,
-        "p1": {
-          "x": 0.1,
-          "y": 0.85
-        },
-        "p2": {
-          "x": 0.25,
-          "y": 1
-        }
-      },
-      "startSpeed": 6000
+      "lastIntervalMS": 170,
+      "riseDurationMS": 60,
+      "springDurationMS": 50,
+      "overshootPx": 28
     },
     "playPileLiftEffect": {
       "enabled": true,
       "startSpeed": 600,
       "decelerateTime": 0.1,
-      "overshoot": 15,
-      "springStiffness": 10.5,
       "interval": 200,
       "stayDuration": 400,
-      "dropOvershoot": 16,
-      "dropSpringStiffness": 12,
-      "dropStartSpeed": 500,
       "shadowColor": 0,
       "shadowAlpha": 0.35,
       "shadowLightX": 720,
       "shadowLightY": 565,
       "shadowDistanceRatio": 0.08,
-      "shadowScaleRatio": 0.92
+      "shadowScaleRatio": 0.92,
+      "overshoot": 15,
+      "springStiffness": 10.5,
+      "dropOvershoot": 16,
+      "dropSpringStiffness": 12,
+      "dropStartSpeed": 500
     },
     "playPileSettleEffect": {
       "enabled": true,
@@ -582,18 +466,13 @@
         "selectMove": false,
         "cardOps": false,
         "cardMoveRotation": false,
-        "cardOvershoot": false,
         "drawCard": false,
         "drawFlip": false,
         "discard": false,
         "discardFlip": false,
-        "handSwap": false,
         "handSort": false,
         "playHandGroupShift": false,
-        "playHandSwap": false,
         "playPileDisplacement": false,
-        "playCardMove": false,
-        "playCardMoveControl": false,
         "playPileLiftEffect": false,
         "playPileSettleEffect": false,
         "playPileSettleText": false,
@@ -608,16 +487,15 @@
         "handNameBounce": false,
         "evalScoreBounce": false,
         "evalScoreText": false,
-        "mouseOffset": true
+        "mouseOffset": true,
+        "cardOvershoot": false,
+        "handSwap": false,
+        "playHandSwap": false,
+        "playCardMove": false,
+        "playCardMoveControl": false
       },
       "selectMoveEnabled": true,
       "selectRiseY": 26,
-      "selectMoveStartSpeed": 800,
-      "selectMoveOvershoot": 6,
-      "selectMoveStiffness": 43,
-      "selectFallStartSpeed": 1040,
-      "selectFallOvershoot": 7,
-      "selectFallStiffness": 8,
       "breathingEnabled": true,
       "breathingSpeed": 0.003,
       "breathingAmplitude": 0.4,
@@ -712,7 +590,13 @@
           "x": 0.32,
           "y": 1
         }
-      }
+      },
+      "selectMoveStartSpeed": 800,
+      "selectMoveOvershoot": 6,
+      "selectMoveStiffness": 43,
+      "selectFallStartSpeed": 1040,
+      "selectFallOvershoot": 7,
+      "selectFallStiffness": 8
     },
     "playPile": {
       "baseYOffset": -220,

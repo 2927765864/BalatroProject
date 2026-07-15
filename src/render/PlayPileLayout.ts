@@ -59,29 +59,3 @@ export function computePlayPileLayout(opts: PlayPileLayoutOptions): PlayPileSlot
   }
   return slots;
 }
-
-/**
- * 按"第一张和最后一张过冲大，中间小"插值得到第 i 张的过冲幅度。
- * 简单 V 形：t = |2i/(n-1) - 1|，t∈[0,1]，端点取 first/last，谷底取 mid。
- *
- * 留作"未来可换更复杂曲线"的钩子点（例如读 CONFIG.playPile 的贝塞尔曲线）。
- */
-export function computeLandingOvershoot(
-  index: number,
-  total: number,
-  firstPx: number,
-  midPx: number,
-  lastPx: number
-): number {
-  if (total <= 1) return firstPx;
-  const u = index / (total - 1); // 0 → 1
-  if (u <= 0.5) {
-    // first → mid
-    const t = u / 0.5; // 0 → 1
-    return firstPx + (midPx - firstPx) * t;
-  } else {
-    // mid → last
-    const t = (u - 0.5) / 0.5;
-    return midPx + (lastPx - midPx) * t;
-  }
-}

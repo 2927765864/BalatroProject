@@ -591,7 +591,7 @@
                 <input id="inp-clickDistanceThreshold" type="number" step="1" min="0" max="100" />
               </div>
 
-              <!-- 选中 / 取消选中：启动速度减速过冲 + 刚度回弹（上移/下移参数独立） -->
+              <!-- 选中 / 取消选中：目标高度 + 弹性绳 -->
               <div class="panel-row" style="background: rgba(145, 197, 58, 0.05); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.15); flex-direction: row; align-items: center; display: flex; padding: 6px 10px; margin-top: 4px;">
                 <span style="font-size: 12px;">选中卡牌位移效果</span>
               </div>
@@ -613,63 +613,19 @@
                 </div>
                 <input id="inp-selectRiseY" type="number" step="1" min="0" max="200" />
               </div>
-
-              <div class="panel-row" style="background: rgba(145, 197, 58, 0.04); font-size: 11px; color: #cbe88b; padding: 4px 10px;">
-                <span>上移（点击选中）</span>
+              <div class="panel-desc" style="font-size:11px;opacity:0.75;padding:4px 10px 8px;line-height:1.4;">
+                选中位移由弹性绳驱动；过冲/速度请调「弹性绳子牵引卡牌模型」。
               </div>
 
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>上移启动速度 (像素/秒)</span>
-                  <span id="val-selectMoveStartSpeed">600</span>
-                </div>
-                <input id="inp-selectMoveStartSpeed" type="number" step="20" min="50" max="5000" />
-              </div>
 
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>上移过冲幅度（像素）</span>
-                  <span id="val-selectMoveOvershoot">8.0</span>
-                </div>
-                <input id="inp-selectMoveOvershoot" type="number" step="1" min="0" max="100" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>上移回弹刚度</span>
-                  <span id="val-selectMoveStiffness">10.00</span>
-                </div>
-                <input id="inp-selectMoveStiffness" type="number" step="0.5" min="1" max="60" />
-              </div>
-
-              <div class="panel-row" style="background: rgba(145, 197, 58, 0.04); font-size: 11px; color: #cbe88b; padding: 4px 10px;">
-                <span>下移（再次点击取消选中）</span>
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>下移启动速度 (像素/秒)</span>
-                  <span id="val-selectFallStartSpeed">500</span>
-                </div>
-                <input id="inp-selectFallStartSpeed" type="number" step="20" min="50" max="5000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>下移过冲幅度（像素）</span>
-                  <span id="val-selectFallOvershoot">6.0</span>
-                </div>
-                <input id="inp-selectFallOvershoot" type="number" step="1" min="0" max="100" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>下移回弹刚度</span>
-                  <span id="val-selectFallStiffness">10.00</span>
-                </div>
-                <input id="inp-selectFallStiffness" type="number" step="0.5" min="1" max="60" />
-              </div>
-            </div>
+              
+              
+              
+              
+              
+              
+              
+                          </div>
 
             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>拖拽手牌相关参数</span>
@@ -681,22 +637,8 @@
             </div>
 
             <div id="sect-dragHandCard-params">
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>追踪速度上限 (像素/秒)</span>
-                  <span id="val-dragMaxSpeed">3000</span>
-                </div>
-                <input id="inp-dragMaxSpeed" type="number" step="100" min="100" max="10000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>追踪插值系数 (lerp)</span>
-                  <span id="val-dragLerpFactor">0.15</span>
-                </div>
-                <input id="inp-dragLerpFactor" type="number" step="0.01" min="0.01" max="1.0" />
-              </div>
-
+              
+              
               <div class="panel-row">
                 <div class="panel-row-header">
                   <span>拖拽目标缩放</span>
@@ -816,49 +758,7 @@
               </div>
             </div>
 
-            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
-              <span>卡牌换位</span>
-              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
-                <span>展开详情</span>
-                <span id="val-expandHandSwap" style="color: var(--accent);">开</span>
-                <input id="inp-expandHandSwap" type="checkbox" checked style="margin:0;" />
-              </label>
-            </div>
-
-            <div id="sect-handSwap-params">
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>启用换位过冲</span>
-                  <span id="val-handSwapEnabled">开</span>
-                </div>
-                <input id="inp-handSwapEnabled" type="checkbox" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>启动速度 (px/s)</span>
-                  <span id="val-handSwapStartSpeed">1400</span>
-                </div>
-                <input id="inp-handSwapStartSpeed" type="number" step="50" min="1" max="10000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>过冲幅度 (px)</span>
-                  <span id="val-handSwapOvershootPx">12.0</span>
-                </div>
-                <input id="inp-handSwapOvershootPx" type="number" step="1" min="0" max="100" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>回弹刚度</span>
-                  <span id="val-handSwapStiffness">9.00</span>
-                </div>
-                <input id="inp-handSwapStiffness" type="number" step="0.5" min="0.1" max="100" />
-              </div>
-            </div>
-
+            
             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>卡牌换位【理牌】</span>
               <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
@@ -870,73 +770,24 @@
 
             <div id="sect-handSort-params">
               <div class="panel-desc" style="font-size:11px;opacity:0.75;padding:4px 10px 8px;line-height:1.4;">
-                点击「点数 / 花色」理牌时使用。动画形态与换位相同（rise→过冲→spring），但 rise 时长按移动距离缩放：距离越大速度越大。durationPower=0 固定时长（远牌最快），=1 恒速。
+                点击「点数 / 花色」理牌时使用。位移由弹性绳驱动；关闭后瞬移到目标位。
               </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>启用理牌过冲</span>
+                  <span>启用理牌动画</span>
                   <span id="val-handSortEnabled">开</span>
                 </div>
                 <input id="inp-handSortEnabled" type="checkbox" />
               </div>
 
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>rise 段基准时长 (ms，距离=基准距离时)</span>
-                  <span id="val-handSortRiseDurationMS">130</span>
-                </div>
-                <input id="inp-handSortRiseDurationMS" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>spring 段时长 (ms，固定)</span>
-                  <span id="val-handSortSpringDurationMS">110</span>
-                </div>
-                <input id="inp-handSortSpringDurationMS" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>过冲幅度 (px)</span>
-                  <span id="val-handSortOvershootPx">14.0</span>
-                </div>
-                <input id="inp-handSortOvershootPx" type="number" step="1" min="0" max="100" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>基准距离 (px，≈手牌间距)</span>
-                  <span id="val-handSortRefDistancePx">65</span>
-                </div>
-                <input id="inp-handSortRefDistancePx" type="number" step="1" min="1" max="500" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>距离→时长幂次 (0=固定时长/远更快，1=恒速)</span>
-                  <span id="val-handSortDurationPower">0.20</span>
-                </div>
-                <input id="inp-handSortDurationPower" type="number" step="0.05" min="0" max="1" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>rise 时长下限 (ms)</span>
-                  <span id="val-handSortMinRiseDurationMS">60</span>
-                </div>
-                <input id="inp-handSortMinRiseDurationMS" type="number" step="5" min="1" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>rise 时长上限 (ms)</span>
-                  <span id="val-handSortMaxRiseDurationMS">220</span>
-                </div>
-                <input id="inp-handSortMaxRiseDurationMS" type="number" step="10" min="1" max="2000" />
-              </div>
-            </div>
+              
+              
+              
+              
+              
+              
+                          </div>
 
              <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>【出牌】卡牌整体位移效果</span>
@@ -964,17 +815,9 @@
                 <input id="inp-playHandGroupShiftDistancePx" type="number" step="1" min="0" max="400" />
               </div>
 
+              
               <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>启动速度 (px/s)</span>
-                  <span id="val-playHandGroupShiftStartSpeed">800</span>
-                </div>
-                <input id="inp-playHandGroupShiftStartSpeed" type="number" step="50" min="1" max="10000" />
-              </div>
-
-              <div class="panel-row">
-                <div id="mount-playHandGroupShiftCurve"></div>
-              </div>
+                              </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
@@ -1009,49 +852,7 @@
               </div>
             </div>
 
-             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
-              <span>【出牌】手牌换位</span>
-              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
-                <span>展开详情</span>
-                <span id="val-expandPlayHandSwap" style="color: var(--accent);">开</span>
-                <input id="inp-expandPlayHandSwap" type="checkbox" checked style="margin:0;" />
-              </label>
-            </div>
-
-            <div id="sect-playHandSwap-params">
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>启用换位过冲</span>
-                  <span id="val-playHandSwapEnabled">开</span>
-                </div>
-                <input id="inp-playHandSwapEnabled" type="checkbox" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>启动速度 (px/s)</span>
-                  <span id="val-playHandSwapStartSpeed">2600</span>
-                </div>
-                <input id="inp-playHandSwapStartSpeed" type="number" step="50" min="1" max="10000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>过冲幅度 (px)</span>
-                  <span id="val-playHandSwapOvershootPx">12.0</span>
-                </div>
-                <input id="inp-playHandSwapOvershootPx" type="number" step="1" min="0" max="100" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>回弹刚度</span>
-                  <span id="val-playHandSwapStiffness">20.00</span>
-                </div>
-                <input id="inp-playHandSwapStiffness" type="number" step="0.5" min="0.1" max="100" />
-              </div>
-            </div>
-
+             
             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>【出牌】出牌堆的位移</span>
               <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
@@ -1078,30 +879,9 @@
                 <input id="inp-playPileDisplacementCardSpacing" type="number" step="5" min="0" max="300" />
               </div>
 
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>rise 段时长 (ms)</span>
-                  <span id="val-playPileDisplacementRiseDurationMS">60</span>
-                </div>
-                <input id="inp-playPileDisplacementRiseDurationMS" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>spring 段时长 (ms)</span>
-                  <span id="val-playPileDisplacementSpringDurationMS">50</span>
-                </div>
-                <input id="inp-playPileDisplacementSpringDurationMS" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>过冲幅度 (px)</span>
-                  <span id="val-playPileDisplacementOvershootPx">12.0</span>
-                </div>
-                <input id="inp-playPileDisplacementOvershootPx" type="number" step="1" min="0" max="100" />
-              </div>
-
+              
+              
+              
               <div class="panel-row">
                 <div class="panel-row-header">
                   <span>第一张牌的间隔时间 (ms)</span>
@@ -1127,78 +907,8 @@
               </div>
             </div>
 
-            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
-              <span>【出牌】出牌移动控制</span>
-              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
-                <span>展开详情</span>
-                <span id="val-expandPlayCardMove" style="color: var(--accent);">开</span>
-                <input id="inp-expandPlayCardMove" type="checkbox" checked style="margin:0;" />
-              </label>
-            </div>
-
-            <div id="sect-playCardMove-params">
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>启用移动控制</span>
-                  <span id="val-playCardMoveEnabled">开</span>
-                </div>
-                <input id="inp-playCardMoveEnabled" type="checkbox" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>第一段过冲的幅度 (px)</span>
-                  <span id="val-playCardMoveOvershoot1Px">40.0</span>
-                </div>
-                <input id="inp-playCardMoveOvershoot1Px" type="number" step="1" min="0" max="200" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>第二段过冲的幅度 (px)</span>
-                  <span id="val-playCardMoveOvershoot2Px">12.0</span>
-                </div>
-                <input id="inp-playCardMoveOvershoot2Px" type="number" step="1" min="0" max="100" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>过弹的刚度</span>
-                  <span id="val-playCardMoveStiffness">12.0</span>
-                </div>
-                <input id="inp-playCardMoveStiffness" type="number" step="0.5" min="0.1" max="100" />
-              </div>
-            </div>
-
-            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
-              <span>【出牌】手牌堆到出牌堆的移动控制</span>
-              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
-                <span>展开详情</span>
-                <span id="val-expandPlayCardMoveControl" style="color: var(--accent);">开</span>
-                <input id="inp-expandPlayCardMoveControl" type="checkbox" checked style="margin:0;" />
-              </label>
-            </div>
-
-            <div id="sect-playCardMoveControl-params">
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>启用移动控制</span>
-                  <span id="val-playCardMoveControlEnabled">开</span>
-                </div>
-                <input id="inp-playCardMoveControlEnabled" type="checkbox" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>初速度 (像素/秒)</span>
-                  <span id="val-playCardMoveControlStartSpeed">4000</span>
-                </div>
-                <input id="inp-playCardMoveControlStartSpeed" type="number" step="100" min="100" max="20000" />
-              </div>
-
-              <div id="mount-playCardMoveCurve" style="padding: 6px 12px;"></div>
-            </div>
-
+            
+            
             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>【出牌】出牌堆上移效果</span>
               <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
@@ -1219,7 +929,7 @@
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>启动速度 (px/s)</span>
+                  <span>抬升高度系数：初速度 (px/s，peak≈v×t/2)</span>
                   <span id="val-playPileLiftEffectStartSpeed">400</span>
                 </div>
                 <input id="inp-playPileLiftEffectStartSpeed" type="number" step="10" min="0" max="2000" />
@@ -1227,28 +937,14 @@
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>减速时间 (s)</span>
+                  <span>抬升高度系数：减速时间 (s)</span>
                   <span id="val-playPileLiftEffectDecelerateTime">0.35</span>
                 </div>
                 <input id="inp-playPileLiftEffectDecelerateTime" type="number" step="0.01" min="0.01" max="1" />
               </div>
 
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>过冲幅度 (px)</span>
-                  <span id="val-playPileLiftEffectOvershoot">15.0</span>
-                </div>
-                <input id="inp-playPileLiftEffectOvershoot" type="number" step="1" min="0" max="200" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>回弹刚度</span>
-                  <span id="val-playPileLiftEffectSpringStiffness">15.0</span>
-                </div>
-                <input id="inp-playPileLiftEffectSpringStiffness" type="number" step="0.5" min="0.1" max="100" />
-              </div>
-
+              
+              
               <div class="panel-row">
                 <div class="panel-row-header">
                   <span>抬牌时间间隔 (ms)</span>
@@ -1265,30 +961,9 @@
                 <input id="inp-playPileLiftEffectStayDuration" type="number" step="10" min="0" max="5000" />
               </div>
 
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>下移启动速度 (px/s)</span>
-                  <span id="val-playPileLiftEffectDropStartSpeed">300</span>
-                </div>
-                <input id="inp-playPileLiftEffectDropStartSpeed" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>下移过冲幅度 (px)</span>
-                  <span id="val-playPileLiftEffectDropOvershoot">10.0</span>
-                </div>
-                <input id="inp-playPileLiftEffectDropOvershoot" type="number" step="1" min="0" max="100" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>下移回弹刚度</span>
-                  <span id="val-playPileLiftEffectDropSpringStiffness">12.0</span>
-                </div>
-                <input id="inp-playPileLiftEffectDropSpringStiffness" type="number" step="0.5" min="0.1" max="100" />
-              </div>
-
+              
+              
+              
               <div class="panel-row">
                 <div class="panel-row-header">
                   <span>上移阴影颜色</span>
@@ -1575,7 +1250,7 @@
                   <span>最大旋转角 (弧度，自动派生)</span>
                   <span id="val-cardMoveRotationMaxRad">0.18</span>
                 </div>
-                <input id="inp-cardMoveRotationMaxRad" type="number" step="0.01" readonly disabled title="由「追踪速度上限」× 「单位速度→旋转角系数」 / 1000 自动计算" style="opacity: 0.55; cursor: not-allowed;" />
+                <input id="inp-cardMoveRotationMaxRad" type="number" step="0.01" readonly disabled title="由固定参考速度 3000px/s × 「单位速度→旋转角系数」 / 1000 自动计算" style="opacity: 0.55; cursor: not-allowed;" />
               </div>
 
               <div class="panel-row">
@@ -1603,226 +1278,7 @@
               </div>
             </div>
 
-            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
-              <span>卡牌过冲反弹</span>
-              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
-                <span>展开详情</span>
-                <span id="val-expandCardOvershoot" style="color: var(--accent);">开</span>
-                <input id="inp-expandCardOvershoot" type="checkbox" checked style="margin:0;" />
-              </label>
-            </div>
-
-            <div id="sect-cardOvershoot-params">
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>启用卡牌过冲反弹（总开关）</span>
-                  <span id="val-cardOvershootEnabled">开</span>
-                </div>
-                <input id="inp-cardOvershootEnabled" type="checkbox" />
-              </div>
-
-              <!-- 组 1：归位 / 发牌（Tween 路径） -->
-              <div class="panel-row" style="background: rgba(255, 255, 255, 0.04); font-style: italic; color: #cbe88b; padding: 6px 12px;">
-                <span>组 1：归位 / 发牌（Tween 路径）</span>
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>最大过冲幅度（像素，距离饱和时）</span>
-                  <span id="val-tweenOvershootPx">14.0</span>
-                </div>
-                <input id="inp-tweenOvershootPx" type="number" step="1" min="0" max="100" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>最小过冲幅度（像素，距离刚达阈值时）</span>
-                  <span id="val-tweenMinOvershootPx">6.0</span>
-                </div>
-                <input id="inp-tweenMinOvershootPx" type="number" step="1" min="0" max="100" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>触发过冲的最小距离（像素）</span>
-                  <span id="val-tweenMinOvershootDistancePx">30.0</span>
-                </div>
-                <input id="inp-tweenMinOvershootDistancePx" type="number" step="2" min="0" max="500" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>过冲幅度饱和距离（像素）</span>
-                  <span id="val-tweenFullOvershootDistancePx">280.0</span>
-                </div>
-                <input id="inp-tweenFullOvershootDistancePx" type="number" step="10" min="20" max="1500" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>归位目标平均速度（px/s）</span>
-                  <span id="val-tweenReturnAvgSpeed">1400</span>
-                </div>
-                <input id="inp-tweenReturnAvgSpeed" type="number" step="50" min="200" max="6000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>rise 时长下限（ms）</span>
-                  <span id="val-tweenReturnMinMS">140</span>
-                </div>
-                <input id="inp-tweenReturnMinMS" type="number" step="10" min="20" max="1000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>rise 时长上限（ms）</span>
-                  <span id="val-tweenReturnMaxMS">420</span>
-                </div>
-                <input id="inp-tweenReturnMaxMS" type="number" step="10" min="50" max="2000" />
-              </div>
-
-              <div class="panel-row" style="opacity: 0.7;">
-                <div class="panel-row-header">
-                  <span>高速判定比例（× maxSpeed，仅组 2 急停用）</span>
-                  <span id="val-tweenSpeedRatioThreshold">0.50</span>
-                </div>
-                <input id="inp-tweenSpeedRatioThreshold" type="number" step="0.05" min="0" max="1.0" />
-              </div>
-
-              <div class="panel-row" style="opacity: 0.4;">
-                <div class="panel-row-header">
-                  <span>[已弃用] 第一段时长占比（已被距离/平均速度模型替代）</span>
-                  <span id="val-tweenRiseRatio">0.75</span>
-                </div>
-                <input id="inp-tweenRiseRatio" type="number" step="0.05" min="0.1" max="0.95" />
-              </div>
-
-              <div id="mount-tweenRiseCurve" style="padding: 6px 12px;"></div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>弹簧回弹刚度（→ 时长 = 1000/k ms）</span>
-                  <span id="val-tweenSpringStiffness">10.0</span>
-                </div>
-                <input id="inp-tweenSpringStiffness" type="number" step="0.5" min="1" max="60" />
-              </div>
-
-              <div id="mount-tweenSpringCurve" style="padding: 6px 12px;"></div>
-
-              <!-- 组 2：拖拽中急停（一次性过冲，独立曲线/幅度/时长） -->
-              <div class="panel-row" style="background: rgba(255, 255, 255, 0.04); font-style: italic; color: #cbe88b; padding: 6px 12px;">
-                <span>组 2：拖拽中急停（一次性过冲，独立曲线 / 幅度 / 时长）</span>
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>启用拖拽急停过冲</span>
-                  <span id="val-dragInertiaEnabled">开</span>
-                </div>
-                <input id="inp-dragInertiaEnabled" type="checkbox" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>急停低速比例（速度突降阈值，0~1）</span>
-                  <span id="val-dragLowSpeedRatio">0.30</span>
-                </div>
-                <input id="inp-dragLowSpeedRatio" type="number" step="0.05" min="0.05" max="0.9" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>急停静默兜底（ms，0=关闭）</span>
-                  <span id="val-dragQuietTriggerMS">45</span>
-                </div>
-                <input id="inp-dragQuietTriggerMS" type="number" step="5" min="0" max="300" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>急停触发冷却（ms）</span>
-                  <span id="val-dragTriggerCooldownMS">180</span>
-                </div>
-                <input id="inp-dragTriggerCooldownMS" type="number" step="10" min="0" max="1000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>拖拽过冲幅度 — 最大（像素，高速急停时）</span>
-                  <span id="val-dragOvershootPx">14.0</span>
-                </div>
-                <input id="inp-dragOvershootPx" type="number" step="1" min="0" max="100" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>拖拽过冲幅度 — 最小（像素，低速急停时）</span>
-                  <span id="val-dragMinOvershootPx">4.0</span>
-                </div>
-                <input id="inp-dragMinOvershootPx" type="number" step="0.5" min="0" max="100" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>过冲幅度最小速度比例（线性映射下界）</span>
-                  <span id="val-dragOvershootMinSpeedRatio">0.50</span>
-                </div>
-                <input id="inp-dragOvershootMinSpeedRatio" type="number" step="0.05" min="0" max="1" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>拖拽第一段时长（ms）</span>
-                  <span id="val-dragRiseDurationMS">112</span>
-                </div>
-                <input id="inp-dragRiseDurationMS" type="number" step="5" min="10" max="1000" />
-              </div>
-
-              <div id="mount-dragRiseCurve" style="padding: 6px 12px;"></div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>拖拽回弹时长（ms）</span>
-                  <span id="val-dragSpringDurationMS">100</span>
-                </div>
-                <input id="inp-dragSpringDurationMS" type="number" step="5" min="10" max="1000" />
-              </div>
-
-              <div id="mount-dragSpringCurve" style="padding: 6px 12px;"></div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>过冲取消阈值（像素）</span>
-                  <span id="val-dragCancelDistancePx">24.0</span>
-                </div>
-                <input id="inp-dragCancelDistancePx" type="number" step="1" min="2" max="200" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>鼠标速度上限（px/s，speedRatio 分母）</span>
-                  <span id="val-dragPointerMaxSpeed">6000</span>
-                </div>
-                <input id="inp-dragPointerMaxSpeed" type="number" step="100" min="500" max="20000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>鼠标速度平滑窗口（ms，0=禁用）</span>
-                  <span id="val-dragSpeedSmoothingMS">24</span>
-                </div>
-                <input id="inp-dragSpeedSmoothingMS" type="number" step="2" min="0" max="200" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>峰值速度衰减率（1/s，0=不衰减）</span>
-                  <span id="val-dragPeakDecayPerSec">4.0</span>
-                </div>
-                <input id="inp-dragPeakDecayPerSec" type="number" step="0.5" min="0" max="50" />
-              </div>
-            </div>
+            
           </details>
 
           <!-- 4b. 弹性绳子牵引卡牌模型（隔离沙盒；?scene=elastic-rope） -->

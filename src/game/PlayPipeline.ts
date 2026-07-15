@@ -2,10 +2,7 @@ import type { EventBus } from "@core/EventBus";
 import type { TweenManager } from "@tween/TweenManager";
 import type { CardView } from "@render/CardView";
 import type { ScoreResult } from "@domain/types";
-import {
-  computePlayPileLayout,
-  computeLandingOvershoot,
-} from "@render/PlayPileLayout";
+import { computePlayPileLayout } from "@render/PlayPileLayout";
 import { PlayPileFx, sleep } from "@fx/PlayPileFx";
 import { CardFx } from "@fx/CardFx";
 import { TextFx } from "@fx/TextFx";
@@ -25,8 +22,8 @@ import type { GameEvents } from "./events";
  *   1. 逐张出牌：选中牌按 handIndex 从左到右依次飞往出牌堆槽位，错开发车；
  *                每张牌发车前调一次 layoutHand({force:true}) 让剩余手牌挤位。
  *   2. 出牌堆排布：第一张居中（n=1 时），多张时整堆中位对齐手牌堆中位；
- *                  每张牌落位时按位置插值得到不同过冲幅度（首尾大、中间小）。
- *   3. 整堆上抬：所有牌落定后一起向上一次过冲（钩子：未来抬阴影）。
+ *                  落位仅设目标点，过冲由弹性绳自然产生。
+ *   3. 整堆上抬：所有牌落定后一起上移到抬升目标。
  *   4a. 手牌结算：逐张弹性震荡 + 筹码弹字（蓝色背景方块）。
  *   4b. 小丑结算：顶部小丑逐张弹性震荡 + 倍率弹字（红色背景方块，默认 +10倍率）；无上下移。
  *   5. 下移 + 预期分迁移 + 丢牌：整堆下移 → 分数迁移 → 从左到右逐张飞出。
@@ -132,20 +129,11 @@ export class PlayPipeline {
 
         bus.emit("play:cardEjected", { view, index: i, total });
 
-        // 使用原本的落位过冲逻辑
-        const overshoot = computeLandingOvershoot(
-          i,
-          total,
-          cfg.overshootFirstPx,
-          cfg.overshootMidPx,
-          cfg.overshootLastPx
-        );
-
         const landPromise = PlayPileFx.landOnPile(
           this.deps.tween,
           view,
           targetSlot_i,
-          overshoot,
+          0,
           cfg.flyDurationMS
         );
         landingPromises.push(landPromise);
@@ -179,16 +167,9 @@ export class PlayPipeline {
       for (let i = 0; i < total; i++) {
         const view = selected[i]!;
         const slot = slots[i]!;
-        const overshoot = computeLandingOvershoot(
-          i,
-          total,
-          cfg.overshootFirstPx,
-          cfg.overshootMidPx,
-          cfg.overshootLastPx
-        );
 
         // 把这张牌从手牌数组里摘掉 → 剩余手牌立即挤位（layoutHand 在 removeFromHand 内部触发）。
-        // 之所以"先摘再发车"：摘掉后该牌不再被 layoutHand 触碰，不会与 PlayPipeline 自己的飞行 tween 冲突。
+        // 之所以"先摘再发车"：摘掉后该牌不再被 layoutHand 触碰，不会与 PlayPipeline 自己的飞行冲突。
         this.deps.removeFromHand(view);
         // 把 zIndex 抬到极高，确保飞行/落定过程中盖住其他卡牌。
         // 后到的牌 zIndex 更高，自然就会盖在先到的牌上（堆叠从左到右）。
@@ -197,13 +178,13 @@ export class PlayPipeline {
 
         bus.emit("play:cardEjected", { view, index: i, total });
 
-        // 发车——landOnPile 返回的 Promise 标记"该牌完全落定"。
+        // 发车——landOnPile 返回的 Promise 标记"该牌绳吸附落定"。
         landingPromises.push(
           PlayPileFx.landOnPile(
             this.deps.tween,
             view,
             slot,
-            overshoot,
+            0,
             cfg.flyDurationMS
           )
         );
@@ -433,23 +414,26 @@ export class PlayPipeline {
     // 剩余出牌堆（按从左到右顺序）。每丢出一张就从头部移除。
     const remaining: CardView[] = [...selected];
 
+    const discardFlyPromises: Promise<void>[] = [];
     for (let i = 0; i < total; i++) {
       const view = selected[i]!;
       // 飞出瞬间：图层置于手牌之下、但仍在阴影层之上。
       //   手牌 zIndex = 0..n-1（≥0），阴影层 zIndex = -1；取 (-1, 0) 区间的值即可。
       view.zIndex = -0.1 - i * 0.001;
-      // 正面朝上 → 飞行途中沿竖中轴线翻约 90° → 压成一条线，目标弃牌堆（屏幕正右方外、垂直居中）。
+      // 正面朝上 → 飞行途中沿竖中轴线翻约 90° → 压成一条线。
+      // 位移：仅 setMoveTarget 弃牌堆点，路径/速率/过冲由弹性绳处理。
       view.startDiscardFlip(flyDurationMS);
-      // 进入弃牌飞行期：禁用速度→旋转联动，保持飞出瞬间的随机旋转角度直到弃牌结束。
       view.beginDiscardFly();
-      // 不 await 单张飞出，让下一张能立即错开发车。
-      void PlayPileFx.flyToDiscard(
-        this.deps.tween,
-        view,
-        this.deps.worldWidth,
-        this.deps.worldHeight,
-        flyDurationMS,
-        randomRotation()
+      // 不 await 单张，按 interval 错开发车；随机基角经 flyToDiscard → setMoveTarget 写入。
+      discardFlyPromises.push(
+        PlayPileFx.flyToDiscard(
+          this.deps.tween,
+          view,
+          this.deps.worldWidth,
+          this.deps.worldHeight,
+          flyDurationMS,
+          randomRotation()
+        )
       );
 
       // 该牌刚弃出 → 立即把它从剩余堆移除，并让剩下的牌重排居中。
@@ -476,8 +460,8 @@ export class PlayPipeline {
         await sleep(intervalMS);
       }
     }
-    // 等最后一张飞行时长，确保所有牌都飞到屏幕外才结束 pipeline。
-    await sleep(flyDurationMS);
+    // 等全部弃牌绳吸附完成。
+    await Promise.all(discardFlyPromises);
     // 最后一张弃牌后额外等待（与手牌弃牌共用 discard.lastCardWaitMS，受 speedRatio 缩放）
     const lastCardWaitMS = Math.max(0, (discardCfg?.lastCardWaitMS ?? 0) / speedRatio);
     if (lastCardWaitMS > 0) {

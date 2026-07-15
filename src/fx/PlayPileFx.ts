@@ -1,37 +1,14 @@
 import type { CardView } from "@render/CardView";
 import type { TweenManager } from "@tween/TweenManager";
 import { Easing } from "@tween/Easing";
-import { CONFIG } from "@game/config";
 import { CardFx } from "./CardFx";
 
-function curveToEase(curve: { p1: { y: number }; p2: { y: number } }) {
-  const p1y = curve.p1.y;
-  const p2y = curve.p2.y;
-  return (t: number): number => {
-    const tt = t < 0 ? 0 : t > 1 ? 1 : t;
-    const it = 1 - tt;
-    return 3 * it * it * tt * p1y + 3 * it * tt * tt * p2y + tt * tt * tt;
-  };
-}
-
 /**
- * 出牌堆视效集合（骨架占位）
- *
- * 这里的每一个方法都对应 PlayPipeline 的一个阶段子动作。
- * 当前实现走最简 tween 把"位移正确性"先做出来，复杂视觉细节（过冲曲线、
- * 阴影抬起、内缩双弹爆字、阴影收回等）作为 TODO 钩子留给未来。
- *
- * 替换升级路径：
- *   - 改成贝塞尔曲线驱动的过冲：在 landOnPile 内部把 CardFx.moveTo 换成
- *     一个新写的两段补间（参考 CardFx.moveToWithOvershoot）。
- *   - 阴影抬起：让 liftPile / dropPile 同时对 CardView 的阴影距离参数做 tween。
- *   - 内缩 + 双弹：用一个包装 Container 把出牌堆当作整体做 scale 动画。
- *
- * 现阶段保持"不动 CardView 内部状态、不引入新 Container"的克制原则，
- * 仅写 x/y 字段；这样不会与现有 hover/tilt/shadow 系统冲突。
+ * 出牌堆视效集合 — 位移统一走弹性绳（setMoveTarget / waitSettled）。
+ * 结算缩放/旋转通道仍可用 Tween（scoringScaleMul / scoringRotOffset）。
  */
 
-/** 等待若干毫秒（基于 setTimeout，与 tween 时长一致即可对齐）。 */
+/** 等待若干毫秒。 */
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -39,171 +16,61 @@ export function sleep(ms: number): Promise<void> {
 export const PlayPileFx = {
   /**
    * 把一张牌从当前位置飞到出牌堆槽位。
-   *
-   * 当前实现：复用 CardFx.moveTo（单段缓动）。
-   * TODO(future visual)：
-   *   - 加"过冲反弹"两段补间，过冲幅度 = overshootPx（已经由调用方按位置插值）。
-   *   - 加微旋转 / 微缩放，表达"摔到桌面"的力量感。
-   *
-   * @param overshootPx 过冲幅度（像素，沿运动方向）。当前未消费，留给未来视觉。
+   * overshootPx / durationMS 保留签名，位移由弹性绳处理。
    */
   landOnPile(
     tm: TweenManager,
     card: CardView,
     slot: { x: number; y: number; rotation: number },
-    overshootPx: number,
-    durationMS: number
+    _overshootPx: number,
+    _durationMS: number
   ): Promise<void> {
-    void overshootPx;
-    
+    void _overshootPx;
+    void _durationMS;
+
     card.isPlayCardMoving = true;
-    
-    const playCfg = CONFIG.playCardMove;
-    const controlCfg = CONFIG.playCardMoveControl;
 
-    const dx = slot.x - card.x;
-    const dy = slot.y - card.y;
-    const dist = Math.hypot(dx, dy);
-
+    const dist = Math.hypot(slot.x - card.x, slot.y - card.y);
     if (dist < 1e-3) {
-      card.x = slot.x;
-      card.y = slot.y;
-      card.rotation = slot.rotation;
+      card.syncRopePose({
+        x: slot.x,
+        y: slot.y,
+        rotation: slot.rotation,
+      });
       card.isPlayCardMoving = false;
       return Promise.resolve();
     }
 
-    const nx = dx / dist;
-    const ny = dy / dist;
-
-    // Determine target of first segment
-    let p1x = slot.x;
-    let p1y = slot.y;
-    let rebound1MS = 0;
-    let rebound2MS = 0;
-    let p2x = slot.x;
-    let p2y = slot.y;
-    let p3x = slot.x;
-    let p3y = slot.y;
-
-    const hasOvershoot = playCfg && playCfg.enabled;
-    if (hasOvershoot) {
-      const { overshoot1Px, overshoot2Px, stiffness } = playCfg;
-      p1x = slot.x + nx * overshoot1Px;
-      p1y = slot.y + ny * overshoot1Px;
-      p2x = slot.x - nx * overshoot2Px;
-      p2y = slot.y - ny * overshoot2Px;
-      p3x = slot.x;
-      p3y = slot.y;
-      rebound1MS = Math.max(1, Math.round(1000 / stiffness));
-      rebound2MS = Math.max(1, Math.round(1000 / stiffness));
-    }
-
-    let actualEasing = Easing.cubicOut;
-    let actualDurationMS = durationMS;
-
-    if (controlCfg && controlCfg.enabled) {
-      actualEasing = curveToEase(controlCfg.moveCurve);
-      const firstSegmentDist = Math.hypot(p1x - card.x, p1y - card.y);
-      const y1 = controlCfg.moveCurve.p1.y;
-      const slope = Math.max(0.1, 3 * y1);
-      actualDurationMS = (firstSegmentDist * slope / controlCfg.startSpeed) * 1000;
-      actualDurationMS = Math.max(50, Math.min(2000, actualDurationMS));
-    }
-
-    return new Promise<void>((resolve) => {
-      const finish = () => {
-        card.isPlayCardMoving = false;
-        resolve();
-      };
-
-      tm.add(
-        tm
-          .create(card)
-          .to({ x: p1x, y: p1y, rotation: slot.rotation }, actualDurationMS)
-          .easing(actualEasing)
-          .onStop(finish)
-          .onComplete(() => {
-            if (card.isDragging) {
-              finish();
-              return;
-            }
-            if (!hasOvershoot) {
-              finish();
-              return;
-            }
-            tm.add(
-              tm
-                .create(card)
-                .to({ x: p2x, y: p2y }, rebound1MS)
-                .easing(Easing.quadInOut)
-                .onStop(finish)
-                .onComplete(() => {
-                  if (card.isDragging) {
-                    finish();
-                    return;
-                  }
-                  tm.add(
-                    tm
-                      .create(card)
-                      .to({ x: p3x, y: p3y }, rebound2MS)
-                      .easing(Easing.cubicOut)
-                      .onStop(finish)
-                      .onComplete(finish)
-                  );
-                })
-            );
-          })
-      );
+    tm.killOf(card);
+    card.setMoveTarget(slot.x, slot.y, slot.rotation);
+    return card.waitSettled().then(() => {
+      card.isPlayCardMoving = false;
     });
   },
 
   /**
-   * 整堆上抬一次。
-   *
-   * 当前实现：对每张牌的 y 做同步 tween（y -= liftPx）。
-   * TODO(future visual)：
-   *   - 加阴影抬起（同时对 shadow 距离/scale 做 tween）。
-   *   - 加过冲（lift 到 -liftPx - liftOvershootPx 再回弹 +liftOvershootPx）。
+   * 整堆上抬：每张牌 y 目标 -= liftPx。
    */
   liftPile(
     tm: TweenManager,
     views: readonly CardView[],
     liftPx: number,
-    durationMS: number,
+    _durationMS: number,
     _overshootPx: number = 0
   ): Promise<void> {
-    void _overshootPx; // TODO: 未来过冲段
-    const promises = views.map(
-      (v) =>
-        new Promise<void>((resolve) => {
-          tm.add(
-            tm
-              .create(v)
-              .to({ y: v.y - liftPx }, durationMS)
-              .easing(Easing.cubicOut)
-              .onComplete(resolve)
-          );
-        })
-    );
-    return Promise.all(promises).then(() => undefined);
+    void _durationMS;
+    void _overshootPx;
+    return Promise.all(
+      views.map((v) => {
+        tm.killOf(v);
+        v.setMoveTarget(v.x, v.y - liftPx, v.rotation);
+        return v.waitSettled();
+      })
+    ).then(() => undefined);
   },
 
   /**
-   * 结算"内缩 → 过大弹两次"。
-   *
-   * 当前实现（占位）：用 y 微抖动作为占位，确保时序正确即可。
-   * TODO(future visual)：
-   *   - 把每张牌或整堆容器 scale 从 1 → squashScale → bouncePeakScale → 1
-   *     做 (1 + bounceCount × 2) 段补间。
-   *   - 在每次峰值瞬间触发 "+xxx" 弹字（订阅 play:settled 后由 TextFx 实现）。
-   *
-   * 参数预留给未来：
-   * @param squashScale       内缩 scale 目标（如 0.9）
-   * @param bouncePeakScale   过大弹峰值 scale（如 1.12）
-   * @param bounceCount       过大弹次数
-   * @param squashDurationMS  内缩时长
-   * @param bounceDurationMS  单次过大弹时长
+   * 结算占位：y 微抖动节奏（仍用目标点 + 绳，避免 Tween 与绳抢写）。
    */
   settleSquash(
     tm: TweenManager,
@@ -216,97 +83,65 @@ export const PlayPileFx = {
       bounceDurationMS: number;
     }
   ): Promise<void> {
-    // 占位实现：用 y 上下微抖动模拟"先压缩、再弹起两次"的节奏。
-    // 振幅取 bouncePeakScale 衍生的视觉量（很小，仅用于让流程可见）。
-    void params.squashScale; // TODO(future visual)
-    const peak = (params.bouncePeakScale - 1) * 80; // 像素，占位经验值
-    const squash = (1 - params.squashScale) * 50; // 像素，占位经验值
+    void params.squashScale;
+    const peak = (params.bouncePeakScale - 1) * 80;
+    const squash = (1 - params.squashScale) * 50;
 
-    const seq: Promise<void> = (async () => {
-      // 内缩：整堆 y += squash（视觉上像被压扁）
+    return (async () => {
+      const bases = views.map((v) => v.y);
       await Promise.all(
-        views.map(
-          (v) =>
-            new Promise<void>((resolve) => {
-              tm.add(
-                tm
-                  .create(v)
-                  .to({ y: v.y + squash }, params.squashDurationMS)
-                  .easing(Easing.cubicOut)
-                  .onComplete(resolve)
-              );
-            })
-        )
+        views.map((v, i) => {
+          tm.killOf(v);
+          v.setMoveTarget(v.x, bases[i]! + squash, v.rotation);
+          return v.waitSettled();
+        })
       );
-      // 过大弹若干次：y -= peak → y += 0
       for (let b = 0; b < Math.max(1, params.bounceCount); b++) {
         await Promise.all(
-          views.map(
-            (v) =>
-              new Promise<void>((resolve) => {
-                const back = v.y - squash; // 回到内缩前的位置
-                tm.add(
-                  tm
-                    .create(v)
-                    .to({ y: back - peak }, params.bounceDurationMS / 2)
-                    .easing(Easing.cubicOut)
-                    .onComplete(resolve)
-                );
-              })
-          )
+          views.map((v, i) => {
+            tm.killOf(v);
+            v.setMoveTarget(v.x, bases[i]! + squash - peak, v.rotation);
+            return v.waitSettled();
+          })
         );
         await Promise.all(
-          views.map(
-            (v) =>
-              new Promise<void>((resolve) => {
-                const back = v.y + peak; // 从过大弹峰回到基准
-                tm.add(
-                  tm
-                    .create(v)
-                    .to({ y: back }, params.bounceDurationMS / 2)
-                    .easing(Easing.cubicOut)
-                    .onComplete(resolve)
-                );
-              })
-          )
+          views.map((v, i) => {
+            tm.killOf(v);
+            v.setMoveTarget(v.x, bases[i]! + squash, v.rotation);
+            return v.waitSettled();
+          })
         );
       }
+      // 回到内缩前基准
+      await Promise.all(
+        views.map((v, i) => {
+          tm.killOf(v);
+          v.setMoveTarget(v.x, bases[i]!, v.rotation);
+          return v.waitSettled();
+        })
+      );
     })();
-    return seq;
   },
 
   /**
-   * 整堆下移。
-   *
-   * 当前实现：每张牌 y += liftPx（与 lift 对称）。
-   * TODO(future visual)：收回阴影、加过冲。
+   * 整堆下移：与 lift 对称。
    */
   dropPile(
     tm: TweenManager,
     views: readonly CardView[],
     liftPx: number,
-    durationMS: number
+    _durationMS: number
   ): Promise<void> {
-    const promises = views.map(
-      (v) =>
-        new Promise<void>((resolve) => {
-          tm.add(
-            tm
-              .create(v)
-              .to({ y: v.y + liftPx }, durationMS)
-              .easing(Easing.cubicOut)
-              .onComplete(resolve)
-          );
-        })
-    );
-    return Promise.all(promises).then(() => undefined);
+    void _durationMS;
+    return Promise.all(
+      views.map((v) => {
+        tm.killOf(v);
+        v.setMoveTarget(v.x, v.y + liftPx, v.rotation);
+        return v.waitSettled();
+      })
+    ).then(() => undefined);
   },
 
-  /**
-   * 单张丢牌：飞向弃牌堆（屏幕正右方外、垂直居中）。
-   * 配合 CardView.startDiscardFlip 在飞行途中沿竖中轴线翻约 90°（压成一条线）。
-   * TODO(future visual)：未来引入 DiscardView 后改为飞向 discard 锚点。
-   */
   flyToDiscard(
     tm: TweenManager,
     card: CardView,
@@ -315,11 +150,18 @@ export const PlayPileFx = {
     durationMS: number,
     targetRotation?: number
   ): Promise<void> {
-    return CardFx.flyToDiscardPile(tm, card, worldWidth, worldHeight, durationMS, targetRotation);
+    return CardFx.flyToDiscardPile(
+      tm,
+      card,
+      worldWidth,
+      worldHeight,
+      durationMS,
+      targetRotation
+    );
   },
 
   /**
-   * 计分卡牌单张从左到右逐一上移过冲与回弹。
+   * 计分抬升：目标 = 当前 y 上移 peakDist（自然过冲由绳提供）。
    */
   liftCardScoring(
     tm: TweenManager,
@@ -327,108 +169,40 @@ export const PlayPileFx = {
     cfg: {
       startSpeed: number;
       decelerateTime: number;
-      overshoot: number;
-      springStiffness: number;
     }
   ): Promise<void> {
-    const decelMS = Math.max(0, Math.round(cfg.decelerateTime * 1000));
     const peakDist = (cfg.startSpeed * cfg.decelerateTime) / 2;
-    const overshoot = Math.max(0, cfg.overshoot);
-    const stiffness = Math.max(0.001, cfg.springStiffness);
-    const reboundMS = Math.min(2000, Math.round(1000 / stiffness));
+    const stableY = card.y - peakDist;
 
-    const baseY = card.y;
-    const overshootY = baseY - peakDist;
-    const stableY = overshootY + overshoot;
+    card.isScoringLifted = true;
+    card.updateShadow();
 
-    return new Promise<void>((resolve) => {
-      // 1. 切换成“卡牌拖拽阴影效果”
-      card.isScoringLifted = true;
-      card.updateShadow();
-
-      // 2. 第一阶段：向上移动，快速减速到 0（Easing.quadOut）
-      tm.add(
-        tm
-          .create(card)
-          .to({ y: overshootY }, decelMS)
-          .easing(Easing.quadOut)
-          .onComplete(() => {
-            // 3. 第二阶段：反向弹回到稳定位置（Easing.cubicOut）
-            if (overshoot <= 0 || reboundMS <= 0) {
-              card.y = stableY;
-              resolve();
-              return;
-            }
-            tm.add(
-              tm
-                .create(card)
-                .to({ y: stableY }, reboundMS)
-                .easing(Easing.cubicOut)
-                .onComplete(resolve)
-            );
-          })
-      );
-    });
+    tm.killOf(card);
+    card.setMoveTarget(card.x, stableY, card.rotation);
+    return card.waitSettled();
   },
 
   /**
-   * 将被计分抬升的单个卡牌落回到出牌前的基准位置，带过冲与回弹，且开始下移瞬间立即恢复常态阴影。
-   * 下移第一段的时间将根据设定的下移启动速度和实际位移距离动态计算。
+   * 计分下落：目标 = targetY（自然过冲由绳提供）。
    */
   dropCardScoring(
     tm: TweenManager,
     card: CardView,
     targetY: number,
-    cfg: {
-      dropOvershoot: number;
-      dropSpringStiffness: number;
-      dropStartSpeed: number;
-    }
+    _cfg?: unknown
   ): Promise<void> {
-    const overshoot = Math.max(0, cfg.dropOvershoot);
-    const stiffness = Math.max(0.001, cfg.dropSpringStiffness);
-    const reboundMS = Math.min(2000, Math.round(1000 / stiffness));
+    void _cfg;
 
-    const overshootY = targetY + overshoot;
-    const totalDropDist = Math.abs(card.y - overshootY);
+    card.isScoringLifted = false;
+    card.updateShadow();
 
-    // 下移第一段时长：基于物理减速模型（从启动速度 dropStartSpeed 减速到 0）
-    // 运动学公式：D = (v0 * T) / 2 -> T = 2 * D / v0
-    const startSpeed = Math.max(1, cfg.dropStartSpeed);
-    const dropDurationMS = Math.min(2000, Math.max(10, Math.round((2 * totalDropDist / startSpeed) * 1000)));
-
-    return new Promise<void>((resolve) => {
-      // 1. 开始下移的一瞬间，恢复常态阴影
-      card.isScoringLifted = false;
-      card.updateShadow();
-
-      // 2. 第一阶段：向下移动至过冲点（目标 Y 之下）
-      tm.add(
-        tm
-          .create(card)
-          .to({ y: overshootY }, dropDurationMS)
-          .easing(Easing.quadOut) // quadOut 完美契合从初始速度 startSpeed 恒定减速到 0 的物理模型
-          .onComplete(() => {
-            // 3. 第二阶段：反向弹回到稳定基准位置
-            if (overshoot <= 0 || reboundMS <= 0) {
-              card.y = targetY;
-              resolve();
-              return;
-            }
-            tm.add(
-              tm
-                .create(card)
-                .to({ y: targetY }, reboundMS)
-                .easing(Easing.cubicOut)
-                .onComplete(resolve)
-            );
-          })
-      );
-    });
+    tm.killOf(card);
+    card.setMoveTarget(card.x, targetY, card.rotation);
+    return card.waitSettled();
   },
 
   /**
-   * 计分卡牌单张从左到右结算时的弹性往复震荡动画（大小 + 旋转）
+   * 计分卡牌结算时的弹性往复（大小 + 旋转）— scoring 通道 Tween，不写 x/y。
    */
   animateCardSettle(
     tm: TweenManager,
@@ -455,36 +229,44 @@ export const PlayPileFx = {
       };
 
       tm.add(
-        tm.create(card)
+        tm
+          .create(card)
           .to({ scoringScaleMul: cfg.s1, scoringRotOffset: r1Rad }, cfg.t1)
           .easing(Easing.cubicOut)
           .onStop(stopCleanup)
           .onComplete(() => {
             onStage2?.();
             tm.add(
-              tm.create(card)
+              tm
+                .create(card)
                 .to({ scoringScaleMul: cfg.s2, scoringRotOffset: r2Rad }, cfg.t2)
                 .easing(Easing.quadInOut)
                 .onStop(stopCleanup)
                 .onComplete(() => {
                   tm.add(
-                    tm.create(card)
+                    tm
+                      .create(card)
                       .to({ scoringScaleMul: cfg.s3, scoringRotOffset: r3Rad }, cfg.t3)
                       .easing(Easing.quadInOut)
                       .onStop(stopCleanup)
                       .onComplete(() => {
                         tm.add(
-                          tm.create(card)
+                          tm
+                            .create(card)
                             .to({ scoringScaleMul: cfg.s4, scoringRotOffset: r4Rad }, cfg.t4)
                             .easing(Easing.quadInOut)
                             .onStop(stopCleanup)
                             .onComplete(() => {
                               tm.add(
-                                tm.create(card)
-                                  .to({ scoringScaleMul: cfg.s5, scoringRotOffset: 0.0 }, cfg.t5)
+                                tm
+                                  .create(card)
+                                  .to(
+                                    { scoringScaleMul: cfg.s5, scoringRotOffset: 0.0 },
+                                    cfg.t5
+                                  )
                                   .easing(Easing.cubicOut)
                                   .onStop(stopCleanup)
-                                  .onComplete(resolve)
+                                  .onComplete(() => resolve())
                               );
                             })
                         );
