@@ -1310,26 +1310,27 @@ export function setupControlPanel(
     bindNumber("inp-playPileLiftEffectShadowDistanceRatio", "val-playPileLiftEffectShadowDistanceRatio", "playPileLiftEffect.shadowDistanceRatio", { digits: 5 });
     bindNumber("inp-playPileLiftEffectShadowScaleRatio", "val-playPileLiftEffectShadowScaleRatio", "playPileLiftEffect.shadowScaleRatio", { digits: 2 });
 
-    // === 【出牌】出牌堆的结算效果 ===
+    // === 【出牌】出牌堆的结算效果（弹簧阻尼） ===
     bindSectionExpand("inp-expandPlayPileSettleEffect", "val-expandPlayPileSettleEffect", "cardVisuals.expandedSections.playPileSettleEffect", "sect-playPileSettleEffect-params");
     bindToggle("inp-playPileSettleEffectEnabled", "val-playPileSettleEffectEnabled", "playPileSettleEffect.enabled");
     bindNumber("inp-playPileSettleEffectFirstIntervalMS", "val-playPileSettleEffectFirstIntervalMS", "playPileSettleEffect.firstIntervalMS", { integer: true });
     bindNumber("inp-playPileSettleEffectIntervalReductionMS", "val-playPileSettleEffectIntervalReductionMS", "playPileSettleEffect.intervalReductionMS", { integer: true });
     bindNumber("inp-playPileSettleEffectLastIntervalMS", "val-playPileSettleEffectLastIntervalMS", "playPileSettleEffect.lastIntervalMS", { integer: true });
-    bindNumber("inp-playPileSettleEffectS1", "val-playPileSettleEffectS1", "playPileSettleEffect.s1", { digits: 2 });
-    bindNumber("inp-playPileSettleEffectT1", "val-playPileSettleEffectT1", "playPileSettleEffect.t1", { integer: true });
-    bindNumber("inp-playPileSettleEffectS2", "val-playPileSettleEffectS2", "playPileSettleEffect.s2", { digits: 2 });
-    bindNumber("inp-playPileSettleEffectT2", "val-playPileSettleEffectT2", "playPileSettleEffect.t2", { integer: true });
-    bindNumber("inp-playPileSettleEffectS3", "val-playPileSettleEffectS3", "playPileSettleEffect.s3", { digits: 2 });
-    bindNumber("inp-playPileSettleEffectT3", "val-playPileSettleEffectT3", "playPileSettleEffect.t3", { integer: true });
-    bindNumber("inp-playPileSettleEffectS4", "val-playPileSettleEffectS4", "playPileSettleEffect.s4", { digits: 2 });
-    bindNumber("inp-playPileSettleEffectT4", "val-playPileSettleEffectT4", "playPileSettleEffect.t4", { integer: true });
-    bindNumber("inp-playPileSettleEffectS5", "val-playPileSettleEffectS5", "playPileSettleEffect.s5", { digits: 2 });
-    bindNumber("inp-playPileSettleEffectT5", "val-playPileSettleEffectT5", "playPileSettleEffect.t5", { integer: true });
-    bindNumber("inp-playPileSettleEffectR1", "val-playPileSettleEffectR1", "playPileSettleEffect.r1", { digits: 2 });
-    bindNumber("inp-playPileSettleEffectR2", "val-playPileSettleEffectR2", "playPileSettleEffect.r2", { digits: 2 });
-    bindNumber("inp-playPileSettleEffectR3", "val-playPileSettleEffectR3", "playPileSettleEffect.r3", { digits: 2 });
-    bindNumber("inp-playPileSettleEffectR4", "val-playPileSettleEffectR4", "playPileSettleEffect.r4", { digits: 2 });
+    bindNumber("inp-playPileSettleEffectAngularFreq", "val-playPileSettleEffectAngularFreq", "playPileSettleEffect.angularFreq", { digits: 1 });
+    bindNumber("inp-playPileSettleEffectDampingRatio", "val-playPileSettleEffectDampingRatio", "playPileSettleEffect.dampingRatio", { digits: 2 });
+    bindNumber("inp-playPileSettleEffectMass", "val-playPileSettleEffectMass", "playPileSettleEffect.mass", { digits: 2 });
+    bindNumber("inp-playPileSettleEffectImpulseScale", "val-playPileSettleEffectImpulseScale", "playPileSettleEffect.impulseScale", { digits: 2 });
+    bindNumber("inp-playPileSettleEffectImpulseRotDeg", "val-playPileSettleEffectImpulseRotDeg", "playPileSettleEffect.impulseRotDeg", { digits: 1 });
+    bindNumber("inp-playPileSettleEffectTextTriggerMS", "val-playPileSettleEffectTextTriggerMS", "playPileSettleEffect.textTriggerMS", { integer: true });
+    bindNumber("inp-playPileSettleEffectMaxDurationMS", "val-playPileSettleEffectMaxDurationMS", "playPileSettleEffect.maxDurationMS", { integer: true });
+    bindNumber("inp-playPileSettleEffectImpulseScaleVel", "val-playPileSettleEffectImpulseScaleVel", "playPileSettleEffect.impulseScaleVel", { digits: 2 });
+    bindNumber("inp-playPileSettleEffectImpulseRotVelDeg", "val-playPileSettleEffectImpulseRotVelDeg", "playPileSettleEffect.impulseRotVelDeg", { digits: 1 });
+    bindNumber("inp-playPileSettleEffectSettleEpsScale", "val-playPileSettleEffectSettleEpsScale", "playPileSettleEffect.settleEpsScale", { digits: 4 });
+    bindNumber("inp-playPileSettleEffectSettleVelScale", "val-playPileSettleEffectSettleVelScale", "playPileSettleEffect.settleVelScale", { digits: 3 });
+    bindNumber("inp-playPileSettleEffectSettleEpsRotDeg", "val-playPileSettleEffectSettleEpsRotDeg", "playPileSettleEffect.settleEpsRotDeg", { digits: 2 });
+    bindNumber("inp-playPileSettleEffectSettleVelRotDeg", "val-playPileSettleEffectSettleVelRotDeg", "playPileSettleEffect.settleVelRotDeg", { digits: 1 });
+    bindNumber("inp-playPileSettleEffectMaxDtSec", "val-playPileSettleEffectMaxDtSec", "playPileSettleEffect.maxDtSec", { digits: 4 });
+    bindNumber("inp-playPileSettleEffectSubsteps", "val-playPileSettleEffectSubsteps", "playPileSettleEffect.substeps", { integer: true });
 
     // 弹性绳子牵引卡牌模型（顶级分类；沙盒 ?scene=elastic-rope）
     bindToggle("inp-elasticRopeEnabled", "val-elasticRopeEnabled", "elasticRopeCard.enabled");
@@ -1605,26 +1606,7 @@ export function setupControlPanel(
     bindNumber("inp-jokerBaseY", "val-jokerBaseY", "joker.baseY", { digits: 0 });
     bindNumber("inp-jokerBaseX", "val-jokerBaseX", "joker.baseX", { digits: 0 });
 
-    // === 【小丑】小丑牌的结算效果 ===
-    bindSectionExpand("inp-expandJokerSettleEffect", "val-expandJokerSettleEffect", "cardVisuals.expandedSections.jokerSettleEffect", "sect-jokerSettleEffect-params");
-    bindToggle("inp-jokerSettleEffectEnabled", "val-jokerSettleEffectEnabled", "jokerSettleEffect.enabled");
-    bindNumber("inp-jokerSettleEffectFirstIntervalMS", "val-jokerSettleEffectFirstIntervalMS", "jokerSettleEffect.firstIntervalMS", { integer: true });
-    bindNumber("inp-jokerSettleEffectIntervalReductionMS", "val-jokerSettleEffectIntervalReductionMS", "jokerSettleEffect.intervalReductionMS", { integer: true });
-    bindNumber("inp-jokerSettleEffectLastIntervalMS", "val-jokerSettleEffectLastIntervalMS", "jokerSettleEffect.lastIntervalMS", { integer: true });
-    bindNumber("inp-jokerSettleEffectS1", "val-jokerSettleEffectS1", "jokerSettleEffect.s1", { digits: 2 });
-    bindNumber("inp-jokerSettleEffectT1", "val-jokerSettleEffectT1", "jokerSettleEffect.t1", { integer: true });
-    bindNumber("inp-jokerSettleEffectS2", "val-jokerSettleEffectS2", "jokerSettleEffect.s2", { digits: 2 });
-    bindNumber("inp-jokerSettleEffectT2", "val-jokerSettleEffectT2", "jokerSettleEffect.t2", { integer: true });
-    bindNumber("inp-jokerSettleEffectS3", "val-jokerSettleEffectS3", "jokerSettleEffect.s3", { digits: 2 });
-    bindNumber("inp-jokerSettleEffectT3", "val-jokerSettleEffectT3", "jokerSettleEffect.t3", { integer: true });
-    bindNumber("inp-jokerSettleEffectS4", "val-jokerSettleEffectS4", "jokerSettleEffect.s4", { digits: 2 });
-    bindNumber("inp-jokerSettleEffectT4", "val-jokerSettleEffectT4", "jokerSettleEffect.t4", { integer: true });
-    bindNumber("inp-jokerSettleEffectS5", "val-jokerSettleEffectS5", "jokerSettleEffect.s5", { digits: 2 });
-    bindNumber("inp-jokerSettleEffectT5", "val-jokerSettleEffectT5", "jokerSettleEffect.t5", { integer: true });
-    bindNumber("inp-jokerSettleEffectR1", "val-jokerSettleEffectR1", "jokerSettleEffect.r1", { digits: 2 });
-    bindNumber("inp-jokerSettleEffectR2", "val-jokerSettleEffectR2", "jokerSettleEffect.r2", { digits: 2 });
-    bindNumber("inp-jokerSettleEffectR3", "val-jokerSettleEffectR3", "jokerSettleEffect.r3", { digits: 2 });
-    bindNumber("inp-jokerSettleEffectR4", "val-jokerSettleEffectR4", "jokerSettleEffect.r4", { digits: 2 });
+    // 小丑弹簧结算参数复用【出牌】出牌堆的结算效果（playPileSettleEffect），无独立专区。
 
     // === 【小丑】结算数字效果 + 红色背景方块 ===
     bindSectionExpand("inp-expandJokerSettleText", "val-expandJokerSettleText", "cardVisuals.expandedSections.jokerSettleText", "sect-jokerSettleText-params");

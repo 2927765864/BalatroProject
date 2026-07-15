@@ -35,6 +35,8 @@ export class Button extends UINode {
   private idleColor: number;
   private activeColor: number;
   private enabled = true;
+  /** 是否在本按钮上按下；仅在按钮内抬起时触发 onClick。 */
+  private pressed = false;
 
   constructor(opts: ButtonOptions) {
     super({ id: opts.id, displayName: opts.displayName });
@@ -70,15 +72,36 @@ export class Button extends UINode {
     this.eventMode = "static";
     this.cursor = "pointer";
 
-    this.on("pointerover", () => this.setState("hover"));
-    this.on("pointerout", () => this.setState("normal"));
+    this.on("pointerover", () => {
+      if (this.pressed) {
+        this.setState("down");
+      } else {
+        this.setState("hover");
+      }
+    });
+    this.on("pointerout", () => {
+      // 按下后拖出按钮：取消 down 高亮；pressed 仍保留，在外抬起不触发 click
+      this.setState("normal");
+    });
     this.on("pointerdown", () => {
       if (!this.enabled) return;
+      this.pressed = true;
       this.setState("down");
-      opts.onClick();
     });
-    this.on("pointerup", () => this.setState("hover"));
-    this.on("pointerupoutside", () => this.setState("normal"));
+    this.on("pointerup", () => {
+      if (this.pressed && this.enabled) {
+        this.pressed = false;
+        this.setState("hover");
+        opts.onClick();
+      } else {
+        this.pressed = false;
+        this.setState(this.enabled ? "hover" : "disabled");
+      }
+    });
+    this.on("pointerupoutside", () => {
+      this.pressed = false;
+      this.setState(this.enabled ? "normal" : "disabled");
+    });
   }
 
   setEnabled(enabled: boolean): void {

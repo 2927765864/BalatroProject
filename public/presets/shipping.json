@@ -223,6 +223,21 @@
       "firstIntervalMS": 300,
       "intervalReductionMS": 60,
       "lastIntervalMS": 800,
+      "mass": 1,
+      "angularFreq": 36,
+      "dampingRatio": 0.25,
+      "impulseScale": -0.15,
+      "impulseScaleVel": 18,
+      "impulseRotDeg": 0,
+      "impulseRotVelDeg": -140,
+      "settleEpsScale": 0.004,
+      "settleVelScale": 0.05,
+      "settleEpsRotDeg": 0.15,
+      "settleVelRotDeg": 2,
+      "maxDurationMS": 1200,
+      "maxDtSec": 0.03333333333333333,
+      "substeps": 2,
+      "textTriggerMS": 120,
       "s1": 0.92,
       "t1": 80,
       "s2": 1.25,
@@ -296,26 +311,6 @@
         }
       },
       "bgBlockEndScale": 0.45
-    },
-    "jokerSettleEffect": {
-      "enabled": true,
-      "firstIntervalMS": 300,
-      "intervalReductionMS": 60,
-      "lastIntervalMS": 800,
-      "s1": 0.92,
-      "t1": 80,
-      "s2": 1.25,
-      "t2": 80,
-      "s3": 0.95,
-      "t3": 70,
-      "s4": 1.1,
-      "t4": 60,
-      "s5": 1,
-      "t5": 50,
-      "r1": 2,
-      "r2": -7,
-      "r3": 4.2,
-      "r4": -1.5
     },
     "jokerSettleTextEffect": {
       "enabled": true,
@@ -398,12 +393,12 @@
     "elasticRopeCard": {
       "enabled": true,
       "spring": {
-        "maxElasticLength": 120,
+        "maxElasticLength": 100,
         "stiffness": 2000
       },
       "airDrag": {
         "mode": "linear",
-        "linearCoeff": 45.5,
+        "linearCoeff": 41,
         "quadraticCoeff": 0.3285
       },
       "integration": {
@@ -481,9 +476,8 @@
         "playPileSettleText": false,
         "playPileSettleBgBlock": false,
         "jokerEffects": false,
-        "jokerLayout": true,
-        "jokerSettleEffect": false,
-        "jokerSettleText": true,
+        "jokerLayout": false,
+        "jokerSettleText": false,
         "jokerSettleBgBlock": false,
         "chipsBounce": false,
         "multBounce": false,
@@ -495,7 +489,8 @@
         "handSwap": false,
         "playHandSwap": false,
         "playCardMove": false,
-        "playCardMoveControl": false
+        "playCardMoveControl": false,
+        "jokerSettleEffect": true
       },
       "selectMoveEnabled": true,
       "selectRiseY": 26,
@@ -953,7 +948,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "459"
+              "text": "714"
             }
           },
           {

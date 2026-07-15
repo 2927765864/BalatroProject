@@ -10,6 +10,7 @@ import {
 } from "@game/config";
 import { uiHierarchy } from "@ui/hierarchy";
 import { setupControlPanel } from "@/debug/ControlPanel";
+import { mountFpsOverlay } from "@/debug/FpsOverlay";
 import { ElasticRopeSandboxScene } from "@/scenes/ElasticRopeSandboxScene";
 
 /**
@@ -37,6 +38,9 @@ async function bootstrap(): Promise<void> {
   });
 
   await app.init();
+
+  // 屏幕右上角实时帧数（stage 坐标，主场景与沙盒均可见）
+  mountFpsOverlay(app);
 
   // 让 hierarchy 里的组件（ShadowComponent 这种需要 generateTexture 的）
   // 能够拿到 renderer。注入一次就够，renderer 在整个进程内不变。

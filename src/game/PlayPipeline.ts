@@ -254,10 +254,10 @@ export class PlayPipeline {
     }
     bus.emit("play:lifted", { views: selected });
 
-    // ── 阶段 4a：手牌结算（内缩 + 过大弹 / 逐张弹性 + 筹码弹字） ──
+    // ── 阶段 4a：手牌结算（弹簧阻尼缩放/旋转 + 筹码弹字） ──
     // 注意：最终入账延后到小丑结算之后（倍率可能被小丑修改）。
-    // 倍速：前三个间隔 + 阶段4/5时间 (t4/t5) 受 gameSpeed 缩放；
-    // 阶段1–3时间 (t1–t3) 固定，不受倍速影响。
+    // 倍速：三个间隔 + textTriggerMS + maxDurationMS 受 scaleTimeMS；
+    // 弹簧积分逻辑 dt = wallDt * gameSpeed（见 PlayPileFx.animateCardSettle）。
     const settleEffectCfgRaw = CONFIG.playPileSettleEffect;
     const settleEffectCfg = settleEffectCfgRaw
       ? {
@@ -265,8 +265,8 @@ export class PlayPipeline {
           firstIntervalMS: scaleTimeMS(settleEffectCfgRaw.firstIntervalMS),
           intervalReductionMS: scaleTimeMS(settleEffectCfgRaw.intervalReductionMS),
           lastIntervalMS: scaleTimeMS(settleEffectCfgRaw.lastIntervalMS),
-          t4: scaleTimeMS(settleEffectCfgRaw.t4),
-          t5: scaleTimeMS(settleEffectCfgRaw.t5),
+          textTriggerMS: scaleTimeMS(settleEffectCfgRaw.textTriggerMS),
+          maxDurationMS: scaleTimeMS(settleEffectCfgRaw.maxDurationMS),
         }
       : settleEffectCfgRaw;
     if (settleEffectCfg && settleEffectCfg.enabled) {
@@ -309,37 +309,23 @@ export class PlayPipeline {
     }
 
     // ── 阶段 4b：小丑牌结算（不上下移，直接原地结算倍率） ────
-    // 与手牌结算视效同构（弹性震荡 + 逐字弹字 + 背景方块），区别：
-    //   1) 小丑不抬升/下移；
-    //   2) 增加倍率而非筹码；
-    //   3) 文字默认 "+10倍率"，背景小方块默认红色。
+    // 弹簧阻尼结算参数与出牌堆共用 CONFIG.playPileSettleEffect（含 enabled / 间隔 / 冲量等）。
+    // 区别仅业务语义：1) 不抬升/下移；2) 倍率而非筹码；3) 弹字仍走 jokerSettleTextEffect。
     let finalResult: ScoreResult = {
       ...result,
       scoringCards: result.scoringCards,
     };
     let totalJokerMultBonus = 0;
-    // 小丑结算：与出牌堆结算同规则——三个间隔 + t4/t5 受 gameSpeed；t1–t3 固定。
-    // 结算数字效果的 ms 在 TextFx.createSettleText 内统一缩放。
-    const jokerSettleCfgRaw = CONFIG.jokerSettleEffect;
-    const jokerSettleCfg = jokerSettleCfgRaw
-      ? {
-          ...jokerSettleCfgRaw,
-          firstIntervalMS: scaleTimeMS(jokerSettleCfgRaw.firstIntervalMS),
-          intervalReductionMS: scaleTimeMS(jokerSettleCfgRaw.intervalReductionMS),
-          lastIntervalMS: scaleTimeMS(jokerSettleCfgRaw.lastIntervalMS),
-          t4: scaleTimeMS(jokerSettleCfgRaw.t4),
-          t5: scaleTimeMS(jokerSettleCfgRaw.t5),
-        }
-      : jokerSettleCfgRaw;
+    // 复用阶段 4a 已 scaleTimeMS 过的 settleEffectCfg。
     const jokers = this.deps.getJokers?.() ?? [];
-    if (jokerSettleCfg && jokerSettleCfg.enabled && jokers.length > 0) {
+    if (settleEffectCfg && settleEffectCfg.enabled && jokers.length > 0) {
       const textCfg = CONFIG.jokerSettleTextEffect;
       const multBonus = Math.max(0, textCfg?.defaultMultBonus ?? 10);
 
       for (let i = 0; i < jokers.length; i++) {
         const joker = jokers[i]!;
 
-        await PlayPileFx.animateCardSettle(this.deps.tween, joker, jokerSettleCfg, () => {
+        await PlayPileFx.animateCardSettle(this.deps.tween, joker, settleEffectCfg, () => {
           if (textCfg && textCfg.enabled && joker.parent) {
             TextFx.createSettleText(joker.parent, this.deps.tween, joker, multBonus, textCfg);
           }
@@ -348,10 +334,10 @@ export class PlayPipeline {
 
         totalJokerMultBonus += multBonus;
 
-        let interval = jokerSettleCfg.firstIntervalMS - i * jokerSettleCfg.intervalReductionMS;
+        let interval = settleEffectCfg.firstIntervalMS - i * settleEffectCfg.intervalReductionMS;
         interval = Math.max(0, interval);
         if (i === jokers.length - 1) {
-          interval = jokerSettleCfg.lastIntervalMS;
+          interval = settleEffectCfg.lastIntervalMS;
         }
         if (interval > 0) {
           await sleep(interval);

@@ -498,22 +498,41 @@ export interface RuntimeConfig {
     /** 上移阴影大小比例 */
     shadowScaleRatio: number;
   };
-  /** 【出牌】出牌堆的结算效果 */
+  /**
+   * 【出牌】出牌堆的结算效果 — 弹簧阻尼变化（docs/play-pile-settle-spring-damper-plan.md）
+   * 保留三个间隔；缩放/旋转由 ωn·ζ 二阶弹簧驱动 scoring 通道。
+   */
   playPileSettleEffect: {
     enabled: boolean;
-    /** 第一张要进行筹码数值计算的卡牌动画结束后的停留的时间间隔（受 gameSpeed 缩放） */
+    /** 第一张结算动画结束后的停留间隔（受 gameSpeed 缩放） */
     firstIntervalMS: number;
     /** 之后每张牌减少的时间间隔（受 gameSpeed 缩放） */
     intervalReductionMS: number;
-    /** 最后一张牌动画结束后的停留时间间隔（受 gameSpeed 缩放） */
+    /** 最后一张牌动画结束后的停留间隔（受 gameSpeed 缩放） */
     lastIntervalMS: number;
-    /** 阶段 1–3 时间 t1–t3 不受倍速影响；阶段 4–5 时间 t4–t5 受 gameSpeed 缩放 */
-    s1: number; t1: number;
-    s2: number; t2: number;
-    s3: number; t3: number;
-    s4: number; t4: number;
-    s5: number; t5: number;
-    r1: number; r2: number; r3: number; r4: number;
+    mass: number;
+    /** 自然频率 ωn (rad/s) */
+    angularFreq: number;
+    /** 阻尼比 ζ */
+    dampingRatio: number;
+    /** 初始缩放偏离：xS0 = 1 + impulseScale */
+    impulseScale: number;
+    /** 初始缩放速度 (1/s) */
+    impulseScaleVel: number;
+    /** 初始旋转偏离 (度) */
+    impulseRotDeg: number;
+    /** 初始角速度 (deg/s) */
+    impulseRotVelDeg: number;
+    settleEpsScale: number;
+    settleVelScale: number;
+    settleEpsRotDeg: number;
+    settleVelRotDeg: number;
+    /** 最长逻辑时长 ms（受 gameSpeed 缩放） */
+    maxDurationMS: number;
+    maxDtSec: number;
+    substeps: number;
+    /** 结算数字触发延迟 ms（受 gameSpeed 缩放） */
+    textTriggerMS: number;
   };
   /** 【出牌】出牌堆的结算数字效果 */
   playPileSettleTextEffect: {
@@ -553,27 +572,9 @@ export interface RuntimeConfig {
     bgBlockScaleCurve: BezierCurveConfig;
   };
   /**
-   * 【小丑】小丑牌的结算效果
-   * 与 playPileSettleEffect 同构：逐张弹性震荡 + 间隔节奏。
-   * 区别：小丑不上下移，直接在原位触发结算。
-   */
-  jokerSettleEffect: {
-    enabled: boolean;
-    /** 间隔 ms 受 gameSpeed 缩放（与出牌堆结算同规则） */
-    firstIntervalMS: number;
-    intervalReductionMS: number;
-    lastIntervalMS: number;
-    /** 阶段 1–3 时间 t1–t3 不受倍速；阶段 4–5 时间 t4–t5 受 gameSpeed 缩放 */
-    s1: number; t1: number;
-    s2: number; t2: number;
-    s3: number; t3: number;
-    s4: number; t4: number;
-    s5: number; t5: number;
-    r1: number; r2: number; r3: number; r4: number;
-  };
-  /**
    * 【小丑】小丑牌的结算数字效果（含红色背景小方块）
    * 与 playPileSettleTextEffect 同构，默认红底；额外提供 defaultMultBonus（默认 +10）与 textSuffix（默认 "倍率"）。
+   * 弹簧阻尼结算本身不设独立专区，直接复用 playPileSettleEffect。
    */
   jokerSettleTextEffect: {
     enabled: boolean;
@@ -785,7 +786,6 @@ export interface RuntimeConfig {
       playPileSettleBgBlock: boolean;
       jokerEffects: boolean;
       jokerLayout: boolean;
-      jokerSettleEffect: boolean;
       jokerSettleText: boolean;
       jokerSettleBgBlock: boolean;
       chipsBounce: boolean;
@@ -1298,20 +1298,21 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     firstIntervalMS: 300,
     intervalReductionMS: 60,
     lastIntervalMS: 150,
-    s1: 0.92,
-    t1: 120,
-    s2: 1.20,
-    t2: 160,
-    s3: 0.95,
-    t3: 140,
-    s4: 1.10,
-    t4: 120,
-    s5: 1.00,
-    t5: 100,
-    r1: 0.5,
-    r2: -4.0,
-    r3: 0.8,
-    r4: -1.5,
+    mass: 1,
+    angularFreq: 14,
+    dampingRatio: 0.45,
+    impulseScale: -0.08,
+    impulseScaleVel: 0,
+    impulseRotDeg: 0.5,
+    impulseRotVelDeg: -40,
+    settleEpsScale: 0.004,
+    settleVelScale: 0.05,
+    settleEpsRotDeg: 0.15,
+    settleVelRotDeg: 2,
+    maxDurationMS: 1200,
+    maxDtSec: 1 / 30,
+    substeps: 2,
+    textTriggerMS: 120,
   }),
   playPileSettleTextEffect: Object.freeze({
     enabled: true,
@@ -1361,27 +1362,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       p2: { x: 0.25, y: 1.0 },
     }) as BezierCurveConfig,
   }),
-  // 小丑结算：默认与出牌堆结算同构；倍率弹字默认 +10倍率，背景方块默认红色。
-  jokerSettleEffect: Object.freeze({
-    enabled: true,
-    firstIntervalMS: 300,
-    intervalReductionMS: 60,
-    lastIntervalMS: 150,
-    s1: 0.92,
-    t1: 120,
-    s2: 1.20,
-    t2: 160,
-    s3: 0.95,
-    t3: 140,
-    s4: 1.10,
-    t4: 120,
-    s5: 1.00,
-    t5: 100,
-    r1: 0.5,
-    r2: -4.0,
-    r3: 0.8,
-    r4: -1.5,
-  }),
+  // 小丑结算弹簧参数复用 playPileSettleEffect；此处仅保留倍率弹字/红底方块。
   jokerSettleTextEffect: Object.freeze({
     enabled: true,
     defaultMultBonus: 10,
@@ -1536,7 +1517,6 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       playPileSettleBgBlock: true,
       jokerEffects: true,
       jokerLayout: true,
-      jokerSettleEffect: true,
       jokerSettleText: true,
       jokerSettleBgBlock: true,
       chipsBounce: true,
@@ -1813,7 +1793,6 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
         p2: { ...src.playPileSettleTextEffect.bgBlockScaleCurve.p2 },
       } : undefined as any,
     },
-    jokerSettleEffect: { ...src.jokerSettleEffect },
     jokerSettleTextEffect: {
       ...src.jokerSettleTextEffect,
       bgBlockFadeCurve: src.jokerSettleTextEffect.bgBlockFadeCurve ? {
@@ -2088,12 +2067,6 @@ export function applyConfig(source: unknown): void {
         : merged.playPileSettleTextEffect.bgBlockScaleCurve,
     };
   }
-  if (incoming.jokerSettleEffect) {
-    merged.jokerSettleEffect = {
-      ...merged.jokerSettleEffect,
-      ...incoming.jokerSettleEffect,
-    };
-  }
   if (incoming.jokerSettleTextEffect) {
     merged.jokerSettleTextEffect = {
       ...merged.jokerSettleTextEffect,
@@ -2225,7 +2198,6 @@ export function applyConfig(source: unknown): void {
   CONFIG.playPileLiftEffect = merged.playPileLiftEffect;
   CONFIG.playPileSettleEffect = merged.playPileSettleEffect;
   CONFIG.playPileSettleTextEffect = merged.playPileSettleTextEffect;
-  CONFIG.jokerSettleEffect = merged.jokerSettleEffect;
   CONFIG.jokerSettleTextEffect = merged.jokerSettleTextEffect;
   CONFIG.cardVisuals = merged.cardVisuals;
   CONFIG.playPile = merged.playPile;
@@ -2427,12 +2399,6 @@ export function applyShippingDefaults(source: unknown): void {
             p2: { ...(activeDefaultConfig.playPileSettleTextEffect.bgBlockScaleCurve?.p2 ?? {}), ...(incoming.playPileSettleTextEffect.bgBlockScaleCurve.p2 ?? {}) },
           }
         : activeDefaultConfig.playPileSettleTextEffect.bgBlockScaleCurve,
-    };
-  }
-  if (incoming.jokerSettleEffect) {
-    activeDefaultConfig.jokerSettleEffect = {
-      ...activeDefaultConfig.jokerSettleEffect,
-      ...incoming.jokerSettleEffect,
     };
   }
   if (incoming.jokerSettleTextEffect) {

@@ -1,12 +1,32 @@
 import type { CardView } from "@render/CardView";
 import type { TweenManager } from "@tween/TweenManager";
-import { Easing } from "@tween/Easing";
+import { CONFIG } from "@game/config";
+import { SpringDamper1D } from "@/motion/SpringDamper1D";
 import { CardFx } from "./CardFx";
 
 /**
  * 出牌堆视效集合 — 位移统一走弹性绳（setMoveTarget / waitSettled）。
- * 结算缩放/旋转通道仍可用 Tween（scoringScaleMul / scoringRotOffset）。
+ * 结算缩放/旋转：弹簧阻尼 1D（docs/play-pile-settle-spring-damper-plan.md）。
  */
+
+/** 结算弹簧配置（与 CONFIG.playPileSettleEffect 弹簧字段一致；时间字段由 Pipeline 预缩放）。 */
+export type SettleSpringConfig = {
+  mass: number;
+  angularFreq: number;
+  dampingRatio: number;
+  impulseScale: number;
+  impulseScaleVel: number;
+  impulseRotDeg: number;
+  impulseRotVelDeg: number;
+  settleEpsScale: number;
+  settleVelScale: number;
+  settleEpsRotDeg: number;
+  settleVelRotDeg: number;
+  maxDurationMS: number;
+  maxDtSec: number;
+  substeps: number;
+  textTriggerMS: number;
+};
 
 /** 等待若干毫秒。 */
 export function sleep(ms: number): Promise<void> {
@@ -202,80 +222,83 @@ export const PlayPileFx = {
   },
 
   /**
-   * 计分卡牌结算时的弹性往复（大小 + 旋转）— scoring 通道 Tween，不写 x/y。
+   * 计分卡牌结算：双通道弹簧阻尼（scale→1，rot→0），只写 scoring 通道。
+   * 时钟：CardView.settleSpringTick（App 帧 dt）；逻辑时间 dtMS * gameSpeed。
+   * 见 docs/play-pile-settle-spring-damper-plan.md §5.2 方式 B。
    */
   animateCardSettle(
     tm: TweenManager,
     card: CardView,
-    cfg: {
-      t1: number; t2: number; t3: number; t4: number; t5: number;
-      s1: number; s2: number; s3: number; s4: number; s5: number;
-      r1: number; r2: number; r3: number; r4: number;
-    },
-    onStage2?: () => void
+    cfg: SettleSpringConfig,
+    onTextTrigger?: () => void
   ): Promise<void> {
-    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const deg2rad = (deg: number) => (deg * Math.PI) / 180;
 
-    const r1Rad = toRad(cfg.r1);
-    const r2Rad = toRad(cfg.r2);
-    const r3Rad = toRad(cfg.r3);
-    const r4Rad = toRad(cfg.r4);
+    tm.killOf(card);
+    card.settleSpringTick = null;
+
+    const scaleSpring = new SpringDamper1D();
+    const rotSpring = new SpringDamper1D();
+    scaleSpring.reset(1 + cfg.impulseScale, cfg.impulseScaleVel);
+    rotSpring.reset(deg2rad(cfg.impulseRotDeg), deg2rad(cfg.impulseRotVelDeg));
+
+    card.scoringScaleMul = scaleSpring.x;
+    card.scoringRotOffset = rotSpring.x;
+
+    const params = {
+      mass: cfg.mass,
+      angularFreq: cfg.angularFreq,
+      dampingRatio: cfg.dampingRatio,
+    };
+
+    let elapsedMS = 0;
+    let textFired = false;
+    let finished = false;
 
     return new Promise<void>((resolve) => {
-      const stopCleanup = () => {
-        card.scoringScaleMul = 1.0;
-        card.scoringRotOffset = 0.0;
+      const finish = (): void => {
+        if (finished) return;
+        finished = true;
+        card.settleSpringTick = null;
+        scaleSpring.x = 1;
+        scaleSpring.v = 0;
+        rotSpring.x = 0;
+        rotSpring.v = 0;
+        card.scoringScaleMul = 1;
+        card.scoringRotOffset = 0;
         resolve();
       };
 
-      tm.add(
-        tm
-          .create(card)
-          .to({ scoringScaleMul: cfg.s1, scoringRotOffset: r1Rad }, cfg.t1)
-          .easing(Easing.cubicOut)
-          .onStop(stopCleanup)
-          .onComplete(() => {
-            onStage2?.();
-            tm.add(
-              tm
-                .create(card)
-                .to({ scoringScaleMul: cfg.s2, scoringRotOffset: r2Rad }, cfg.t2)
-                .easing(Easing.quadInOut)
-                .onStop(stopCleanup)
-                .onComplete(() => {
-                  tm.add(
-                    tm
-                      .create(card)
-                      .to({ scoringScaleMul: cfg.s3, scoringRotOffset: r3Rad }, cfg.t3)
-                      .easing(Easing.quadInOut)
-                      .onStop(stopCleanup)
-                      .onComplete(() => {
-                        tm.add(
-                          tm
-                            .create(card)
-                            .to({ scoringScaleMul: cfg.s4, scoringRotOffset: r4Rad }, cfg.t4)
-                            .easing(Easing.quadInOut)
-                            .onStop(stopCleanup)
-                            .onComplete(() => {
-                              tm.add(
-                                tm
-                                  .create(card)
-                                  .to(
-                                    { scoringScaleMul: cfg.s5, scoringRotOffset: 0.0 },
-                                    cfg.t5
-                                  )
-                                  .easing(Easing.cubicOut)
-                                  .onStop(stopCleanup)
-                                  .onComplete(() => resolve())
-                              );
-                            })
-                        );
-                      })
-                  );
-                })
-            );
-          })
-      );
+      card.settleSpringTick = (dtMS: number) => {
+        if (finished) return;
+
+        const speed = CONFIG.gameSpeed;
+        const effectiveDtMS =
+          dtMS * (Number.isFinite(speed) && speed > 0 ? speed : 1);
+        const dtSec = effectiveDtMS / 1000;
+        elapsedMS += effectiveDtMS;
+
+        scaleSpring.step(dtSec, 1, params, cfg.maxDtSec, cfg.substeps);
+        rotSpring.step(dtSec, 0, params, cfg.maxDtSec, cfg.substeps);
+        card.scoringScaleMul = scaleSpring.x;
+        card.scoringRotOffset = rotSpring.x;
+
+        if (!textFired && elapsedMS >= cfg.textTriggerMS) {
+          textFired = true;
+          onTextTrigger?.();
+        }
+
+        const rotEps = deg2rad(cfg.settleEpsRotDeg);
+        const rotVelEps = deg2rad(cfg.settleVelRotDeg);
+        const settled =
+          scaleSpring.isSettled(1, cfg.settleEpsScale, cfg.settleVelScale) &&
+          rotSpring.isSettled(0, rotEps, rotVelEps);
+        const timedOut = elapsedMS >= cfg.maxDurationMS;
+
+        if (settled || timedOut) {
+          finish();
+        }
+      };
     });
   },
 };

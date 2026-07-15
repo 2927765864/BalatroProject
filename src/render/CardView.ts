@@ -180,6 +180,13 @@ export class CardView extends Container {
   scoringScaleMul = 1.0;
   scoringRotOffset = 0.0;
 
+  /**
+   * 结算弹簧每帧回调（PlayPileFx.animateCardSettle 挂载）。
+   * null 表示未在结算弹簧动画中。
+   * 见 docs/play-pile-settle-spring-damper-plan.md §5.2 方式 B。
+   */
+  settleSpringTick: ((dtMS: number) => void) | null = null;
+
   // 当前卡牌在手牌数组中的索引（0 = 最左）。由 GameController.layoutHand() 每次重排时写入。
   // 用于"鼠标悬停伪3D倾斜"按位置插值卡牌强度（最左 vs 最右）。未参与布局时默认 0。
   handIndex = 0;
@@ -1702,6 +1709,9 @@ export class CardView extends Container {
     if (this.usesRopeDriver()) {
       this.stepElasticRope(dtMS);
     }
+
+    // 0d. 结算弹簧（scoring 通道；在绳之后，不写 x/y）
+    this.settleSpringTick?.(dtMS);
 
     this.updateDragScale(dtMS);
 

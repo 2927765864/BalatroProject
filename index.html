@@ -1092,109 +1092,110 @@
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>阶段1缩放目标</span>
-                  <span id="val-playPileSettleEffectS1">0.92</span>
+                  <span>结算弹簧 · 自然频率 ωn</span>
+                  <span id="val-playPileSettleEffectAngularFreq">14</span>
                 </div>
-                <input id="inp-playPileSettleEffectS1" type="number" step="0.01" min="0.5" max="2" />
+                <input id="inp-playPileSettleEffectAngularFreq" type="number" step="0.5" min="0.5" max="60" />
               </div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>阶段1时间 (ms)</span>
-                  <span id="val-playPileSettleEffectT1">120</span>
+                  <span>结算弹簧 · 阻尼比 ζ</span>
+                  <span id="val-playPileSettleEffectDampingRatio">0.45</span>
                 </div>
-                <input id="inp-playPileSettleEffectT1" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段2缩放目标</span>
-                  <span id="val-playPileSettleEffectS2">1.20</span>
-                </div>
-                <input id="inp-playPileSettleEffectS2" type="number" step="0.01" min="0.5" max="2" />
+                <input id="inp-playPileSettleEffectDampingRatio" type="number" step="0.05" min="0" max="3" />
               </div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>阶段2时间 (ms)</span>
-                  <span id="val-playPileSettleEffectT2">160</span>
+                  <span>结算弹簧 · 质量 m</span>
+                  <span id="val-playPileSettleEffectMass">1</span>
                 </div>
-                <input id="inp-playPileSettleEffectT2" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段3缩放目标</span>
-                  <span id="val-playPileSettleEffectS3">0.95</span>
-                </div>
-                <input id="inp-playPileSettleEffectS3" type="number" step="0.01" min="0.5" max="2" />
+                <input id="inp-playPileSettleEffectMass" type="number" step="0.05" min="0.05" max="10" />
               </div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>阶段3时间 (ms)</span>
-                  <span id="val-playPileSettleEffectT3">140</span>
+                  <span>初始缩放偏离</span>
+                  <span id="val-playPileSettleEffectImpulseScale">-0.08</span>
                 </div>
-                <input id="inp-playPileSettleEffectT3" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段4缩放目标</span>
-                  <span id="val-playPileSettleEffectS4">1.10</span>
-                </div>
-                <input id="inp-playPileSettleEffectS4" type="number" step="0.01" min="0.5" max="2" />
+                <input id="inp-playPileSettleEffectImpulseScale" type="number" step="0.01" min="-0.5" max="0.5" />
               </div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>阶段4时间 (ms)</span>
-                  <span id="val-playPileSettleEffectT4">120</span>
+                  <span>初始旋转角 (°)</span>
+                  <span id="val-playPileSettleEffectImpulseRotDeg">0.5</span>
                 </div>
-                <input id="inp-playPileSettleEffectT4" type="number" step="10" min="0" max="2000" />
+                <input id="inp-playPileSettleEffectImpulseRotDeg" type="number" step="0.1" min="-45" max="45" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>文字触发延迟 (ms)</span>
+                  <span id="val-playPileSettleEffectTextTriggerMS">120</span>
+                </div>
+                <input id="inp-playPileSettleEffectTextTriggerMS" type="number" step="10" min="0" max="2000" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>最长时长 (ms)</span>
+                  <span id="val-playPileSettleEffectMaxDurationMS">1200</span>
+                </div>
+                <input id="inp-playPileSettleEffectMaxDurationMS" type="number" step="50" min="100" max="5000" />
               </div>
 
+              <div class="panel-row" style="opacity:0.9;font-size:11px;color:#9ab86c;">进阶 · 冲量速度 / settle / 积分</div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>阶段5缩放目标</span>
-                  <span id="val-playPileSettleEffectS5">1.00</span>
+                  <span>初始缩放速度 (1/s)</span>
+                  <span id="val-playPileSettleEffectImpulseScaleVel">0</span>
                 </div>
-                <input id="inp-playPileSettleEffectS5" type="number" step="0.01" min="0.5" max="2" />
+                <input id="inp-playPileSettleEffectImpulseScaleVel" type="number" step="0.1" min="-20" max="20" />
               </div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>阶段5时间 (ms)</span>
-                  <span id="val-playPileSettleEffectT5">100</span>
+                  <span>初始角速度 (°/s)</span>
+                  <span id="val-playPileSettleEffectImpulseRotVelDeg">-40</span>
                 </div>
-                <input id="inp-playPileSettleEffectT5" type="number" step="10" min="0" max="2000" />
+                <input id="inp-playPileSettleEffectImpulseRotVelDeg" type="number" step="1" min="-360" max="360" />
               </div>
-
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>阶段1顺时针旋转 (度)</span>
-                  <span id="val-playPileSettleEffectR1">0.5</span>
+                  <span>settle 缩放位置阈值</span>
+                  <span id="val-playPileSettleEffectSettleEpsScale">0.004</span>
                 </div>
-                <input id="inp-playPileSettleEffectR1" type="number" step="0.1" min="-90" max="90" />
+                <input id="inp-playPileSettleEffectSettleEpsScale" type="number" step="0.001" min="0.0001" max="0.1" />
               </div>
-
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>阶段2逆时针旋转 (度)</span>
-                  <span id="val-playPileSettleEffectR2">-4.0</span>
+                  <span>settle 缩放速度阈值</span>
+                  <span id="val-playPileSettleEffectSettleVelScale">0.05</span>
                 </div>
-                <input id="inp-playPileSettleEffectR2" type="number" step="0.1" min="-90" max="90" />
+                <input id="inp-playPileSettleEffectSettleVelScale" type="number" step="0.01" min="0.001" max="5" />
               </div>
-
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>阶段3顺时针旋转 (度)</span>
-                  <span id="val-playPileSettleEffectR3">0.8</span>
+                  <span>settle 角位置阈值 (°)</span>
+                  <span id="val-playPileSettleEffectSettleEpsRotDeg">0.15</span>
                 </div>
-                <input id="inp-playPileSettleEffectR3" type="number" step="0.1" min="-90" max="90" />
+                <input id="inp-playPileSettleEffectSettleEpsRotDeg" type="number" step="0.05" min="0.01" max="5" />
               </div>
-
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>阶段4逆时针旋转 (度)</span>
-                  <span id="val-playPileSettleEffectR4">-1.5</span>
+                  <span>settle 角速度阈值 (°/s)</span>
+                  <span id="val-playPileSettleEffectSettleVelRotDeg">2</span>
                 </div>
-                <input id="inp-playPileSettleEffectR4" type="number" step="0.1" min="-90" max="90" />
+                <input id="inp-playPileSettleEffectSettleVelRotDeg" type="number" step="0.5" min="0.1" max="90" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>最大 dt (秒)</span>
+                  <span id="val-playPileSettleEffectMaxDtSec">0.0333</span>
+                </div>
+                <input id="inp-playPileSettleEffectMaxDtSec" type="number" step="0.001" min="0.001" max="0.1" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>子步数</span>
+                  <span id="val-playPileSettleEffectSubsteps">2</span>
+                </div>
+                <input id="inp-playPileSettleEffectSubsteps" type="number" step="1" min="1" max="16" />
               </div>
             </div>
 
@@ -3057,156 +3058,7 @@
               </div>
             </div>
 
-            <!-- 【小丑】小丑牌的结算效果（对应卡牌逻辑：出牌堆结算效果） -->
-            <div class="panel-row" style="background: rgba(255, 51, 51, 0.10); font-weight: bold; color: #ff5555; border-top: 1px solid rgba(255, 51, 51, 0.25); border-bottom: 1px solid rgba(255, 51, 51, 0.25); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
-              <span>【小丑】小丑牌的结算效果</span>
-              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#ffb0b0;cursor:pointer;">
-                <span>展开详情</span>
-                <span id="val-expandJokerSettleEffect" style="color: #ff5555;">开</span>
-                <input id="inp-expandJokerSettleEffect" type="checkbox" checked style="margin:0;" />
-              </label>
-            </div>
-
-            <div id="sect-jokerSettleEffect-params">
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>启用结算效果</span>
-                  <span id="val-jokerSettleEffectEnabled">开</span>
-                </div>
-                <input id="inp-jokerSettleEffectEnabled" type="checkbox" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>第一张结算停留间隔 (ms)</span>
-                  <span id="val-jokerSettleEffectFirstIntervalMS">300</span>
-                </div>
-                <input id="inp-jokerSettleEffectFirstIntervalMS" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>后续每张减少时间间隔 (ms)</span>
-                  <span id="val-jokerSettleEffectIntervalReductionMS">60</span>
-                </div>
-                <input id="inp-jokerSettleEffectIntervalReductionMS" type="number" step="5" min="0" max="1000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>最后一张结算停留间隔 (ms)</span>
-                  <span id="val-jokerSettleEffectLastIntervalMS">150</span>
-                </div>
-                <input id="inp-jokerSettleEffectLastIntervalMS" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段1缩放目标</span>
-                  <span id="val-jokerSettleEffectS1">0.92</span>
-                </div>
-                <input id="inp-jokerSettleEffectS1" type="number" step="0.01" min="0.5" max="2" />
-              </div>
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段1时间 (ms)</span>
-                  <span id="val-jokerSettleEffectT1">120</span>
-                </div>
-                <input id="inp-jokerSettleEffectT1" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段2缩放目标</span>
-                  <span id="val-jokerSettleEffectS2">1.20</span>
-                </div>
-                <input id="inp-jokerSettleEffectS2" type="number" step="0.01" min="0.5" max="2" />
-              </div>
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段2时间 (ms)</span>
-                  <span id="val-jokerSettleEffectT2">160</span>
-                </div>
-                <input id="inp-jokerSettleEffectT2" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段3缩放目标</span>
-                  <span id="val-jokerSettleEffectS3">0.95</span>
-                </div>
-                <input id="inp-jokerSettleEffectS3" type="number" step="0.01" min="0.5" max="2" />
-              </div>
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段3时间 (ms)</span>
-                  <span id="val-jokerSettleEffectT3">140</span>
-                </div>
-                <input id="inp-jokerSettleEffectT3" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段4缩放目标</span>
-                  <span id="val-jokerSettleEffectS4">1.10</span>
-                </div>
-                <input id="inp-jokerSettleEffectS4" type="number" step="0.01" min="0.5" max="2" />
-              </div>
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段4时间 (ms)</span>
-                  <span id="val-jokerSettleEffectT4">120</span>
-                </div>
-                <input id="inp-jokerSettleEffectT4" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段5缩放目标</span>
-                  <span id="val-jokerSettleEffectS5">1.00</span>
-                </div>
-                <input id="inp-jokerSettleEffectS5" type="number" step="0.01" min="0.5" max="2" />
-              </div>
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段5时间 (ms)</span>
-                  <span id="val-jokerSettleEffectT5">100</span>
-                </div>
-                <input id="inp-jokerSettleEffectT5" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段1顺时针旋转 (度)</span>
-                  <span id="val-jokerSettleEffectR1">0.5</span>
-                </div>
-                <input id="inp-jokerSettleEffectR1" type="number" step="0.1" min="-90" max="90" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段2逆时针旋转 (度)</span>
-                  <span id="val-jokerSettleEffectR2">-4.0</span>
-                </div>
-                <input id="inp-jokerSettleEffectR2" type="number" step="0.1" min="-90" max="90" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段3顺时针旋转 (度)</span>
-                  <span id="val-jokerSettleEffectR3">0.8</span>
-                </div>
-                <input id="inp-jokerSettleEffectR3" type="number" step="0.1" min="-90" max="90" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>阶段4逆时针旋转 (度)</span>
-                  <span id="val-jokerSettleEffectR4">-1.5</span>
-                </div>
-                <input id="inp-jokerSettleEffectR4" type="number" step="0.1" min="-90" max="90" />
-              </div>
-            </div>
+            <!-- 小丑弹簧结算复用【出牌】出牌堆的结算效果（playPileSettleEffect），无独立参数专区 -->
 
             <!-- 【小丑】结算数字效果（对应文字视效：出牌堆结算数字） -->
             <div class="panel-row" style="background: rgba(255, 51, 51, 0.10); font-weight: bold; color: #ff5555; border-top: 1px solid rgba(255, 51, 51, 0.25); border-bottom: 1px solid rgba(255, 51, 51, 0.25); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
