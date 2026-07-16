@@ -4,13 +4,13 @@ import { UINode } from "@ui/hierarchy";
 /**
  * 通用圆角面板
  *
- * 重做后的实现：
- *   - Panel 自身是一个空 UINode，只承担"挂载点 + transform"。
- *   - 圆角矩形背景被拆成 PanelBackground（也是一个 UINode）作为 Panel 的子节点。
- *   - 这样背景在 Hierarchy 里就是一个独立、可见、可调位置的节点，
- *     同时遵守"父先渲染、子后渲染"的统一规则：
- *        Panel(空) → PanelBackground → 用户后续 addChild 的内容
- *     用户拖进来的子 UINode 渲染在 PanelBackground 之上。
+ * 实现约定：
+ *   - Panel 自身是空 UINode，只承担"挂载点 + transform"。
+ *   - 填充与描边拆成两个完全独立的单色 UINode：
+ *       Panel → PanelBackground（填充）→ [可选] PanelBorder（描边）
+ *   - 每个叶子 Graphics 一律以白色（0xffffff）绘制几何，颜色通过 tint 直接指定。
+ *     这样「颜色」组件改的是直接色值，而不是对已有色做相乘；
+ *     且只作用在本节点的非 UINode 子显示对象上，不会下传到子 UINode。
  */
 export interface PanelOptions {
   /** UI Hierarchy 中的稳定 id，例如 "hud.leftPanel"。 */
@@ -27,6 +27,7 @@ export interface PanelOptions {
 
 export class Panel extends UINode {
   private readonly background: PanelBackground;
+  private border: PanelBorder | null = null;
   private opts: PanelOptions;
 
   constructor(opts: PanelOptions) {
@@ -39,15 +40,27 @@ export class Panel extends UINode {
       height: opts.height,
       fill: opts.fill,
       radius: opts.radius,
-      borderColor: opts.borderColor,
-      borderWidth: opts.borderWidth,
     });
     this.addChild(this.background);
+
+    if (opts.borderColor !== undefined && opts.borderWidth !== undefined) {
+      this.border = new PanelBorder({
+        id: `${opts.id}.border`,
+        displayName: "描边",
+        width: opts.width,
+        height: opts.height,
+        color: opts.borderColor,
+        borderWidth: opts.borderWidth,
+        radius: opts.radius,
+      });
+      this.addChild(this.border);
+    }
   }
 
   setSize(width: number, height: number): void {
     this.opts = { ...this.opts, width, height };
     this.background.setSize(width, height);
+    this.border?.setSize(width, height);
   }
 
   setFill(fill: number): void {
@@ -56,7 +69,7 @@ export class Panel extends UINode {
   }
 }
 
-// ---- 背景独立节点 -------------------------------------------------
+// ---- 填充（单色） -------------------------------------------------
 
 export interface PanelBackgroundOptions {
   id: string;
@@ -65,10 +78,12 @@ export interface PanelBackgroundOptions {
   height: number;
   fill: number;
   radius?: number;
-  borderColor?: number;
-  borderWidth?: number;
 }
 
+/**
+ * 圆角矩形填充叶子。几何恒为白，颜色 = Graphics.tint。
+ * 旧 API 的 border* 已移除：描边请用独立的 PanelBorder 节点。
+ */
 export class PanelBackground extends UINode {
   private readonly g = new Graphics();
   private opts: PanelBackgroundOptions;
@@ -76,6 +91,7 @@ export class PanelBackground extends UINode {
   constructor(opts: PanelBackgroundOptions) {
     super({ id: opts.id, displayName: opts.displayName });
     this.opts = opts;
+    this.g.label = "shape";
     this.addChild(this.g);
     this.redraw();
   }
@@ -87,16 +103,59 @@ export class PanelBackground extends UINode {
 
   setFill(fill: number): void {
     this.opts = { ...this.opts, fill };
-    this.redraw();
+    // 直接指定色：白几何 × tint = fill
+    this.g.tint = fill & 0xffffff;
   }
 
   private redraw(): void {
-    const { width, height, fill, radius = 10, borderColor, borderWidth } = this.opts;
+    const { width, height, fill, radius = 10 } = this.opts;
     this.g.clear();
     this.g.roundRect(0, 0, width, height, radius);
-    this.g.fill({ color: fill });
-    if (borderColor !== undefined && borderWidth !== undefined) {
-      this.g.stroke({ width: borderWidth, color: borderColor });
-    }
+    this.g.fill({ color: 0xffffff });
+    this.g.tint = fill & 0xffffff;
+  }
+}
+
+// ---- 描边（单色） -------------------------------------------------
+
+export interface PanelBorderOptions {
+  id: string;
+  displayName: string;
+  width: number;
+  height: number;
+  color: number;
+  borderWidth: number;
+  radius?: number;
+}
+
+/** 圆角矩形描边叶子。与填充完全独立，可单独挂「颜色」组件。 */
+export class PanelBorder extends UINode {
+  private readonly g = new Graphics();
+  private opts: PanelBorderOptions;
+
+  constructor(opts: PanelBorderOptions) {
+    super({ id: opts.id, displayName: opts.displayName });
+    this.opts = opts;
+    this.g.label = "shape";
+    this.addChild(this.g);
+    this.redraw();
+  }
+
+  setSize(width: number, height: number): void {
+    this.opts = { ...this.opts, width, height };
+    this.redraw();
+  }
+
+  setColor(color: number): void {
+    this.opts = { ...this.opts, color };
+    this.g.tint = color & 0xffffff;
+  }
+
+  private redraw(): void {
+    const { width, height, color, borderWidth, radius = 10 } = this.opts;
+    this.g.clear();
+    this.g.roundRect(0, 0, width, height, radius);
+    this.g.stroke({ width: borderWidth, color: 0xffffff });
+    this.g.tint = color & 0xffffff;
   }
 }

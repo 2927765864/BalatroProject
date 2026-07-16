@@ -66,7 +66,7 @@ export class HUD extends UINode {
     this.worldWidth = worldWidth;
     this.worldHeight = worldHeight;
 
-    // 左侧深色面板背景
+    // 左侧侧栏：灰色底 + 外围蓝色描边（对照参考图最外框）
     this.leftPanel = new Panel({
       id: "hud.leftPanel",
       displayName: "左侧侧栏",
@@ -74,6 +74,8 @@ export class HUD extends UINode {
       height: worldHeight,
       fill: Theme.colors.panelDark,
       radius: 0,
+      borderColor: Theme.colors.panelBorder,
+      borderWidth: 4,
     });
     this.addChild(this.leftPanel);
 
@@ -100,9 +102,9 @@ export class HUD extends UINode {
     jokerBarOpacity.apply();
     this.addChild(this.jokerBar);
 
-    // 得分面板
+    // 得分面板：挂在左侧侧栏下，与参考图「侧栏内容」父子关系一致
     this.scorePanel = new ScorePanel(opts.targetScore, opts.plays, opts.discards);
-    this.addChild(this.scorePanel);
+    this.leftPanel.addChild(this.scorePanel);
 
     // 底部按钮：出牌 / 弃牌
     this.playBtn = new Button({

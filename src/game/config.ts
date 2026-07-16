@@ -23,8 +23,14 @@
  * v6：修复 hydrate 完成前 persist 会把"代码临时父子关系"写进 localStorage
  *     （新增 UI 节点时构造期 setTransform / addComponent 触发），导致布局混乱。
  *     丢弃本地 uiNodes，回退 shipping；UIHierarchy.persist 已加 hydratedOnce 守卫。
+ * v7：左侧得分面板按参考图重建（盲注区 / 回合分 / 筹码倍率 / 比赛信息），
+ *     节点 id 与父子结构变更，丢弃本地 uiNodes 回退 shipping。
+ * v8：补侧栏蓝边/灰底、各子区底框与正确底色（对照参考图红箭头）。
+ * v9：去掉子面板多余描边；出牌/弃牌等改为「暗黑底 + 灰数字底」分层。
+ * v10：补盲注外底 / 回合分区外底 / 金钱暗黑+灰双层底。
+ * v11：盲注区拆出深蓝内容卡（contentCard），外底改为近黑；节点父子变更。
  */
-export const CONFIG_VERSION = 6;
+export const CONFIG_VERSION = 11;
 
 /**
  * 单个 UI 节点的可持久化数据。

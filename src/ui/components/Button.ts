@@ -11,6 +11,7 @@ import { UIText } from "./UIText";
  *   - 状态切换通过修改 background 颜色 + 自身 alpha 实现。
  *   - 这样 Hierarchy 里能看到 "按钮 > 背景 / 文字" 三个独立节点，
  *     渲染顺序由统一规则保证。
+ *   - 背景为单色：白几何 + tint 直接指定色。
  */
 export type ButtonState = "normal" | "hover" | "down" | "disabled";
 
@@ -142,7 +143,7 @@ export class Button extends UINode {
   }
 }
 
-// ---- 背景独立节点 -------------------------------------------------
+// ---- 背景独立节点（单色） ------------------------------------------
 
 export interface ButtonBackgroundOptions {
   id: string;
@@ -160,19 +161,22 @@ export class ButtonBackground extends UINode {
   constructor(opts: ButtonBackgroundOptions) {
     super({ id: opts.id, displayName: opts.displayName });
     this.opts = opts;
+    this.g.label = "shape";
     this.addChild(this.g);
     this.redraw();
   }
 
   setColor(color: number): void {
     this.opts = { ...this.opts, color };
-    this.redraw();
+    // 直接指定：白几何 + tint
+    this.g.tint = color & 0xffffff;
   }
 
   private redraw(): void {
     const { width, height, color, radius = 8 } = this.opts;
     this.g.clear();
     this.g.roundRect(0, 0, width, height, radius);
-    this.g.fill({ color });
+    this.g.fill({ color: 0xffffff });
+    this.g.tint = color & 0xffffff;
   }
 }
