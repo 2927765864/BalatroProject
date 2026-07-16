@@ -33,6 +33,7 @@ import { assets } from "@core/AssetManager";
 import { CardAtlas } from "@render/CardSkin";
 import { computeMaxRot } from "@render/CardView";
 import { HierarchyView } from "./HierarchyView";
+import { UIEditModePicker } from "./UIEditModePicker";
 import { buildCurvePanel, type BezierCurvePanel } from "./BezierCurveEditor";
 import { uiHierarchy } from "@ui/hierarchy";
 import type { Container } from "pixi.js";
@@ -559,17 +560,28 @@ export function setupControlPanel(
 
   // ---- Tab 生成 ----
 
-  function setupTabs(): void {
-    const setActiveGroup = (active: HTMLDetailsElement): void => {
-      groups.forEach((g) => {
-        g.open = g === active;
-      });
-      tabs.querySelectorAll<HTMLButtonElement>(".panel-tab").forEach((tab) => {
-        tab.classList.toggle("is-active", tab.dataset.target === active.dataset.panelKey);
-      });
-      active.scrollIntoView({ block: "nearest" });
-    };
+  /** 切换到指定分组（按 summary 文案精确匹配）。编辑模式选中节点后会跳到「界面UI」。 */
+  function activateGroupByLabel(label: string): boolean {
+    const target = groups.find((g) => {
+      const summary = g.querySelector("summary");
+      return summary?.textContent?.trim() === label;
+    });
+    if (!target) return false;
+    setActiveGroup(target);
+    return true;
+  }
 
+  function setActiveGroup(active: HTMLDetailsElement): void {
+    groups.forEach((g) => {
+      g.open = g === active;
+    });
+    tabs.querySelectorAll<HTMLButtonElement>(".panel-tab").forEach((tab) => {
+      tab.classList.toggle("is-active", tab.dataset.target === active.dataset.panelKey);
+    });
+    active.scrollIntoView({ block: "nearest" });
+  }
+
+  function setupTabs(): void {
     tabs.innerHTML = "";
     groups.forEach((group, index) => {
       const summary = group.querySelector("summary");
@@ -1824,11 +1836,42 @@ export function setupControlPanel(
 
   // 界面UI 分组：渲染 Hierarchy 树（依赖 worldRoot）。
   let hierarchyView: HierarchyView | null = null;
+  let editModePicker: UIEditModePicker | null = null;
   const treeMount = document.getElementById("ui-hierarchy-tree");
   if (treeMount && worldRoot) {
     hierarchyView = new HierarchyView({ mount: treeMount, worldRoot });
   } else if (treeMount && !worldRoot) {
     treeMount.textContent = "（未注入 worldRoot，Hierarchy 视图不可用）";
+  }
+
+  // 界面UI · 编辑模式：画面悬停高亮 → 点击 → 树中逐级展开并高亮参数。
+  const editModeBtn = document.getElementById("btn-ui-edit-mode") as HTMLButtonElement | null;
+  const editModeVal = document.getElementById("val-ui-edit-mode");
+  if (hierarchyView && editModeBtn) {
+    const view = hierarchyView;
+    editModePicker = new UIEditModePicker({
+      onPick(node) {
+        // 确保面板可见并切到「界面UI」分组，再展开路径。
+        panel.style.display = "flex";
+        clampPanelToViewport();
+        activateGroupByLabel("界面UI");
+        view.revealAndHighlight(node.nodeId);
+      },
+      onActiveChange(active) {
+        editModeBtn.classList.toggle("is-active", active);
+        editModeBtn.textContent = active ? "编辑中…（Esc 取消）" : "编辑模式";
+        if (editModeVal) editModeVal.textContent = active ? "开" : "关";
+      },
+    });
+    editModePicker.attach();
+    editModeBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      editModePicker?.toggle();
+    });
+  } else if (editModeBtn) {
+    editModeBtn.disabled = true;
+    editModeBtn.title = "Hierarchy 未就绪，无法使用编辑模式";
   }
 
   return {
@@ -1837,6 +1880,7 @@ export function setupControlPanel(
       lastHistorySnapshot = cloneConfig(CONFIG);
     },
     destroy(): void {
+      editModePicker?.destroy();
       hierarchyView?.destroy();
       hoverScaleCurvePanel?.destroy();
       dragScaleInCurvePanel?.destroy();

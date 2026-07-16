@@ -9,9 +9,14 @@
  *   ↓  展开后：
  *        ─ Transform (固定)
  *           x / y / rotation / scaleX / scaleY
- *        ─ 其他组件...（每个都是可折叠的小卡片，右侧有"删除"按钮）
+ *        ─ 其他组件...（每个都是可折叠的小卡片，右侧有"更多"按钮）
  *        ─ [＋ 添加组件] 下拉
  *      然后是该节点的 UINode 子节点（递归渲染）
+ *
+ * 深层级自适应：
+ *   - 标题栏缩进有硬上限（headerIndentPx），只负责树形视觉。
+ *   - 参数区 body 缩进封顶（bodyIndentPx），不随 depth 线性吞宽，
+ *     保证 number 输入框始终有可用宽度，数值不会被裁切看不见。
  *
  * 拖拽：
  *   - 拖头部标题栏，drop 到"另一个节点的标题栏中部" → 作为对方的子。
@@ -103,11 +108,15 @@ export class HierarchyView {
       // （TransformComponent / ShadowComponent / TweenComponent 等）。这两类事件
       // 是字段自己已经写回 PIXI、自己已经在 DOM 上反映了新值，**不需要重绘整棵
       // hierarchy 树**。如果在这里重绘，输入框会被 innerHTML="" 销毁重建，
-      // 用户就会丢焦点、丢滚动位置、丢光标位置（这就是用户报告的 bug）。
+      // 用户就会丢焦点、丢滚动位置、丢光标位置。
+      //
+      // 注意：添加/删除组件同样会 emit componentsChanged，但那是**结构变化**，
+      // DOM 列表必须更新。这类路径应在调用处显式 scheduleRender()（或
+      // dispatchForceRerender），而不是靠本订阅自动重绘。
       if (type === "transformChanged" || type === "componentsChanged") return;
       this.scheduleRender();
     });
-    // "粘贴组件参数"这种整组字段被替换的场景：必须强制重画，让 inspector 的
+    // "粘贴组件参数"等整组字段被替换的场景：必须强制重画，让 inspector 的
     // 输入控件读出最新值。普通的"边输入边改值"场景仍走上面那条静默路径。
     this.forceRerenderHandler = (): void => this.scheduleRender();
     window.addEventListener(FORCE_RERENDER_TOPIC, this.forceRerenderHandler);
@@ -121,6 +130,58 @@ export class HierarchyView {
       this.forceRerenderHandler = null;
     }
     this.mount.innerHTML = "";
+  }
+
+  /**
+   * 编辑模式拾取后：沿祖先链逐级展开目标节点，展开其全部组件卡片，
+   * 重绘后滚动到视图内，并短暂高亮节点标题 + inspector（点击后闪一下即消失）。
+   *
+   * @returns 是否找到并揭示了该节点
+   */
+  revealAndHighlight(nodeId: string): boolean {
+    const node = uiHierarchy.get(nodeId);
+    if (!node) return false;
+
+    // 祖先链（根 → 父）全部展开，目标自身也展开以便看到参数。
+    const chain: UINode[] = [];
+    let cur: UINode | null = node;
+    while (cur) {
+      chain.unshift(cur);
+      cur = cur.findUINodeParent();
+    }
+    for (const n of chain) {
+      this.expanded.add(n.nodeId);
+    }
+    // 展开该节点上所有组件，参数直接可见。
+    for (const comp of node.listComponents()) {
+      this.expandedComponents.add(this.componentKey(node, comp));
+    }
+
+    this.render();
+
+    const header = this.mount.querySelector<HTMLElement>(
+      `.ui-hier-header[data-id="${cssEscape(nodeId)}"]`,
+    );
+    const wrap = this.mount.querySelector<HTMLElement>(
+      `.ui-hier-node[data-id="${cssEscape(nodeId)}"]`,
+    );
+    const inspector = wrap?.querySelector<HTMLElement>(".ui-hier-inspector") ?? null;
+
+    header?.classList.add("is-edit-picked");
+    inspector?.classList.add("is-edit-picked");
+    wrap?.classList.add("is-edit-picked-node");
+
+    // 滚到可视区（优先滚 header）。
+    header?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+
+    // 高亮在"点击操作"之后短暂停留再消失（不阻塞后续编辑）。
+    window.setTimeout(() => {
+      header?.classList.remove("is-edit-picked");
+      inspector?.classList.remove("is-edit-picked");
+      wrap?.classList.remove("is-edit-picked-node");
+    }, 1400);
+
+    return true;
   }
 
   // ---- 渲染 ----------------------------------------------------
@@ -172,6 +233,28 @@ export class HierarchyView {
     return null;
   }
 
+  /**
+   * 树标题栏缩进：保留层级感，但硬封顶，避免深层级把整行文字/手柄挤没。
+   * 前若干层按 STEP 累加，之后不再变宽。
+   */
+  private headerIndentPx(depth: number): number {
+    const STEP = 10;
+    const BASE = 4;
+    const MAX = 56; // ~5 层后封顶
+    return Math.min(BASE + depth * STEP, MAX);
+  }
+
+  /**
+   * Inspector 区域缩进：只做「从属关系」的轻微视觉提示，**不随 depth 线性变窄**。
+   * 深层级参数输入框必须保留可用宽度，否则数值会被裁切看不见。
+   */
+  private bodyIndentPx(depth: number): number {
+    const STEP = 4;
+    const BASE = 10;
+    const MAX = 22;
+    return Math.min(BASE + depth * STEP, MAX);
+  }
+
   private renderNode(node: UINode, depth: number): HTMLElement {
     const wrap = document.createElement("div");
     wrap.className = "ui-hier-node";
@@ -197,8 +280,8 @@ export class HierarchyView {
     });
     header.appendChild(arrow);
 
-    // 缩进 padding
-    header.style.paddingLeft = `${depth * 12 + 4}px`;
+    // 缩进：仅标题栏随深度变化（有上限），参数区另算
+    header.style.paddingLeft = `${this.headerIndentPx(depth)}px`;
 
     // 名字
     const name = document.createElement("span");
@@ -222,7 +305,9 @@ export class HierarchyView {
     if (expanded) {
       const body = document.createElement("div");
       body.className = "ui-hier-body";
-      body.style.marginLeft = `${depth * 12 + 16}px`;
+      // 参数区几乎全宽：小缩进 + 左侧导向线（见 CSS），避免深度累加吃掉输入框
+      body.style.marginLeft = `${this.bodyIndentPx(depth)}px`;
+      body.dataset["depth"] = String(depth);
 
       // inspector：组件列表
       body.appendChild(this.renderInspector(node));
@@ -384,7 +469,10 @@ export class HierarchyView {
         comp.removable,
         () => {
           node.removeComponent(comp.type);
-          // hierarchy 会广播 componentsChanged，触发 scheduleRender。
+          // componentsChanged 会被订阅方忽略（保护字段编辑焦点），
+          // 删除是结构变化，必须强制重绘 inspector。
+          this.expandedComponents.delete(this.componentKey(node, comp));
+          this.scheduleRender();
         },
         { destructive: true },
       ),
@@ -458,7 +546,15 @@ export class HierarchyView {
       const type = sel.value;
       if (!type) return;
       const comp = componentRegistry.create(type);
-      if (comp) node.addComponent(comp);
+      if (comp) {
+        node.addComponent(comp);
+        // addComponent 会广播 componentsChanged，但订阅方故意忽略该类事件
+        // （避免字段边改边提交时整树重绘导致输入框丢焦点）。添加组件是
+        // **结构变化**，必须强制重绘 inspector，否则新卡片要等到下次其它
+        // 操作触发 scheduleRender 才会出现。
+        this.expandedComponents.add(this.componentKey(node, comp));
+        this.scheduleRender();
+      }
       sel.value = "";
     });
 
@@ -539,4 +635,12 @@ export class HierarchyView {
     uiHierarchy.reorder(src, newIdx);
   }
 
+}
+
+/** 供 querySelector 使用的 id 转义（兼容无 CSS.escape 的环境）。 */
+function cssEscape(value: string): string {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+    return CSS.escape(value);
+  }
+  return value.replace(/["\\]/g, "\\$&");
 }

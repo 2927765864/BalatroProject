@@ -44,7 +44,8 @@
   top: 10px;
   left: 10px;
   z-index: 100;
-  width: min(380px, calc(100vw - 20px));
+  /* 略加宽：界面 UI 树 + 参数并排时，输入框需要更稳的可用宽度 */
+  width: min(440px, calc(100vw - 20px));
   max-width: calc(100vw - 20px);
   max-height: calc(100dvh - 20px);
   display: flex;
@@ -175,6 +176,7 @@
   background: rgba(255, 255, 255, 0.04);
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+  min-width: 0; /* flex 子项允许收缩，避免深层级参数被父级强行撑破后裁切 */
 }
 
 /* 单分组可见：未激活直接隐藏，避免页面滚动堆叠。 */
@@ -391,11 +393,106 @@ body.drag-scrub-active * {
 /* =====================================================
  * UI Hierarchy 视图
  * ===================================================== */
+/* ---- 编辑模式：按钮 + 画面高亮 + 树内选中闪烁 ---- */
+.ui-edit-mode-row {
+  margin-bottom: 6px;
+}
+
+.ui-edit-mode-hint {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+}
+
+.ui-edit-mode-btn.is-active {
+  background: var(--accent) !important;
+  color: #1a1f14 !important;
+  border-color: var(--accent) !important;
+  font-weight: 700;
+  box-shadow: 0 0 0 1px rgba(145, 197, 58, 0.45);
+}
+
+body.ui-edit-mode-active {
+  cursor: crosshair !important;
+}
+
+body.ui-edit-mode-active #control-panel,
+body.ui-edit-mode-active #control-panel * {
+  cursor: default;
+}
+
+body.ui-edit-mode-active #btn-ui-edit-mode {
+  cursor: pointer;
+}
+
+.ui-edit-highlight {
+  position: fixed;
+  z-index: 9000;
+  display: none;
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  background: rgba(145, 197, 58, 0.12);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 0 12px rgba(145, 197, 58, 0.35);
+  pointer-events: none;
+  border-radius: 3px;
+}
+
+.ui-edit-highlight-label {
+  position: absolute;
+  left: 0;
+  top: -18px;
+  max-width: 240px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #1a1f14;
+  background: var(--accent);
+  border-radius: 3px 3px 3px 0;
+  pointer-events: none;
+}
+
+.ui-hier-header.is-edit-picked {
+  border-color: var(--accent);
+  background: rgba(145, 197, 58, 0.28);
+  box-shadow: 0 0 0 1px rgba(145, 197, 58, 0.5);
+  animation: ui-edit-pick-flash 1.4s ease-out;
+}
+
+.ui-hier-inspector.is-edit-picked {
+  outline: 1px solid rgba(145, 197, 58, 0.65);
+  border-radius: 6px;
+  animation: ui-edit-pick-flash 1.4s ease-out;
+}
+
+.ui-hier-node.is-edit-picked-node > .ui-hier-header {
+  border-color: var(--accent);
+}
+
+@keyframes ui-edit-pick-flash {
+  0% {
+    background-color: rgba(145, 197, 58, 0.45);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
 .ui-hier-tree {
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 4px;
+  /* 子节点 inspector 用 container query 做窄宽自适应 */
+  container-type: inline-size;
+  container-name: ui-hier;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .ui-hier-empty {
@@ -407,6 +504,8 @@ body.drag-scrub-active * {
 .ui-hier-node {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .ui-hier-header {
@@ -422,6 +521,8 @@ body.drag-scrub-active * {
   user-select: none;
   -webkit-user-select: none;
   position: relative;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .ui-hier-header:hover {
@@ -481,13 +582,24 @@ body.drag-scrub-active * {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 4px 0 6px 0;
+  padding: 4px 0 6px 6px;
+  /* 深度缩进由 JS 设为封顶的小 margin；这里用左边框表达从属关系，不继续吃宽 */
+  border-left: 2px solid rgba(145, 197, 58, 0.22);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .ui-hier-inspector {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  /* 组件行在卡片内再按宽度自适应（窄则标签/输入上下排） */
+  container-type: inline-size;
+  container-name: ui-inspector;
 }
 
 /* ---- 组件卡片 ---- */
@@ -496,6 +608,9 @@ body.drag-scrub-active * {
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.25);
   overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .ui-comp-head {
@@ -621,34 +736,85 @@ body.drag-scrub-active * {
   flex-direction: column;
   gap: 4px;
   padding: 6px 8px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
+/*
+ * 参数行自适应：
+ * - 默认 grid：标签可压缩，输入区至少 ~64px，数值不会被挤成 0 宽。
+ * - 容器过窄时改为上下布局，优先保证修改框完整可见。
+ */
 .ui-comp-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(40px, 72px) minmax(64px, 1fr);
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .ui-comp-row-label {
-  width: 78px;
-  flex-shrink: 0;
+  width: auto;
+  min-width: 0;
+  flex-shrink: 1;
   color: rgba(255, 255, 255, 0.75);
   font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ui-comp-row input.panel-number,
-.ui-comp-row input[type="number"] {
-  flex: 1;
-  min-width: 0;
+.ui-comp-row input[type="number"],
+.ui-comp-row input.panel-text,
+.ui-comp-row input[type="text"],
+.ui-comp-row input[type="color"] {
+  width: 100%;
+  min-width: 64px;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 3px 6px !important;
   min-height: 24px !important;
 }
 
 .ui-comp-row select.panel-select {
-  flex: 1;
-  min-width: 0;
+  width: 100%;
+  min-width: 64px;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 3px 6px !important;
   min-height: 24px !important;
+}
+
+/* 窄 inspector：标签在上、输入在下，数值始终完整可见 */
+@container ui-inspector (max-width: 200px) {
+  .ui-comp-row {
+    grid-template-columns: 1fr;
+    gap: 2px 0;
+  }
+
+  .ui-comp-row-label {
+    white-space: normal;
+  }
+
+  .ui-comp-row input.panel-number,
+  .ui-comp-row input[type="number"],
+  .ui-comp-row input.panel-text,
+  .ui-comp-row input[type="text"],
+  .ui-comp-row input[type="color"],
+  .ui-comp-row select.panel-select {
+    min-width: 0;
+  }
+}
+
+/* 树整体很窄时同样兜底（无 container 名兼容） */
+@container (max-width: 220px) {
+  .ui-comp-row {
+    grid-template-columns: 1fr;
+    gap: 2px 0;
+  }
 }
 
 .ui-comp-error {
@@ -669,7 +835,7 @@ body.drag-scrub-active * {
   #control-panel {
     top: 8px;
     left: 8px;
-    width: min(380px, calc(100vw - 16px));
+    width: min(440px, calc(100vw - 16px));
     max-height: calc(100dvh - 16px);
     padding: 10px;
   }
@@ -682,5 +848,11 @@ body.drag-scrub-active * {
   .panel-tab {
     padding: 6px;
     font-size: 10px;
+  }
+
+  /* 极窄屏：参数行默认上下排，避免横排被 tabs 挤没 */
+  .ui-comp-row {
+    grid-template-columns: 1fr;
+    gap: 2px 0;
   }
 }

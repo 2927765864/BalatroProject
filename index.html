@@ -568,7 +568,17 @@
                 - 标题栏：展开箭头 + 名字 + 拖拽 handle
                 - 展开后：Transform 组件 + 其他已挂组件 + "添加组件"按钮
               拖拽规则：拖到另一个节点"标题栏"上挂为其子；拖到节点"上沿/下沿"区域为重排兄弟。
+              编辑模式：点按钮后悬停高亮画面中的 UINode，点击即在树中逐级展开并定位参数。
             -->
+            <div class="panel-row ui-edit-mode-row">
+              <div class="panel-row-header">
+                <span>可视化选取</span>
+                <span id="val-ui-edit-mode" class="ui-edit-mode-hint">关</span>
+              </div>
+              <button id="btn-ui-edit-mode" type="button" class="panel-btn ui-edit-mode-btn" title="进入编辑模式：悬停高亮画面 UI，点击后在树中展开对应参数（Esc 取消）">
+                编辑模式
+              </button>
+            </div>
             <div id="ui-hierarchy-tree" class="ui-hier-tree"></div>
           </details>
 
