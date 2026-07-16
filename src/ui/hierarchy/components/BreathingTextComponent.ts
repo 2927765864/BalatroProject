@@ -11,28 +11,24 @@
  *     不影响宿主的常规渲染。
  *
  * 工作原理：
- *   1. 把宿主里那一份 PIXI.Text 临时设为不可见，但保留它的样式 / anchor /
- *      tint 作为"渲染模板"。
- *   2. 拷贝它的 style，给文本里的每个**可见字符**各建一个独立 PIXI.Text，
- *      横向按原文本布局排好（保留原 anchor 的对齐方式）。
- *   3. 每帧给每个字算 `t = ((now - i*stagger) mod cycle) / cycle`，再过曲线
- *      得到 y 偏移 (0 → maxY → 0 之类的形状由 curve 控制)。
+ *   1. 挂到 UIText 上后，由 CharLayer 拆字并接管渲染（本组件只贡献 y 偏移）。
+ *   2. 共享时间轴 + 固定字间相位差：第 i 个字的相位 = now - start - i*stagger。
+ *   3. 每个字**独立**以 period = cycle + loopGap 取模循环，再采样曲线得到
+ *      y 偏移。字与字之间没有「等全员回落」的全局栅栏——第一个字完成自己
+ *      的 cycle（+可选 loopGap）后立刻进入下一轮，无需等最后一个字归位。
  *
- * 卸载（onDetach / 失效）时：销毁所有逐字 Text，把宿主 PIXI.Text 设回可见。
+ * 卸载（onDetach / 失效）时：向 CharLayer 注销；无其它效果时逐字层回退原生 Text。
  *
  * inspector 字段：
  *   - enabled        是否启用
- *   - stagger        每个字之间的"开始"延迟（毫秒）
- *   - cycle          单个字完成一次起伏的时长（毫秒）
- *   - loopGap        一个字两次循环之间的停顿（毫秒，0 = 无缝）
+ *   - stagger        字间相位差（毫秒）：越大，波从左到右传得越慢
+ *   - cycle          单字一次起伏时长（毫秒）
+ *   - loopGap        单字两次起伏之间的停顿（毫秒，0 = 无缝连续；仅作用于该字自身）
  *   - amplitudeMin   最低点（像素，初始就是 0；负值=向上）
  *   - amplitudeMax   最高点（像素，负值=向上）
  *   - curve          单字起伏的速率曲线（三次贝塞尔，BezierCurveEditor）
  *
- * 注意：曲线的 y 是"位移的归一化进度"，0 表示停在 amplitudeMin（一般是 0），
- * 1 表示到 amplitudeMax。如果想要"先升后降"的完整波形，请在曲线中部把
- * y 拉到 1、两端拉到 0；BezierCurveEditor 的 startScale/endScale 暴露成
- * 0/0，就会精确得到首尾归 0 的波形。
+ * 注意：曲线经 time-warp 后喂给 sin²，端点固定位移为 0（见 sampleBreathCurve）。
  */
 import { UIComponent, type SerializedComponent } from "../UIComponent";
 import { uiHierarchy } from "../UIHierarchy";
@@ -67,7 +63,10 @@ const DEFAULT_DATA: BreathingTextData = {
   enabled: true,
   stagger: 80,
   cycle: 700,
-  loopGap: 200,
+  // 0 = 无缝连续行波：首字结束后立刻再起，不必等后续字回落。
+  // 旧默认 200 会在短文案上让各字的「谷底停顿」高度重叠，看起来像
+  // 「等最后一个字归位后整串才重新启动」。
+  loopGap: 0,
   amplitudeMin: 0,
   amplitudeMax: -10,
   // 默认曲线：easeOut（"快速上拉、缓缓回落"的呼吸感）。
@@ -202,32 +201,40 @@ export class BreathingTextComponent extends UIComponent implements CharEffect {
     return this.data.enabled;
   }
 
-  /** 每帧把第 i 个字的 y 偏移贡献叠加到累加器上。 */
+  /**
+   * 每帧把第 i 个字的 y 偏移贡献叠加到累加器上。
+   *
+   * 相位模型（连续行波，无全局栅栏）：
+   *   elapsed_i = now - startTime - i * stagger
+   *   - elapsed_i < 0：该字尚未第一次起势，停在 amplitudeMin
+   *   - 否则在 period = cycle + loopGap 上独立取模：
+   *       [0, cycle)     → 采样起伏曲线
+   *       [cycle, period) → 本字自己的 loopGap 停顿（与其它字无关）
+   *
+   * 因此第一个字在 t ≈ cycle (+loopGap) 就会重启，不会被
+   * 「最后一个字是否已归位」阻塞。count 不参与周期计算。
+   */
   contribute(i: number, _count: number, now: number, acc: CharFrame): void {
     if (!this.data.enabled) return;
 
     const cycle = Math.max(1, this.data.cycle);
     const gap = Math.max(0, this.data.loopGap);
     const period = cycle + gap;
-    const stagger = this.data.stagger;
+    const stagger = Math.max(0, this.data.stagger);
     const amin = this.data.amplitudeMin;
     const amax = this.data.amplitudeMax;
 
-    // 每个字的"相位起点"：startTime + i * stagger。
-    // 相位差为负就先压在 0（min）等到时机再起。
-    const phase = now - this.startTime - i * stagger;
+    const elapsed = now - this.startTime - i * stagger;
     let intensity = 0; // 0..1：0 = min，1 = max
-    if (phase >= 0) {
-      const local = phase % period;
+    if (elapsed >= 0) {
+      // JS 的 % 对正数即正向取模；elapsed 已保证 >= 0。
+      const local = elapsed % period;
       if (local < cycle) {
-        const t = local / cycle;
-        intensity = sampleBreathCurve(this.data.curve, t);
-      } else {
-        intensity = 0; // 在 gap 期间，固定在 0
+        intensity = sampleBreathCurve(this.data.curve, local / cycle);
       }
+      // else: 处于本字 loopGap，intensity 保持 0
     }
-    const offset = amin + (amax - amin) * intensity;
-    acc.offsetY += offset;
+    acc.offsetY += amin + (amax - amin) * intensity;
   }
 
   // ---- 序列化 ----------------------------------------------------
@@ -357,9 +364,11 @@ export class BreathingTextComponent extends UIComponent implements CharEffect {
       root.appendChild(row);
     };
 
-    numberRow("字间延迟(ms)", "stagger", { step: 10, digits: 0, min: 0, integer: true });
+    numberRow("字间相位(ms)", "stagger", { step: 10, digits: 0, min: 0, integer: true });
     numberRow("起伏周期(ms)", "cycle", { step: 50, digits: 0, min: 1, integer: true });
-    numberRow("循环间隔(ms)", "loopGap", { step: 50, digits: 0, min: 0, integer: true });
+    // loopGap 只让「同一个字」在两次起伏之间歇一会；0 = 连续行波。
+    // 设得过大时短文案容易整串同时停在谷底，观感会像在等全员归位。
+    numberRow("字内停顿(ms)", "loopGap", { step: 50, digits: 0, min: 0, integer: true });
     numberRow("最低点", "amplitudeMin", { step: 1, digits: 1 });
     numberRow("最高点", "amplitudeMax", { step: 1, digits: 1 });
 

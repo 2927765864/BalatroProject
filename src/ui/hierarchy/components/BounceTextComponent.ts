@@ -1,23 +1,24 @@
 /**
  * BounceTextComponent（弹弹动画）
  * ---------------------------------------------------------------
- * 从左到右逐字扫描的"弹弹"缩放效果：未扫到的字停在 initScale（偏大），
- * 扫到时瞬间膨胀到 maxScale（二次平滑），随后用 e^(-scaleStrength·dt) 简谐
- * 衰减回 stableScale。
+ * 从左到右逐字扫描的"弹弹"效果。实现 CharEffect，向宿主 CharLayer 注册。
  *
- * 重构要点（合并为单一逐字引擎后）：
- *   - 本组件不再自己拆字、不再碰宿主 Text 的 visible，也不再自建逐字节点。
- *   - 它实现 CharEffect 接口，向宿主的 CharLayer（逐字层）注册。逐字层每帧
- *     对每个字调 contribute，本组件只把"缩放贡献"乘进累加器。
- *   - 这样呼吸（写 y 偏移）和弹弹（写 scale）作用在同一组字符上，互不抢占，
- *     弹弹播完缩放回 1，呼吸无缝继续。
+ * 两条动力学路径：
+ *   1) 经典解析路径（筹码 / 牌型 / 预期分）：init→max 二次升起 + e^(-strength·t) 衰减；
+ *      可选旧版 rotAngle1/2 伪相位旋转。
+ *   2) 弹簧阻尼路径（倍率数字 multBounce）：复刻出牌堆结算的 SpringDamper1D 双通道
+ *      （scale→1、rot→0），公式与积分见 docs/play-pile-settle-spring-damper-plan.md。
  *
- * 触发：业务调 trigger() → 置 isAnimating + 记 startTime。逐字层每帧驱动
- * contribute；衰减结束后 isAnimating 自动归 false，scale 贡献回到 1。
+ * 触发：业务调 trigger() → 置 isAnimating + 记 startTime。逐字层每帧 contribute。
  */
 import { UIComponent, type SerializedComponent } from "../UIComponent";
 import type { UIText } from "@ui/components/UIText";
-import { CONFIG, scaleTimeMS } from "@game/config";
+import {
+  CONFIG,
+  scaleTimeMS,
+  type SpringBounceAnimationConfig,
+} from "@game/config";
+import { SpringDamper1D } from "@/motion/SpringDamper1D";
 import {
   ensureCharLayer,
   type CharEffect,
@@ -38,6 +39,25 @@ export function bounceTextCanAttach(host: import("../UINode").UINode): boolean {
   return isTextHost(host);
 }
 
+/** multBounce 等：含 angularFreq + dampingRatio 即走弹簧路径。 */
+function isSpringBounceConfig(
+  config: Record<string, unknown>
+): config is SpringBounceAnimationConfig & Record<string, unknown> {
+  return (
+    typeof config["angularFreq"] === "number" &&
+    typeof config["dampingRatio"] === "number" &&
+    typeof config["mass"] === "number"
+  );
+}
+
+type CharSpringState = {
+  scale: SpringDamper1D;
+  rot: SpringDamper1D;
+  started: boolean;
+  settled: boolean;
+  elapsedMS: number;
+};
+
 export class BounceTextComponent extends UIComponent implements CharEffect {
   readonly type = "bounceText";
   readonly displayName = "【弹弹动画】组件";
@@ -47,6 +67,11 @@ export class BounceTextComponent extends UIComponent implements CharEffect {
   private startTime = 0;
   /** 所属逐字层。 */
   private charLayer: CharLayerComponent | null = null;
+
+  // —— 弹簧路径状态（仅 multBounce 等）——
+  private charSprings: CharSpringState[] | null = null;
+  private lastFrameNow = 0;
+  private frameDtSec = 1 / 60;
 
   constructor(configKey: string = "chipsBounce") {
     super();
@@ -61,9 +86,6 @@ export class BounceTextComponent extends UIComponent implements CharEffect {
 
   protected override onAttach(): void {
     if (!isTextHost(this.host)) return;
-    // 惰性确保宿主有逐字层（拆字 / 接管渲染的唯一者）。
-    // 弹弹是"一次性"效果：仅在 trigger() 后的播放窗口内注册为效果，播完注销。
-    // 注销时若逐字层已无其它效果（如呼吸），逐字层会自动回退显示原生 Text。
     this.charLayer = ensureCharLayer(this.host);
   }
 
@@ -72,6 +94,7 @@ export class BounceTextComponent extends UIComponent implements CharEffect {
       this.charLayer.unregisterEffect(this);
       this.charLayer = null;
     }
+    this.charSprings = null;
   }
 
   apply(): void {
@@ -84,7 +107,6 @@ export class BounceTextComponent extends UIComponent implements CharEffect {
   /** 触发弹弹动画。 */
   trigger(): void {
     if (!isTextHost(this.host)) return;
-    // 空文本无字可弹：直接忽略，避免常驻占用逐字层却永不结束。
     if (this.host.getPixiText().text.length === 0) return;
     if (!this.charLayer) {
       this.charLayer = ensureCharLayer(this.host);
@@ -92,13 +114,16 @@ export class BounceTextComponent extends UIComponent implements CharEffect {
     if (!this.charLayer) return;
     this.isAnimating = true;
     this.startTime = performance.now();
-    // 进入播放窗口：注册为效果，逐字层开始接管渲染并每帧调 contribute。
+    this.charSprings = null;
+    this.lastFrameNow = 0;
+    this.frameDtSec = 1 / 60;
     this.charLayer.registerEffect(this);
   }
 
-  /** 结束弹弹：从逐字层注销。若无其它效果，逐字层回退原生 Text。 */
   private finish(): void {
     this.isAnimating = false;
+    this.charSprings = null;
+    this.lastFrameNow = 0;
     if (this.charLayer) {
       this.charLayer.unregisterEffect(this);
     }
@@ -110,28 +135,149 @@ export class BounceTextComponent extends UIComponent implements CharEffect {
     return this.isAnimating;
   }
 
-  /** 把第 i 个字的缩放贡献乘进累加器。未播放时贡献 1（不放大）。 */
   contribute(i: number, _count: number, now: number, acc: CharFrame): void {
     if (!this.isAnimating) return;
 
-    const config = (CONFIG as Record<string, any>)[this.configKey];
+    const config = (CONFIG as unknown as Record<string, unknown>)[
+      this.configKey
+    ] as Record<string, unknown> | undefined;
     if (!config) {
       this.finish();
       return;
     }
 
-    // 扫描速度单位为 ms/字（文字视效），受 gameSpeed 缩放
+    if (isSpringBounceConfig(config)) {
+      this.contributeSpring(i, _count, now, acc, config);
+      return;
+    }
+
+    this.contributeLegacy(i, _count, now, acc, config);
+  }
+
+  /**
+   * 弹簧阻尼双通道（对齐 PlayPileFx.animateCardSettle）。
+   * 每字独立一对 SpringDamper1D；扫描到后以冲量初值启动，积分到 settle 或 maxDuration。
+   */
+  private contributeSpring(
+    i: number,
+    count: number,
+    now: number,
+    acc: CharFrame,
+    cfg: SpringBounceAnimationConfig
+  ): void {
+    // 帧首：算真实 dt（contribute 按字序调用，i===0 更新一次）
+    if (i === 0) {
+      if (this.lastFrameNow > 0) {
+        this.frameDtSec = Math.max(0, (now - this.lastFrameNow) / 1000);
+      } else {
+        this.frameDtSec = 1 / 60;
+      }
+      this.lastFrameNow = now;
+    }
+
+    if (!this.charSprings || this.charSprings.length !== count) {
+      this.charSprings = Array.from({ length: count }, () => ({
+        scale: new SpringDamper1D(),
+        rot: new SpringDamper1D(),
+        started: false,
+        settled: false,
+        elapsedMS: 0,
+      }));
+    }
+
+    const state = this.charSprings[i]!;
+    const scanSpeed = Math.max(1, scaleTimeMS(cfg.scanSpeed));
+    const speedRatio =
+      cfg.speedRatio !== undefined ? Math.max(0.01, cfg.speedRatio) : 1.0;
+    const elapsed = (now - this.startTime) * speedRatio;
+    const delay = i * scanSpeed;
+    const dtLogical = elapsed - delay;
+
+    const impulseScale = cfg.impulseScale;
+    const preScale = 1 + impulseScale;
+
+    if (dtLogical < 0) {
+      // 尚未扫到：停在冲量后的放大/缩小静姿态（与旧 initScale 等待感一致）。
+      acc.scale *= preScale;
+      return;
+    }
+
+    const deg2rad = (deg: number) => (deg * Math.PI) / 180;
+    const params = {
+      mass: cfg.mass,
+      angularFreq: cfg.angularFreq,
+      dampingRatio: cfg.dampingRatio,
+    };
+
+    if (!state.started) {
+      state.started = true;
+      state.settled = false;
+      state.elapsedMS = 0;
+      state.scale.reset(1 + cfg.impulseScale, cfg.impulseScaleVel);
+      state.rot.reset(
+        deg2rad(cfg.impulseRotDeg),
+        deg2rad(cfg.impulseRotVelDeg)
+      );
+    }
+
+    if (!state.settled) {
+      const gameSpeed = CONFIG.gameSpeed;
+      const speedMul =
+        (Number.isFinite(gameSpeed) && gameSpeed > 0 ? gameSpeed : 1) *
+        speedRatio;
+      const dtSec = this.frameDtSec * speedMul;
+      const effectiveDtMS = dtSec * 1000;
+      state.elapsedMS += effectiveDtMS;
+
+      state.scale.step(dtSec, 1, params, cfg.maxDtSec, cfg.substeps);
+      state.rot.step(dtSec, 0, params, cfg.maxDtSec, cfg.substeps);
+
+      const rotEps = deg2rad(cfg.settleEpsRotDeg);
+      const rotVelEps = deg2rad(cfg.settleVelRotDeg);
+      const maxDur = scaleTimeMS(cfg.maxDurationMS);
+      const settled =
+        state.scale.isSettled(1, cfg.settleEpsScale, cfg.settleVelScale) &&
+        state.rot.isSettled(0, rotEps, rotVelEps);
+      const timedOut = state.elapsedMS >= maxDur;
+
+      if (settled || timedOut) {
+        state.scale.reset(1, 0);
+        state.rot.reset(0, 0);
+        state.settled = true;
+      }
+    }
+
+    acc.scale *= state.scale.x;
+    acc.rotation += state.rot.x;
+
+    // 最后一个字最晚启动；它 settle 后更早的字必然已 settle，可整体收尾。
+    if (i === count - 1 && state.settled) {
+      this.finish();
+    }
+  }
+
+  /** 经典解析路径（筹码 / 牌型 / 预期分）。 */
+  private contributeLegacy(
+    i: number,
+    _count: number,
+    now: number,
+    acc: CharFrame,
+    config: Record<string, any>
+  ): void {
     const scanSpeed = Math.max(1, scaleTimeMS(config.scanSpeed));
     const scaleStrength = Math.max(0.1, config.scaleStrength);
     const initScale = config.initScale;
     const maxScale = config.maxScale;
     const stableScale = config.stableScale;
-    const speedRatio = config.speedRatio !== undefined ? Math.max(0.01, config.speedRatio) : 1.0;
+    const speedRatio =
+      config.speedRatio !== undefined ? Math.max(0.01, config.speedRatio) : 1.0;
 
     const rotAngle1 = config.rotAngle1 !== undefined ? config.rotAngle1 : 0;
     const rotAngle2 = config.rotAngle2 !== undefined ? config.rotAngle2 : 0;
-    const rotDamping = config.rotDamping !== undefined ? Math.max(0, config.rotDamping) : 0;
-    const rotFreq = config.rotFreq !== undefined ? Math.max(0, config.rotFreq) : 0;
+    const rotDamping =
+      config.rotDamping !== undefined ? Math.max(0, config.rotDamping) : 0;
+    const rotFreq =
+      config.rotFreq !== undefined ? Math.max(0, config.rotFreq) : 0;
 
     const elapsed = (now - this.startTime) * speedRatio;
     const delay = i * scanSpeed;
@@ -143,16 +289,14 @@ export class BounceTextComponent extends UIComponent implements CharEffect {
     let rotRad = 0;
 
     if (dt < 0) {
-      // 还没扫到：停在 initScale。
       scale = initScale;
     } else {
-      const riseTime = 80; // 升起到最大比例的时间 (ms)
+      const riseTime = 80;
       if (dt < riseTime) {
         const ratio = dt / riseTime;
-        const easeRatio = 1 - Math.pow(1 - ratio, 2); // quadraticOut
+        const easeRatio = 1 - Math.pow(1 - ratio, 2);
         scale = initScale + (maxScale - initScale) * easeRatio;
       } else {
-        // 从最大比例衰减到目标稳定比例。
         const t_decay = (dt - riseTime) / 1000;
         const decay = Math.exp(-scaleStrength * t_decay);
         scale = stableScale + (maxScale - stableScale) * decay;
@@ -178,10 +322,6 @@ export class BounceTextComponent extends UIComponent implements CharEffect {
     acc.rotation += rotRad;
 
     const charFinished = scaleFinished && rotFinished;
-
-    // 收尾判定：最后一个字 delay 最大、最晚完成衰减，它一旦完成即全部完成。
-    // 此处调 finish() 只从逐字层注销（不立即 teardown），由逐字层在下一帧
-    // tick 开头统一处理"无效果回退原生 Text"或交还给呼吸继续。
     if (i === _count - 1 && charFinished) {
       this.finish();
     }

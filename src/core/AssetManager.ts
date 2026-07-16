@@ -2,9 +2,10 @@
  * 资源管理
  *
  * 当前职责：
- *   - 加载三张精灵图（卡牌正面 8BitDeck / 卡牌反面 Enhancers / 小丑牌 Jokers）
+ *   - 加载五张精灵图（卡牌正面 8BitDeck / 卡牌反面 Enhancers / 小丑牌 Jokers /
+ *     盲注硬币 BlindChips / UI 筹码 chips）
  *   - 按 CardAtlas 中声明的行列切成子纹理，并提供按 (rank, suit) / (row, col) /
- *     jokerIndex 的查询接口
+ *     jokerIndex / 盲注硬币帧序列 / UI 筹码图标 的查询接口
  *
  * 后续若再加图集（如特效），按同样的"加载 + 切片 + 索引"模式扩展即可。
  *
@@ -34,6 +35,16 @@ const JOKER_URL = new URL(
   import.meta.url,
 ).href;
 
+const BLIND_CHIPS_URL = new URL(
+  "../../resources/textures/BlindChips.png",
+  import.meta.url,
+).href;
+
+const CHIPS_URL = new URL(
+  "../../resources/textures/chips.png",
+  import.meta.url,
+).href;
+
 const NUMBER_FONT_URL = new URL(
   "../../resources/fonts/m6x11plus.ttf",
   import.meta.url,
@@ -53,6 +64,10 @@ export class AssetManager {
   private readonly frontByCardKey = new Map<string, Texture>();
   private readonly backByKey = new Map<string, Texture>();
   private readonly jokerByIndex = new Map<number, Texture>();
+  /** 盲注硬币动画帧（第一行自左向右）。 */
+  private readonly blindChipCoinFrames: Texture[] = [];
+  /** UI 筹码小图标（chips 图集 uiRow/uiCol 格）。 */
+  private uiChipTexture: Texture | undefined;
   private loaded = false;
 
   /** 是否已经成功加载贴图。CardView/DeckView 在渲染前用它判断是否走精灵图分支。 */
@@ -67,7 +82,7 @@ export class AssetManager {
     try {
       await this.loadFonts();
 
-      // 加载时直接指明 scaleMode=nearest，PIXI 会在创建 source 阶段就用最近邻
+      // 加载时直接指明 scaleMode=nearest，PIXI 会在 create source 阶段就用最近邻
       // 采样上传到 GPU。再加 autoGenerateMipmaps:false 防止缩小时被 mipmap 糊掉。
       // 像素美术的"清晰锐利"取决于这两项 + 上层 antialias:false（已在 App 里设）。
       const pixelLoadOpts = {
@@ -77,22 +92,29 @@ export class AssetManager {
         },
       };
 
-      const [frontTex, backTex, jokerTex] = (await Promise.all([
-        Assets.load({ src: FRONT_URL, ...pixelLoadOpts }),
-        Assets.load({ src: BACK_URL, ...pixelLoadOpts }),
-        Assets.load({ src: JOKER_URL, ...pixelLoadOpts }),
-      ])) as [Texture, Texture, Texture];
+      const [frontTex, backTex, jokerTex, blindChipsTex, chipsTex] =
+        (await Promise.all([
+          Assets.load({ src: FRONT_URL, ...pixelLoadOpts }),
+          Assets.load({ src: BACK_URL, ...pixelLoadOpts }),
+          Assets.load({ src: JOKER_URL, ...pixelLoadOpts }),
+          Assets.load({ src: BLIND_CHIPS_URL, ...pixelLoadOpts }),
+          Assets.load({ src: CHIPS_URL, ...pixelLoadOpts }),
+        ])) as [Texture, Texture, Texture, Texture, Texture];
 
       // 双保险：有的 PIXI 版本会忽略 data，所以这里再强制写一次 source.scaleMode。
       this.applyPixelSampling(frontTex);
       this.applyPixelSampling(backTex);
       this.applyPixelSampling(jokerTex);
+      this.applyPixelSampling(blindChipsTex);
+      this.applyPixelSampling(chipsTex);
 
       // ImageSource 默认 autoGarbageCollect=true；即便 App 关了 GCSystem，
       // 也显式关掉，防止图集 source 被意外 unload 后 batch BindGroup 悬空。
       frontTex.source.autoGarbageCollect = false;
       backTex.source.autoGarbageCollect = false;
       jokerTex.source.autoGarbageCollect = false;
+      blindChipsTex.source.autoGarbageCollect = false;
+      chipsTex.source.autoGarbageCollect = false;
 
       // 小丑图集卡面是烤死的纯白底，会盖住 CardView 里的 faceColor 圆角底。
       // 把手牌 8BitDeck 一样的透明底语义补上：纯白 → alpha=0，露出 CONFIG.cardArt.faceColor。
@@ -103,6 +125,8 @@ export class AssetManager {
       this.sliceFront(frontTex);
       this.sliceBack(backTex);
       this.sliceJokers(jokerProcessed);
+      this.sliceBlindChips(blindChipsTex);
+      this.sliceChips(chipsTex);
 
       this.loaded = true;
     } catch (err) {
@@ -136,6 +160,22 @@ export class AssetManager {
   /** 小丑图集总格数（cols × rows）。 */
   get jokerCount(): number {
     return CardAtlas.joker.cols * CardAtlas.joker.rows;
+  }
+
+  /**
+   * 盲注硬币动画帧序列（BlindChips 第 coinRow 行，自左向右 coinFrameCount 帧）。
+   * 未加载或切片失败时返回空数组。
+   */
+  getBlindChipCoinFrames(): readonly Texture[] {
+    return this.blindChipCoinFrames;
+  }
+
+  /**
+   * HUD 筹码小图标（chips 图集 uiRow/uiCol，默认第一行第一列）。
+   * 未加载时返回 undefined。
+   */
+  getUiChipTexture(): Texture | undefined {
+    return this.uiChipTexture;
   }
 
   /** 列出所有背面格子，给 ControlPanel 做选择器用。 */
@@ -244,6 +284,38 @@ export class AssetManager {
         this.jokerByIndex.set(r * cols + c, tex);
       }
     }
+  }
+
+  /**
+   * 切 BlindChips 图集，并缓存硬币动画用的第一行帧序列。
+   * 整表按 cols×rows 切片；业务目前只用 coinRow 的前 coinFrameCount 帧。
+   */
+  private sliceBlindChips(source: Texture): void {
+    const { cols, rows, coinRow, coinFrameCount } = CardAtlas.blindChips;
+    const sw = source.width / cols;
+    const sh = source.height / rows;
+
+    this.blindChipCoinFrames.length = 0;
+    const row = Math.max(0, Math.min(rows - 1, coinRow));
+    const count = Math.max(0, Math.min(cols, coinFrameCount));
+    for (let c = 0; c < count; c += 1) {
+      const frame = new Rectangle(c * sw, row * sh, sw, sh);
+      const tex = new Texture({ source: source.source, frame });
+      this.blindChipCoinFrames.push(tex);
+    }
+  }
+
+  /**
+   * 切 chips 图集，并缓存 HUD 用的默认筹码格（uiRow/uiCol）。
+   */
+  private sliceChips(source: Texture): void {
+    const { cols, rows, uiRow, uiCol } = CardAtlas.chips;
+    const sw = source.width / cols;
+    const sh = source.height / rows;
+    const row = Math.max(0, Math.min(rows - 1, uiRow));
+    const col = Math.max(0, Math.min(cols - 1, uiCol));
+    const frame = new Rectangle(col * sw, row * sh, sw, sh);
+    this.uiChipTexture = new Texture({ source: source.source, frame });
   }
 
   /**

@@ -1,10 +1,12 @@
-import { Graphics } from "pixi.js";
+import { Graphics, Sprite } from "pixi.js";
 import { Theme } from "../theme";
 import { GameFonts } from "../fonts";
 import { Panel, PanelBackground } from "./Panel";
 import { Button } from "./Button";
+import { BlindChipBadge } from "./BlindChipBadge";
 import { UINode, BounceTextComponent } from "@ui/hierarchy";
 import { UIText } from "./UIText";
+import { assets } from "@core/AssetManager";
 
 /**
  * 左侧得分 / 盲注 / 比赛信息面板（严格对照 Balatro 左侧 UI 参考图）
@@ -34,13 +36,10 @@ const SECTION_R = 10;
 /** 内嵌小框圆角 */
 const INSET_R = 8;
 
-// ---- 筹码小图标：拆成完全独立的单色层（白几何 + tint） ----------
+// ---- 筹码小图标：优先 chips.png 第一行第一列；素材未就绪时回退矢量 ----------
 //
 //   chipIcon
-//   ├── disc   外圆填充
-//   ├── ring   内环描边
-//   ├── center 中心点
-//   └── ticks  刻度线
+//   └── sprite | disc/ring/center/ticks
 
 /** 单色矢量叶子：几何白底，颜色用 tint 直接指定。 */
 class MonoShapeNode extends UINode {
@@ -57,6 +56,18 @@ class MonoShapeNode extends UINode {
 class ChipIcon extends UINode {
   constructor(id: string, size = 18) {
     super({ id, displayName: "筹码图标" });
+
+    const tex = assets.getUiChipTexture();
+    if (tex) {
+      const sprite = new Sprite(tex);
+      sprite.label = "chipSprite";
+      sprite.width = size;
+      sprite.height = size;
+      this.addChild(sprite);
+      return;
+    }
+
+    // 贴图未加载时的程序化回退（与旧版同款白筹码几何）
     const r = size / 2;
 
     const disc = new MonoShapeNode(`${id}.disc`, "外圆", 0xffffff);
@@ -89,42 +100,6 @@ class ChipIcon extends UINode {
   }
 }
 
-// ---- 圆形徽章：填充 / 描边拆成独立单色节点 ----------------------
-
-class CircleFill extends UINode {
-  private readonly g = new Graphics();
-
-  constructor(id: string, displayName: string, diameter: number, fill: number) {
-    super({ id, displayName });
-    this.g.label = "shape";
-    this.addChild(this.g);
-    const r = diameter / 2;
-    this.g.circle(r, r, r);
-    this.g.fill({ color: 0xffffff });
-    this.g.tint = fill & 0xffffff;
-  }
-}
-
-class CircleBorder extends UINode {
-  private readonly g = new Graphics();
-
-  constructor(
-    id: string,
-    displayName: string,
-    diameter: number,
-    color: number,
-    borderWidth: number,
-  ) {
-    super({ id, displayName });
-    this.g.label = "shape";
-    this.addChild(this.g);
-    const r = diameter / 2;
-    this.g.circle(r, r, r - borderWidth / 2);
-    this.g.stroke({ width: borderWidth, color: 0xffffff });
-    this.g.tint = color & 0xffffff;
-  }
-}
-
 export class ScorePanel extends UINode {
   private readonly scoreText: UIText;
   private readonly chipsText: UIText;
@@ -144,6 +119,14 @@ export class ScorePanel extends UINode {
   private readonly multBounceComp: BounceTextComponent;
   private readonly handNameBounceComp: BounceTextComponent;
   private readonly evalScoreBounceComp: BounceTextComponent;
+
+  /**
+   * 盲注徽章归位锚点（留在 contentCard 内，供 UI 编辑与世界坐标同步）。
+   * 真正的可交互徽章运行时会被提到 cardLayer，高于 UI。
+   */
+  readonly blindChipHomeAnchor: UINode;
+  /** 盲注徽章本体（交互 / 伪3D / 阴影）；挂载由 GameController 负责。 */
+  readonly blindChipBadge: BlindChipBadge;
 
   constructor(targetScore: number, plays: number, discards: number) {
     super({ id: "hud.scorePanel", displayName: "得分面板" });
@@ -212,48 +195,28 @@ export class ScorePanel extends UINode {
 
     const contentInnerW = CONTENT_W - titleInset * 2;
 
-    // 1.2.1 圆形徽章 SMALL BLIND
+    // 1.2.1 盲注徽章锚点 + 徽章本体
+    //   - home 锚点留在 contentCard，记录归位圆心（UI hierarchy / shipping 可调）
+    //   - badge 初始挂 contentCard，GameController.start 后 reparent 到 cardLayer（高于 UI）
+    //   - 交互对齐手牌：拖拽/回正/伪3D/阴影；不可选中、不出牌
     const badgeSize = 72;
-    const badge = new UINode({
+    const badgeHomeX = 10 + badgeSize / 2;
+    const badgeHomeY = contentH / 2;
+    this.blindChipHomeAnchor = new UINode({
+      id: "hud.scorePanel.blindSection.badgeHome",
+      displayName: "盲注徽章锚点",
+    });
+    this.blindChipHomeAnchor.eventMode = "none";
+    this.blindChipHomeAnchor.position.set(badgeHomeX, badgeHomeY);
+    contentCard.addChild(this.blindChipHomeAnchor);
+
+    this.blindChipBadge = new BlindChipBadge({
       id: "hud.scorePanel.blindSection.badge",
       displayName: "盲注徽章",
+      size: badgeSize,
     });
-    badge.position.set(10, (contentH - badgeSize) / 2);
-    contentCard.addChild(badge);
-
-    const badgeBg = new CircleFill(
-      "hud.scorePanel.blindSection.badge.background",
-      "背景",
-      badgeSize,
-      Theme.colors.blindBadge,
-    );
-    badge.addChild(badgeBg);
-
-    const badgeBorder = new CircleBorder(
-      "hud.scorePanel.blindSection.badge.border",
-      "描边",
-      badgeSize,
-      0x1a3a8a,
-      3,
-    );
-    badge.addChild(badgeBorder);
-
-    const badgeLabel = new UIText({
-      id: "hud.scorePanel.blindSection.badge.label",
-      displayName: "徽章文字",
-      text: "SMALL\nBLIND",
-      style: {
-        fontFamily: Theme.fontFamily,
-        fontSize: 11,
-        fill: Theme.colors.textWhite,
-        fontWeight: "bold",
-        align: "center",
-        lineHeight: 13,
-      },
-    });
-    badgeLabel.setAnchor(0.5);
-    badgeLabel.position.set(badgeSize / 2, badgeSize / 2);
-    badge.addChild(badgeLabel);
+    this.blindChipBadge.setHome(badgeHomeX, badgeHomeY, { snap: true });
+    contentCard.addChild(this.blindChipBadge);
 
     // 1.2.2 目标信息框：近黑内底
     const targetBoxW = 140;
@@ -477,9 +440,11 @@ export class ScorePanel extends UINode {
         fontWeight: "bold",
       },
     });
-    this.chipsText.setAnchor(0.5);
+    // 右对齐：最右位钉在蓝框靠 X 一侧，位数增加时向左扩展
+    // position.x = chipBg 右缘内缩（默认兜底；shipping 可覆盖 transform）
+    this.chipsText.setAnchor(1, 0.5);
     this.chipsText.position.set(
-      gapCenter - 18 - chipBoxW / 2,
+      gapCenter - 18 - 12,
       chipsRowY + chipBoxH / 2,
     );
     this.chipsBounceComp = new BounceTextComponent("chipsBounce");
@@ -523,9 +488,11 @@ export class ScorePanel extends UINode {
         fontWeight: "bold",
       },
     });
-    this.multText.setAnchor(0.5);
+    // 左对齐：最左位钉在红框靠 X 一侧，位数增加时向右扩展
+    // position.x = multBg 左缘内缩（默认兜底；shipping 可覆盖 transform）
+    this.multText.setAnchor(0, 0.5);
     this.multText.position.set(
-      gapCenter + 18 + multBoxW / 2,
+      gapCenter + 18 + 12,
       chipsRowY + multBoxH / 2,
     );
     this.multBounceComp = new BounceTextComponent("multBounce");
@@ -872,4 +839,5 @@ export class ScorePanel extends UINode {
   setExpectScoreVisible(visible: boolean): void {
     this.evalScoreText.visible = visible;
   }
+
 }

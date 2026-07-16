@@ -29,8 +29,10 @@
  * v9：去掉子面板多余描边；出牌/弃牌等改为「暗黑底 + 灰数字底」分层。
  * v10：补盲注外底 / 回合分区外底 / 金钱暗黑+灰双层底。
  * v11：盲注区拆出深蓝内容卡（contentCard），外底改为近黑；节点父子变更。
+ * v12：盲注徽章改为圆心位姿 + 手牌级拖拽交互；去掉 badge.background/border/label 子节点。
+ * v13：卡牌层高于 UI；盲注徽章伪3D/阴影；badgeHome 锚点节点。
  */
-export const CONFIG_VERSION = 11;
+export const CONFIG_VERSION = 13;
 
 /**
  * 单个 UI 节点的可持久化数据。
@@ -60,10 +62,44 @@ export interface BounceAnimationConfig {
   scanSpeed: number;
   scaleStrength: number;
   speedRatio: number;
+  /** 旧版解析旋转（仅非弹簧弹弹路径；倍率已改用弹簧）。 */
   rotAngle1?: number;
   rotAngle2?: number;
   rotDamping?: number;
   rotFreq?: number;
+}
+
+/**
+ * 【弹弹动画】倍率数字 — 弹簧阻尼双通道（对齐 playPileSettleEffect / SpringDamper1D）。
+ * scale 目标 1，rot 目标 0；逐字扫描仍由 scanSpeed 控制。
+ * 见 docs/play-pile-settle-spring-damper-plan.md 公式与积分约定。
+ */
+export interface SpringBounceAnimationConfig {
+  /** 从左到右逐字触发间隔（ms/字，受 gameSpeed 缩放） */
+  scanSpeed: number;
+  /** 播放速度倍率（叠乘 gameSpeed 影响积分有效 dt） */
+  speedRatio: number;
+  mass: number;
+  /** 自然频率 ωn (rad/s) */
+  angularFreq: number;
+  /** 阻尼比 ζ */
+  dampingRatio: number;
+  /** 初始缩放偏离：xS0 = 1 + impulseScale */
+  impulseScale: number;
+  /** 初始缩放速度 (1/s) */
+  impulseScaleVel: number;
+  /** 初始旋转偏离 (度) */
+  impulseRotDeg: number;
+  /** 初始角速度 (deg/s) */
+  impulseRotVelDeg: number;
+  settleEpsScale: number;
+  settleVelScale: number;
+  settleEpsRotDeg: number;
+  settleVelRotDeg: number;
+  /** 单字最长逻辑时长 ms（受 gameSpeed 缩放） */
+  maxDurationMS: number;
+  maxDtSec: number;
+  substeps: number;
 }
 
 export interface EvalScoreTextConfig {
@@ -249,6 +285,14 @@ export interface RuntimeConfig {
       row: number;
       col: number;
     };
+    /**
+     * 盲注徽章硬币动画（BlindChips 第一行 21 帧）。
+     * fps：每秒播放的精灵帧数；ScorePanel 每帧同步到 AnimatedSprite.animationSpeed。
+     */
+    blindChipAnim: {
+      /** 播放帧率（帧/秒）。0 = 停在当前帧。 */
+      fps: number;
+    };
   };
   /**
    * 手牌摆放参数（spacing / 弧形 / 扇形旋转）。
@@ -312,6 +356,33 @@ export interface RuntimeConfig {
     /**
      * 拖拽阴影 Y 向拉长上限锚点（世界坐标 Y），语义同 cardShadow.stretchLimitY。
      */
+    stretchLimitY: number;
+  };
+  /**
+   * 盲注筹码（BlindChipBadge）常态阴影。
+   * 字段语义与 cardShadow 相同，独立参数，不与手牌/小丑共用。
+   * 调参面板：「牌的绘制 → 盲注筹码阴影效果」。
+   */
+  blindChipShadow: {
+    color: number;
+    alpha: number;
+    lightX: number;
+    lightY: number;
+    distanceRatio: number;
+    scaleRatio: number;
+    stretchLimitY: number;
+  };
+  /**
+   * 盲注筹码拖拽中阴影。语义同 dragShadow，独立参数。
+   * 同属「盲注筹码阴影效果」专区。
+   */
+  blindChipDragShadow: {
+    color: number;
+    alpha: number;
+    lightX: number;
+    lightY: number;
+    distanceRatio: number;
+    scaleRatio: number;
     stretchLimitY: number;
   };
   /** 拖拽手牌相关参数（缩放视效；位移跟手由弹性绳） */
@@ -769,6 +840,8 @@ export interface RuntimeConfig {
     expandedSections: {
       shadow: boolean;
       dragShadow: boolean;
+      /** 「牌的绘制 → 盲注筹码阴影效果」专区展开状态。 */
+      blindChipShadow: boolean;
       breathing: boolean;
       idleTilt: boolean;
       hoverScale: boolean;
@@ -1066,7 +1139,8 @@ export interface RuntimeConfig {
   /** 可选：示例语义曲线，留作扩展（如未来按 combo 数缩放某个倍率） */
   scoreCurve: BezierCurveConfig;
   chipsBounce: BounceAnimationConfig;
-  multBounce: BounceAnimationConfig;
+  /** 倍率数字弹弹：弹簧阻尼（同出牌堆结算动力学） */
+  multBounce: SpringBounceAnimationConfig;
   handNameBounce: BounceAnimationConfig;
   evalScoreBounce: BounceAnimationConfig;
   evalScoreText: EvalScoreTextConfig;
@@ -1192,6 +1266,10 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       row: 2,
       col: 0,
     }),
+    blindChipAnim: Object.freeze({
+      // 约半秒转一圈（21 帧 / 12fps ≈ 1.75s/圈），可在参数面板「盲注硬币动画」调节。
+      fps: 12,
+    }),
   }),
   handLayout: Object.freeze({
     cardSpacing: 65,
@@ -1221,6 +1299,25 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     lightX: 640,
     lightY: 360,
     distanceRatio: 0.12,
+    scaleRatio: 0.88,
+    stretchLimitY: 400,
+  }),
+  // 盲注筹码默认略贴侧栏（光源偏右下、距离稍小），与手牌阴影解耦可单独调。
+  blindChipShadow: Object.freeze({
+    color: 0x000000,
+    alpha: 0.4,
+    lightX: 640,
+    lightY: 360,
+    distanceRatio: 0.04,
+    scaleRatio: 0.92,
+    stretchLimitY: 400,
+  }),
+  blindChipDragShadow: Object.freeze({
+    color: 0x000000,
+    alpha: 0.3,
+    lightX: 640,
+    lightY: 360,
+    distanceRatio: 0.1,
     scaleRatio: 0.88,
     stretchLimitY: 400,
   }),
@@ -1500,6 +1597,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     expandedSections: Object.freeze({
       shadow: true,
       dragShadow: true,
+      blindChipShadow: true,
       breathing: true,
       idleTilt: true,
       hoverScale: true,
@@ -1628,16 +1726,25 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     speedRatio: 1.0,
   }),
   multBounce: Object.freeze({
-    initScale: 1.5,
-    maxScale: 2.0,
-    stableScale: 1.0,
+    // 扫描节奏沿用旧弹弹；动力学对齐 playPileSettleEffect（略偏 UI 字更脆）。
     scanSpeed: 40,
-    scaleStrength: 12.0,
-    speedRatio: 1.0,
-    rotAngle1: -15.0,
-    rotAngle2: 15.0,
-    rotDamping: 5.0,
-    rotFreq: 6.0,
+    speedRatio: 1.6,
+    mass: 1,
+    angularFreq: 16,
+    dampingRatio: 0.42,
+    // 扫到时从放大态弹回 1，带轻微过冲（欠阻尼）。
+    impulseScale: 0.55,
+    impulseScaleVel: 0,
+    // 角度阶跃 + 角速度冲量 → 弹簧角震荡，替代旧 cos/sin 伪相位。
+    impulseRotDeg: -10,
+    impulseRotVelDeg: 180,
+    settleEpsScale: 0.004,
+    settleVelScale: 0.05,
+    settleEpsRotDeg: 0.15,
+    settleVelRotDeg: 2,
+    maxDurationMS: 900,
+    maxDtSec: 1 / 30,
+    substeps: 2,
   }),
   handNameBounce: Object.freeze({
     initScale: 1.5,
@@ -1755,6 +1862,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     cardArt: {
       ...src.cardArt,
       back: { ...src.cardArt.back },
+      blindChipAnim: { ...src.cardArt.blindChipAnim },
     },
     handLayout: { ...src.handLayout },
     playfield: { ...src.playfield },
@@ -1763,6 +1871,12 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     },
     dragShadow: {
       ...src.dragShadow,
+    },
+    blindChipShadow: {
+      ...src.blindChipShadow,
+    },
+    blindChipDragShadow: {
+      ...src.blindChipDragShadow,
     },
     dragHandCard: {
       ...src.dragHandCard,
@@ -1921,6 +2035,10 @@ export function applyConfig(source: unknown): void {
       ...merged.cardArt,
       ...incoming.cardArt,
       back: { ...merged.cardArt.back, ...(incoming.cardArt.back ?? {}) },
+      blindChipAnim: {
+        ...merged.cardArt.blindChipAnim,
+        ...(incoming.cardArt.blindChipAnim ?? {}),
+      },
     };
   }
   if (incoming.handLayout) {
@@ -1945,6 +2063,18 @@ export function applyConfig(source: unknown): void {
     merged.dragShadow = {
       ...merged.dragShadow,
       ...incoming.dragShadow,
+    };
+  }
+  if (incoming.blindChipShadow) {
+    merged.blindChipShadow = {
+      ...merged.blindChipShadow,
+      ...incoming.blindChipShadow,
+    };
+  }
+  if (incoming.blindChipDragShadow) {
+    merged.blindChipDragShadow = {
+      ...merged.blindChipDragShadow,
+      ...incoming.blindChipDragShadow,
     };
   }
   if (incoming.dragHandCard) {
@@ -2191,6 +2321,8 @@ export function applyConfig(source: unknown): void {
   CONFIG.playfield = merged.playfield;
   CONFIG.cardShadow = merged.cardShadow;
   CONFIG.dragShadow = merged.dragShadow;
+  CONFIG.blindChipShadow = merged.blindChipShadow;
+  CONFIG.blindChipDragShadow = merged.blindChipDragShadow;
   CONFIG.dragHandCard = merged.dragHandCard;
   CONFIG.cardMoveRotation = merged.cardMoveRotation;
   CONFIG.elasticRopeCard = merged.elasticRopeCard;
@@ -2252,6 +2384,10 @@ export function applyShippingDefaults(source: unknown): void {
       ...activeDefaultConfig.cardArt,
       ...incoming.cardArt,
       back: { ...activeDefaultConfig.cardArt.back, ...(incoming.cardArt.back ?? {}) },
+      blindChipAnim: {
+        ...activeDefaultConfig.cardArt.blindChipAnim,
+        ...(incoming.cardArt.blindChipAnim ?? {}),
+      },
     };
   }
   if (incoming.handLayout) {
@@ -2276,6 +2412,18 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.dragShadow = {
       ...activeDefaultConfig.dragShadow,
       ...incoming.dragShadow,
+    };
+  }
+  if (incoming.blindChipShadow) {
+    activeDefaultConfig.blindChipShadow = {
+      ...activeDefaultConfig.blindChipShadow,
+      ...incoming.blindChipShadow,
+    };
+  }
+  if (incoming.blindChipDragShadow) {
+    activeDefaultConfig.blindChipDragShadow = {
+      ...activeDefaultConfig.blindChipDragShadow,
+      ...incoming.blindChipDragShadow,
     };
   }
   if (incoming.dragHandCard) {

@@ -19,12 +19,14 @@
  * 之后业务里通过 `t.setText("xxx")` 改文本；同样的内部入口也被
  * TextStyleComponent.apply() 复用（面板里改了 text 字段时）。
  *
- * 默认会自动挂上 TextStyleComponent（不可删的固定组件），用来在 inspector 里
- * 暴露 text 字段。
+ * 默认会自动挂上：
+ *   - TextStyleComponent（不可删）：inspector 暴露 text 字段
+ *   - ShadowComponent（可删）：硬剪影投影，改字/逐字动画时自动重烤
  */
 import { Text, type TextStyleOptions } from "pixi.js";
 import { UINode } from "@ui/hierarchy/UINode";
 import { TextStyleComponent } from "@ui/hierarchy/components/TextStyleComponent";
+import { ShadowComponent } from "@ui/hierarchy/components/ShadowComponent";
 
 export interface UITextOptions {
   /** Hierarchy 中的稳定 id，例如 "hud.scorePanel.handName"。 */
@@ -35,12 +37,19 @@ export interface UITextOptions {
   text: string;
   /** PIXI TextStyle 选项（与 new Text({ style }) 一致）。 */
   style?: TextStyleOptions;
+  /**
+   * 是否自动挂 ShadowComponent。默认 true。
+   * 个别不需要阴影的文字可显式关掉。
+   */
+  shadow?: boolean;
 }
 
 export class UIText extends UINode {
   private readonly pixiText: Text;
   /** 由 UIText 自动挂载的"文字内容"组件（不可删）。 */
   readonly textStyle: TextStyleComponent;
+  /** 由 UIText 默认挂载的阴影组件（可删）；opts.shadow === false 时为 null。 */
+  readonly shadow: ShadowComponent | null;
 
   constructor(opts: UITextOptions) {
     super({ id: opts.id, displayName: opts.displayName });
@@ -55,6 +64,14 @@ export class UIText extends UINode {
     // 让组件字段的初始 text 与 PIXI.Text 自带的 text 对齐。
     this.textStyle = new TextStyleComponent(opts.text);
     this.addComponent(this.textStyle);
+
+    // 默认给所有界面文字加硬剪影阴影（与 Panel/Button 等容器阴影同组件）。
+    if (opts.shadow === false) {
+      this.shadow = null;
+    } else {
+      this.shadow = new ShadowComponent();
+      this.addComponent(this.shadow);
+    }
   }
 
   /**

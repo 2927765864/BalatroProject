@@ -1118,6 +1118,33 @@ export function setupControlPanel(
     bindNumber("inp-arcHeight", "val-arcHeight", "handLayout.arcHeight", { digits: 1 });
     bindNumber("inp-fanAnglePerCardDeg", "val-fanAnglePerCardDeg", "handLayout.fanAnglePerCardDeg", { digits: 2 });
 
+    // === 牌的绘制 / 盲注硬币动画 ===
+    bindNumber("inp-blindChipAnimFps", "val-blindChipAnimFps", "cardArt.blindChipAnim.fps", {
+      digits: 1,
+    });
+
+    // === 牌的绘制 / 盲注筹码阴影效果（独立于 cardShadow / dragShadow） ===
+    bindSectionExpand(
+      "inp-expandBlindChipShadow",
+      "val-expandBlindChipShadow",
+      "cardVisuals.expandedSections.blindChipShadow",
+      "sect-blindChipShadow-params",
+    );
+    bindColor("inp-blindChipShadowColor", "val-blindChipShadowColor", "blindChipShadow.color");
+    bindNumber("inp-blindChipShadowAlpha", "val-blindChipShadowAlpha", "blindChipShadow.alpha", { digits: 2 });
+    bindNumber("inp-blindChipShadowLightX", "val-blindChipShadowLightX", "blindChipShadow.lightX", { digits: 1 });
+    bindNumber("inp-blindChipShadowLightY", "val-blindChipShadowLightY", "blindChipShadow.lightY", { digits: 1 });
+    bindNumber("inp-blindChipShadowDistanceRatio", "val-blindChipShadowDistanceRatio", "blindChipShadow.distanceRatio", { digits: 5 });
+    bindNumber("inp-blindChipShadowScaleRatio", "val-blindChipShadowScaleRatio", "blindChipShadow.scaleRatio", { digits: 2 });
+    bindNumber("inp-blindChipShadowStretchLimitY", "val-blindChipShadowStretchLimitY", "blindChipShadow.stretchLimitY", { digits: 1 });
+    bindColor("inp-blindChipDragShadowColor", "val-blindChipDragShadowColor", "blindChipDragShadow.color");
+    bindNumber("inp-blindChipDragShadowAlpha", "val-blindChipDragShadowAlpha", "blindChipDragShadow.alpha", { digits: 2 });
+    bindNumber("inp-blindChipDragShadowLightX", "val-blindChipDragShadowLightX", "blindChipDragShadow.lightX", { digits: 1 });
+    bindNumber("inp-blindChipDragShadowLightY", "val-blindChipDragShadowLightY", "blindChipDragShadow.lightY", { digits: 1 });
+    bindNumber("inp-blindChipDragShadowDistanceRatio", "val-blindChipDragShadowDistanceRatio", "blindChipDragShadow.distanceRatio", { digits: 5 });
+    bindNumber("inp-blindChipDragShadowScaleRatio", "val-blindChipDragShadowScaleRatio", "blindChipDragShadow.scaleRatio", { digits: 2 });
+    bindNumber("inp-blindChipDragShadowStretchLimitY", "val-blindChipDragShadowStretchLimitY", "blindChipDragShadow.stretchLimitY", { digits: 1 });
+
     // === 卡牌视效 ===
     bindSectionExpand("inp-expandShadow", "val-expandShadow", "cardVisuals.expandedSections.shadow", "sect-shadow-params");
     bindColor("inp-shadowColor", "val-shadowColor", "cardShadow.color");
@@ -1766,18 +1793,24 @@ export function setupControlPanel(
     bindNumber("inp-chipsBounceScaleStrength", "val-chipsBounceScaleStrength", "chipsBounce.scaleStrength", { digits: 2 });
     bindNumber("inp-chipsBounceSpeedRatio", "val-chipsBounceSpeedRatio", "chipsBounce.speedRatio", { digits: 2 });
 
-    // === 【弹弹动画】倍率数字 ===
+    // === 【弹弹动画】倍率数字（弹簧阻尼，对齐出牌堆结算） ===
     bindSectionExpand("inp-expandMultBounce", "val-expandMultBounce", "cardVisuals.expandedSections.multBounce", "sect-multBounce-params");
-    bindNumber("inp-multBounceInitScale", "val-multBounceInitScale", "multBounce.initScale", { digits: 2 });
-    bindNumber("inp-multBounceMaxScale", "val-multBounceMaxScale", "multBounce.maxScale", { digits: 2 });
-    bindNumber("inp-multBounceStableScale", "val-multBounceStableScale", "multBounce.stableScale", { digits: 2 });
     bindNumber("inp-multBounceScanSpeed", "val-multBounceScanSpeed", "multBounce.scanSpeed", { integer: true });
-    bindNumber("inp-multBounceScaleStrength", "val-multBounceScaleStrength", "multBounce.scaleStrength", { digits: 2 });
     bindNumber("inp-multBounceSpeedRatio", "val-multBounceSpeedRatio", "multBounce.speedRatio", { digits: 2 });
-    bindNumber("inp-multBounceRotAngle1", "val-multBounceRotAngle1", "multBounce.rotAngle1", { digits: 2 });
-    bindNumber("inp-multBounceRotAngle2", "val-multBounceRotAngle2", "multBounce.rotAngle2", { digits: 2 });
-    bindNumber("inp-multBounceRotDamping", "val-multBounceRotDamping", "multBounce.rotDamping", { digits: 2 });
-    bindNumber("inp-multBounceRotFreq", "val-multBounceRotFreq", "multBounce.rotFreq", { digits: 2 });
+    bindNumber("inp-multBounceAngularFreq", "val-multBounceAngularFreq", "multBounce.angularFreq", { digits: 1 });
+    bindNumber("inp-multBounceDampingRatio", "val-multBounceDampingRatio", "multBounce.dampingRatio", { digits: 2 });
+    bindNumber("inp-multBounceMass", "val-multBounceMass", "multBounce.mass", { digits: 2 });
+    bindNumber("inp-multBounceImpulseScale", "val-multBounceImpulseScale", "multBounce.impulseScale", { digits: 2 });
+    bindNumber("inp-multBounceImpulseRotDeg", "val-multBounceImpulseRotDeg", "multBounce.impulseRotDeg", { digits: 1 });
+    bindNumber("inp-multBounceMaxDurationMS", "val-multBounceMaxDurationMS", "multBounce.maxDurationMS", { integer: true });
+    bindNumber("inp-multBounceImpulseScaleVel", "val-multBounceImpulseScaleVel", "multBounce.impulseScaleVel", { digits: 2 });
+    bindNumber("inp-multBounceImpulseRotVelDeg", "val-multBounceImpulseRotVelDeg", "multBounce.impulseRotVelDeg", { digits: 1 });
+    bindNumber("inp-multBounceSettleEpsScale", "val-multBounceSettleEpsScale", "multBounce.settleEpsScale", { digits: 4 });
+    bindNumber("inp-multBounceSettleVelScale", "val-multBounceSettleVelScale", "multBounce.settleVelScale", { digits: 3 });
+    bindNumber("inp-multBounceSettleEpsRotDeg", "val-multBounceSettleEpsRotDeg", "multBounce.settleEpsRotDeg", { digits: 2 });
+    bindNumber("inp-multBounceSettleVelRotDeg", "val-multBounceSettleVelRotDeg", "multBounce.settleVelRotDeg", { digits: 1 });
+    bindNumber("inp-multBounceMaxDtSec", "val-multBounceMaxDtSec", "multBounce.maxDtSec", { digits: 4 });
+    bindNumber("inp-multBounceSubsteps", "val-multBounceSubsteps", "multBounce.substeps", { integer: true });
 
     // === 【弹弹动画】牌型文字 ===
     bindSectionExpand("inp-expandHandNameBounce", "val-expandHandNameBounce", "cardVisuals.expandedSections.handNameBounce", "sect-handNameBounce-params");

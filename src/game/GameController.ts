@@ -13,6 +13,7 @@ import { CardView, CardState } from "@render/CardView";
 import { computeHandLayout } from "@render/HandLayout";
 import { BackgroundView } from "@render/BackgroundView";
 import { HUD, type HUDMode } from "@ui/HUD";
+import { BlindChipBadge } from "@ui/components/BlindChipBadge";
 import { uiHierarchy } from "@ui/hierarchy";
 import { CardFx } from "@fx/CardFx";
 import { CrtFilter } from "@fx/CrtFilter";
@@ -130,16 +131,61 @@ export class GameController {
     this.crtFilter = new CrtFilter();
     this.syncCrt();
 
-    // 卡牌层放在世界根之下，UI 之下、特效之上由 zIndex 控制。
+    // 卡牌层（手牌 / 小丑 / 盲注筹码 + 阴影）：zIndex 高于 UI，低于 Fx/Popup。
     this.cardLayer.label = "CardLayer";
     this.cardLayer.zIndex = Layers.Card;
     this.cardLayer.sortableChildren = true;
     this.app.worldRoot.addChild(this.cardLayer);
 
-    // 阴影层作为 cardLayer 的子容器，但是 zIndex = -1 使得它总是被渲染在卡牌下方，不会投影到其他卡牌上
+    // 阴影层作为 cardLayer 的子容器，zIndex = -1：在卡牌之下、仍整体高于 UI。
     this.shadowLayer.label = "ShadowLayer";
     this.shadowLayer.zIndex = -1;
     this.cardLayer.addChild(this.shadowLayer);
+  }
+
+  /**
+   * 将盲注徽章从 ScorePanel 提到 cardLayer：
+   *   - 保持屏幕世界坐标不变
+   *   - 接入 shadowLayer
+   *   - 由本类 update 循环驱动（关闭自绑 ticker）
+   */
+  private attachBlindChipToCardLayer(): void {
+    const badge = this.hud.scorePanel.blindChipBadge;
+    if (badge.parent === this.cardLayer) {
+      badge.setShadowContainer(this.shadowLayer);
+      badge.useExternalUpdate(true);
+      this.syncBlindChipHomeFromAnchor(true);
+      return;
+    }
+
+    // 用圆心（pivot 点）的世界坐标换算到 cardLayer 本地。
+    const world = badge.getGlobalPosition();
+    if (badge.parent) {
+      badge.parent.removeChild(badge);
+    }
+    const local = this.cardLayer.toLocal(world);
+    this.cardLayer.addChild(badge);
+    badge.zIndex = 0;
+    badge.setShadowContainer(this.shadowLayer);
+    badge.useExternalUpdate(true);
+    badge.setHome(local.x, local.y, { snap: true });
+    this.syncBlindChipHomeFromAnchor(true);
+  }
+
+  /**
+   * 用 contentCard 内锚点刷新徽章 layout home（cardLayer 本地坐标）。
+   * 拖拽中不改；其余情况只更新目标（forceSnap 时瞬移对齐，用于 reparent 后）。
+   */
+  private syncBlindChipHomeFromAnchor(forceSnap = false): void {
+    const badge = this.hud.scorePanel.blindChipBadge;
+    const anchor = this.hud.scorePanel.blindChipHomeAnchor;
+    if (!badge || badge.destroyed || !anchor || anchor.destroyed) return;
+    if (!badge.parent) return;
+    if (badge.isDragging) return;
+
+    const world = anchor.getGlobalPosition();
+    const local = this.cardLayer.toLocal(world);
+    badge.setHome(local.x, local.y, { snap: forceSnap });
   }
 
   start(): void {
@@ -180,6 +226,10 @@ export class GameController {
     }
     this.hud.jokerBar.zIndex = Layers.JokerBar;
 
+    // 盲注徽章：从得分面板提到 cardLayer（与手牌/小丑同层、高于 UI），阴影进 shadowLayer。
+    // 归位锚点仍留在 contentCard，每帧同步世界坐标 → cardLayer 本地 home。
+    this.attachBlindChipToCardLayer();
+
     // 每次刷新网页时，都把界面UI的筹码文字和倍率文字设为0，回合分数文字也设为0，默认隐藏牌型文字和预期分数文字
     this.hud.scorePanel.setChipsMult(0, 0);
     this.hud.scorePanel.setTotalScore(0);
@@ -208,9 +258,14 @@ export class GameController {
     this.app.onUpdate((dtMS) => {
       this.background.update(dtMS);
       this.tween.update(dtMS);
-      // 更新卡牌状态、阴影与动画
+      // 盲注徽章 home：锚点在 UI 树内，本体在 cardLayer，需每帧同步归位目标。
+      this.syncBlindChipHomeFromAnchor();
+      // 更新卡牌 / 盲注徽章状态、阴影与动画（均在 cardLayer，渲染于 UI 之上）
       for (const child of this.cardLayer.children) {
         if (child instanceof CardView) {
+          child.update(dtMS);
+          child.updateShadow();
+        } else if (child instanceof BlindChipBadge) {
           child.update(dtMS);
           child.updateShadow();
         }

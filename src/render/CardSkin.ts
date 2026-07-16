@@ -74,6 +74,31 @@ export const CardAtlas = {
     cols: 10,
     rows: 16,
   },
+  /**
+   * 盲注硬币图集：BlindChips.png = 714×1054，按 21 列 × 31 行切片，每格 34×34。
+   * 硬币旋转动画取第 0 行（自左向右 21 帧循环）。
+   */
+  blindChips: {
+    src: "../../resources/textures/BlindChips.png",
+    cols: 21,
+    rows: 31,
+    /** 硬币动画使用的行（0 基）。 */
+    coinRow: 0,
+    /** 硬币动画帧数（该行自左起连续帧数）。 */
+    coinFrameCount: 21,
+  },
+  /**
+   * UI 筹码图标图集：chips.png = 145×58，按 5 列 × 2 行切片，每格约 29×29。
+   * HUD 侧栏「目标分 / 回合分」小图标使用第 0 行第 0 列。
+   */
+  chips: {
+    src: "../../resources/textures/chips.png",
+    cols: 5,
+    rows: 2,
+    /** UI 默认筹码图标所在格（0 基）。 */
+    uiRow: 0,
+    uiCol: 0,
+  },
 } as const;
 
 export type CardAtlasType = typeof CardAtlas;

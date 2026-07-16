@@ -557,6 +557,188 @@
                 step="0.1"
               />
             </div>
+
+            <!-- 2c. 盲注硬币动画（BlindChips 第一行） -->
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
+              <span>盲注硬币动画</span>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>播放帧率 (帧/秒)</span>
+                <span id="val-blindChipAnimFps">12.0</span>
+              </div>
+              <input
+                id="inp-blindChipAnimFps"
+                type="number"
+                min="0"
+                max="60"
+                step="0.5"
+              />
+              <div style="color:rgba(255,255,255,0.55);font-size:11px;margin-top:4px;">
+                控制左侧盲注徽章硬币旋转速度；0 为暂停。素材：BlindChips 第 1 行 21 帧。
+              </div>
+            </div>
+
+            <!-- 2d. 盲注筹码阴影（独立于手牌 cardShadow / dragShadow） -->
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>盲注筹码阴影效果</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandBlindChipShadow" style="color: var(--accent);">开</span>
+                <input id="inp-expandBlindChipShadow" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+
+            <div id="sect-blindChipShadow-params">
+              <div class="panel-row" style="color:rgba(255,255,255,0.55);font-size:11px;">
+                仅作用于左侧盲注硬币；与「卡牌阴影 / 卡牌拖拽阴影」互不影响。字段语义同卡牌阴影。
+              </div>
+
+              <div class="panel-row" style="font-weight:bold;color:#cbe88b;opacity:0.9;">
+                常态阴影
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影颜色</span>
+                  <span id="val-blindChipShadowColor">#000000</span>
+                </div>
+                <input id="inp-blindChipShadowColor" type="color" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影透明度</span>
+                  <span id="val-blindChipShadowAlpha">0.40</span>
+                </div>
+                <input
+                  id="inp-blindChipShadowAlpha"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>光源定点 X</span>
+                  <span id="val-blindChipShadowLightX">640.0</span>
+                </div>
+                <input id="inp-blindChipShadowLightX" type="number" step="5" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>光源定点 Y</span>
+                  <span id="val-blindChipShadowLightY">360.0</span>
+                </div>
+                <input id="inp-blindChipShadowLightY" type="number" step="5" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影距离比例</span>
+                  <span id="val-blindChipShadowDistanceRatio">0.04000</span>
+                </div>
+                <input id="inp-blindChipShadowDistanceRatio" type="number" step="0.0001" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影大小比例</span>
+                  <span id="val-blindChipShadowScaleRatio">0.92</span>
+                </div>
+                <input
+                  id="inp-blindChipShadowScaleRatio"
+                  type="number"
+                  min="0"
+                  max="3"
+                  step="0.01"
+                />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阴影Y拉长限制Y</span>
+                  <span id="val-blindChipShadowStretchLimitY">400.0</span>
+                </div>
+                <input id="inp-blindChipShadowStretchLimitY" type="number" step="5" />
+              </div>
+
+              <div class="panel-row" style="font-weight:bold;color:#cbe88b;opacity:0.9;border-top:1px solid rgba(145,197,58,0.15);">
+                拖拽时阴影
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>拖动阴影颜色</span>
+                  <span id="val-blindChipDragShadowColor">#000000</span>
+                </div>
+                <input id="inp-blindChipDragShadowColor" type="color" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>拖动阴影透明度</span>
+                  <span id="val-blindChipDragShadowAlpha">0.30</span>
+                </div>
+                <input
+                  id="inp-blindChipDragShadowAlpha"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>拖动光源 X</span>
+                  <span id="val-blindChipDragShadowLightX">640.0</span>
+                </div>
+                <input id="inp-blindChipDragShadowLightX" type="number" step="5" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>拖动光源 Y</span>
+                  <span id="val-blindChipDragShadowLightY">360.0</span>
+                </div>
+                <input id="inp-blindChipDragShadowLightY" type="number" step="5" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>拖动距离比例</span>
+                  <span id="val-blindChipDragShadowDistanceRatio">0.10000</span>
+                </div>
+                <input id="inp-blindChipDragShadowDistanceRatio" type="number" step="0.0001" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>拖动大小比例</span>
+                  <span id="val-blindChipDragShadowScaleRatio">0.88</span>
+                </div>
+                <input
+                  id="inp-blindChipDragShadowScaleRatio"
+                  type="number"
+                  min="0"
+                  max="3"
+                  step="0.01"
+                />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>拖动阴影Y拉长限制Y</span>
+                  <span id="val-blindChipDragShadowStretchLimitY">400.0</span>
+                </div>
+                <input id="inp-blindChipDragShadowStretchLimitY" type="number" step="5" />
+              </div>
+            </div>
           </details>
 
           <!-- 3. 界面UI专项：Hierarchy + Inspector -->
@@ -2742,27 +2924,7 @@
             </div>
 
             <div id="sect-multBounce-params">
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>初始比例</span>
-                  <span id="val-multBounceInitScale">1.50</span>
-                </div>
-                <input id="inp-multBounceInitScale" type="number" step="0.05" min="0.1" max="10" />
-              </div>
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>扫到时最大比例</span>
-                  <span id="val-multBounceMaxScale">2.00</span>
-                </div>
-                <input id="inp-multBounceMaxScale" type="number" step="0.05" min="0.1" max="10" />
-              </div>
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>目标稳定比例</span>
-                  <span id="val-multBounceStableScale">1.00</span>
-                </div>
-                <input id="inp-multBounceStableScale" type="number" step="0.05" min="0.1" max="10" />
-              </div>
+              <div class="panel-row" style="opacity:0.9;font-size:11px;color:#9ab86c;">节奏 · 逐字扫描</div>
               <div class="panel-row">
                 <div class="panel-row-header">
                   <span>扫描速度 (ms/字)</span>
@@ -2772,45 +2934,112 @@
               </div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>缩放力度</span>
-                  <span id="val-multBounceScaleStrength">12.00</span>
-                </div>
-                <input id="inp-multBounceScaleStrength" type="number" step="0.5" min="0.1" max="50" />
-              </div>
-              <div class="panel-row">
-                <div class="panel-row-header">
                   <span>播放速度比例</span>
-                  <span id="val-multBounceSpeedRatio">1.00</span>
+                  <span id="val-multBounceSpeedRatio">1.60</span>
                 </div>
                 <input id="inp-multBounceSpeedRatio" type="number" step="0.1" min="0.1" max="10" />
               </div>
+
+              <div class="panel-row" style="opacity:0.9;font-size:11px;color:#9ab86c;">弹簧 · 与出牌堆结算同模型 (ωn / ζ)</div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>单字旋转-初始角度</span>
-                  <span id="val-multBounceRotAngle1">-15.00</span>
+                  <span>自然频率 ωn (rad/s)</span>
+                  <span id="val-multBounceAngularFreq">16.0</span>
                 </div>
-                <input id="inp-multBounceRotAngle1" type="number" step="1" min="-360" max="360" />
+                <input id="inp-multBounceAngularFreq" type="number" step="0.5" min="0.5" max="60" />
               </div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>单字旋转-区间角度2</span>
-                  <span id="val-multBounceRotAngle2">15.00</span>
+                  <span>阻尼比 ζ</span>
+                  <span id="val-multBounceDampingRatio">0.42</span>
                 </div>
-                <input id="inp-multBounceRotAngle2" type="number" step="1" min="-360" max="360" />
+                <input id="inp-multBounceDampingRatio" type="number" step="0.01" min="0" max="5" />
               </div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>单字旋转-弹性阻尼</span>
-                  <span id="val-multBounceRotDamping">5.00</span>
+                  <span>质量 mass</span>
+                  <span id="val-multBounceMass">1.00</span>
                 </div>
-                <input id="inp-multBounceRotDamping" type="number" step="0.1" min="0" max="100" />
+                <input id="inp-multBounceMass" type="number" step="0.05" min="0.05" max="10" />
               </div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>单字旋转-摆荡频率</span>
-                  <span id="val-multBounceRotFreq">6.00</span>
+                  <span>初始缩放偏离</span>
+                  <span id="val-multBounceImpulseScale">0.55</span>
                 </div>
-                <input id="inp-multBounceRotFreq" type="number" step="0.1" min="0" max="100" />
+                <input id="inp-multBounceImpulseScale" type="number" step="0.05" min="-2" max="3" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>初始旋转偏离 (°)</span>
+                  <span id="val-multBounceImpulseRotDeg">-10.0</span>
+                </div>
+                <input id="inp-multBounceImpulseRotDeg" type="number" step="0.5" min="-90" max="90" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>最长时长 (ms)</span>
+                  <span id="val-multBounceMaxDurationMS">900</span>
+                </div>
+                <input id="inp-multBounceMaxDurationMS" type="number" step="50" min="100" max="5000" />
+              </div>
+
+              <div class="panel-row" style="opacity:0.9;font-size:11px;color:#9ab86c;">进阶 · 冲量速度 / settle / 积分</div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>初始缩放速度 (1/s)</span>
+                  <span id="val-multBounceImpulseScaleVel">0.00</span>
+                </div>
+                <input id="inp-multBounceImpulseScaleVel" type="number" step="0.1" min="-20" max="20" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>初始角速度 (°/s)</span>
+                  <span id="val-multBounceImpulseRotVelDeg">180.0</span>
+                </div>
+                <input id="inp-multBounceImpulseRotVelDeg" type="number" step="5" min="-720" max="720" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>settle 缩放位置阈值</span>
+                  <span id="val-multBounceSettleEpsScale">0.0040</span>
+                </div>
+                <input id="inp-multBounceSettleEpsScale" type="number" step="0.001" min="0.0001" max="0.1" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>settle 缩放速度阈值</span>
+                  <span id="val-multBounceSettleVelScale">0.050</span>
+                </div>
+                <input id="inp-multBounceSettleVelScale" type="number" step="0.01" min="0.001" max="5" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>settle 角位置阈值 (°)</span>
+                  <span id="val-multBounceSettleEpsRotDeg">0.15</span>
+                </div>
+                <input id="inp-multBounceSettleEpsRotDeg" type="number" step="0.05" min="0.01" max="5" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>settle 角速度阈值 (°/s)</span>
+                  <span id="val-multBounceSettleVelRotDeg">2.0</span>
+                </div>
+                <input id="inp-multBounceSettleVelRotDeg" type="number" step="0.5" min="0.1" max="90" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>最大 dt (秒)</span>
+                  <span id="val-multBounceMaxDtSec">0.0333</span>
+                </div>
+                <input id="inp-multBounceMaxDtSec" type="number" step="0.001" min="0.001" max="0.1" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>子步数</span>
+                  <span id="val-multBounceSubsteps">2</span>
+                </div>
+                <input id="inp-multBounceSubsteps" type="number" step="1" min="1" max="16" />
               </div>
             </div>
 
