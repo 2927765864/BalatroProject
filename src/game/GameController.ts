@@ -99,6 +99,29 @@ export class GameController {
   private lastHandType = "";
   private lastSelectedCount = 0;
 
+  /**
+   * 各牌型当前等级（Balatro 风格：默认均为 1；升级系统接入后改此表）。
+   * 「无」不展示，查表不到时回落 1。
+   */
+  private readonly handLevels: Partial<Record<HandTypeName, number>> = {
+    高牌: 1,
+    对子: 1,
+    两对: 1,
+    三条: 1,
+    顺子: 1,
+    同花: 1,
+    葫芦: 1,
+    四条: 1,
+    同花顺: 1,
+    皇家同花顺: 1,
+  };
+
+  /** 当前牌型等级；未配置时默认 1。 */
+  private getHandLevel(handType: HandTypeName): number {
+    if (handType === "无") return 0;
+    return this.handLevels[handType] ?? 1;
+  }
+
   /** id -> CardView 缓存，复用同一份 view（牌只是回到牌堆，不销毁）。 */
   private readonly viewByCardId = new Map<string, CardView>();
 
@@ -1171,6 +1194,8 @@ export class GameController {
       this.hud.scorePanel.setExpectScoreVisible(false);
 
       this.hud.scorePanel.setHandName(result.handType);
+      // 牌型等级：当前无升级系统时默认 1；后续可按 handType 查表
+      this.hud.scorePanel.setHandLevel(this.getHandLevel(result.handType));
       // HUD 预览只显示牌型对应的基础筹码与倍率，不计入所选牌的点数
       this.hud.scorePanel.setChipsMult(result.baseChips, result.mult);
       this.hud.scorePanel.setExpectScore(result.score);
@@ -1180,6 +1205,8 @@ export class GameController {
 
       if (isJustSelected || isHandTypeChanged) {
         this.hud.scorePanel.triggerHandNameBounce();
+        // 等级文字：与【弹弹动画】倍率数字相同的弹簧弹弹
+        this.hud.scorePanel.triggerHandLevelBounce();
         this.hud.scorePanel.triggerChipsBounce();
         this.hud.scorePanel.triggerMultBounce();
       }

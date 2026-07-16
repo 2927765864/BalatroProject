@@ -105,6 +105,8 @@ export class ScorePanel extends UINode {
   private readonly chipsText: UIText;
   private readonly multText: UIText;
   private readonly handNameText: UIText;
+  /** 牌型等级文字（如「等级1」），与牌型名并排；默认隐藏。 */
+  private readonly handLevelText: UIText;
   private readonly evalScoreText: UIText;
   private readonly playsText: UIText;
   private readonly discardsText: UIText;
@@ -119,6 +121,8 @@ export class ScorePanel extends UINode {
   private readonly chipsBounceComp: BounceTextComponent;
   private readonly multBounceComp: BounceTextComponent;
   private readonly handNameBounceComp: BounceTextComponent;
+  /** 牌型等级弹弹：弹簧阻尼，与倍率数字 multBounce 同构。 */
+  private readonly handLevelBounceComp: BounceTextComponent;
   private readonly evalScoreBounceComp: BounceTextComponent;
 
   /**
@@ -374,7 +378,9 @@ export class ScorePanel extends UINode {
     chipMultSection.position.set(PAD_X, chipMultY);
     this.addChild(chipMultSection);
 
-    // 牌型 / 预期分：底框上半居中（默认隐藏）
+    // 牌型名 + 牌型等级：底框上半（默认隐藏；选牌后显示）
+    // 位置只设构造默认值，之后由 Hierarchy/参数面板 transform 接管；
+    // 业务更新文案时不得改写 position/anchor，否则会覆盖用户调参。
     this.handNameText = new UIText({
       id: "hud.scorePanel.chipMultSection.handNameText",
       displayName: "牌型文字",
@@ -389,9 +395,35 @@ export class ScorePanel extends UINode {
     this.handNameText.visible = false;
     this.handNameText.setAnchor(0.5, 0.5);
     this.handNameText.position.set(CONTENT_W / 2, 36);
-    this.handNameBounceComp = new BounceTextComponent("handNameBounce");
+    // 牌型出现弹弹：与【弹弹动画】筹码数字共用 chipsBounce 参数
+    this.handNameBounceComp = new BounceTextComponent("chipsBounce");
     this.handNameText.addComponent(this.handNameBounceComp);
     chipMultSection.addChild(this.handNameText);
+
+    this.handLevelText = new UIText({
+      id: "hud.scorePanel.chipMultSection.handLevelText",
+      displayName: "牌型等级文字",
+      text: "",
+      style: {
+        // 必须与「等级」汉字同一字体：Theme.fontFamily 优先 M6x11plus，
+        // 半角数字命中像素字、汉字回落到雅黑 → 基线不一致，「1」视觉偏下。
+        // NotoSans-Bold 同时覆盖 CJK 与数字，与奖励等中英混排 UI 一致。
+        fontFamily: GameFonts.textFxStack,
+        fontSize: 14,
+        fill: Theme.colors.textWhite,
+        fontWeight: "bold",
+        // 固定行高，避免混排时 line metrics 再把字盒撑偏
+        lineHeight: 14,
+      },
+    });
+    this.handLevelText.visible = false;
+    // 默认落在牌型名右侧（约「高牌」半宽 + 间距）；正式位置以 uiNodes/面板为准
+    this.handLevelText.setAnchor(0, 0.5);
+    this.handLevelText.position.set(CONTENT_W / 2 + 28, 36);
+    // 等级出现弹弹：与【弹弹动画】倍率数字共用 multBounce 参数（弹簧路径）
+    this.handLevelBounceComp = new BounceTextComponent("multBounce");
+    this.handLevelText.addComponent(this.handLevelBounceComp);
+    chipMultSection.addChild(this.handLevelText);
 
     this.evalScoreText = new UIText({
       id: "hud.scorePanel.chipMultSection.evalScoreText",
@@ -784,6 +816,14 @@ export class ScorePanel extends UINode {
     this.handNameText.setText(name === "无" ? "" : name);
   }
 
+  /**
+   * 设置牌型等级文案（显示为「等级N」）。
+   * level ≤ 0 时清空。只改文案，不改 transform（位置由面板/uiNodes 决定）。
+   */
+  setHandLevel(level: number): void {
+    this.handLevelText.setText(level > 0 ? `等级${level}` : "");
+  }
+
   setExpectScore(score: number): void {
     this.evalScoreText.setText(String(score));
   }
@@ -829,7 +869,15 @@ export class ScorePanel extends UINode {
   }
 
   triggerHandNameBounce(): void {
+    // 强制绑定筹码专区，防止 hydrate/旧存档把 configKey 写回已删除的 handNameBounce
+    this.handNameBounceComp.setConfigKey("chipsBounce");
     this.handNameBounceComp.trigger();
+  }
+
+  triggerHandLevelBounce(): void {
+    // 强制绑定倍率专区，防止旧存档 handLevelBounce 失效
+    this.handLevelBounceComp.setConfigKey("multBounce");
+    this.handLevelBounceComp.trigger();
   }
 
   triggerEvalScoreBounce(): void {
@@ -838,6 +886,7 @@ export class ScorePanel extends UINode {
 
   setHandNameVisible(visible: boolean): void {
     this.handNameText.visible = visible;
+    this.handLevelText.visible = visible;
   }
 
   setExpectScoreVisible(visible: boolean): void {

@@ -2925,7 +2925,7 @@
 
             <!-- 【弹弹动画】筹码数字 -->
             <div class="panel-row" style="background: rgba(0, 162, 255, 0.08); font-weight: bold; color: #00a2ff; border-top: 1px solid rgba(0, 162, 255, 0.2); border-bottom: 1px solid rgba(0, 162, 255, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
-              <span>【弹弹动画】筹码数字</span>
+              <span>【弹弹动画】筹码数字（兼牌型文字）</span>
               <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#a2d6ff;cursor:pointer;">
                 <span>展开详情</span>
                 <span id="val-expandChipsBounce" style="color: #00a2ff;">开</span>
@@ -2980,7 +2980,7 @@
 
             <!-- 【弹弹动画】倍率数字 -->
             <div class="panel-row" style="background: rgba(0, 162, 255, 0.08); font-weight: bold; color: #00a2ff; border-top: 1px solid rgba(0, 162, 255, 0.2); border-bottom: 1px solid rgba(0, 162, 255, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
-              <span>【弹弹动画】倍率数字</span>
+              <span>【弹弹动画】倍率数字（兼牌型等级）</span>
               <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#a2d6ff;cursor:pointer;">
                 <span>展开详情</span>
                 <span id="val-expandMultBounce" style="color: #00a2ff;">开</span>
@@ -3105,61 +3105,6 @@
                   <span id="val-multBounceSubsteps">2</span>
                 </div>
                 <input id="inp-multBounceSubsteps" type="number" step="1" min="1" max="16" />
-              </div>
-            </div>
-
-            <!-- 【弹弹动画】牌型文字 -->
-            <div class="panel-row" style="background: rgba(0, 162, 255, 0.08); font-weight: bold; color: #00a2ff; border-top: 1px solid rgba(0, 162, 255, 0.2); border-bottom: 1px solid rgba(0, 162, 255, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
-              <span>【弹弹动画】牌型文字</span>
-              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#a2d6ff;cursor:pointer;">
-                <span>展开详情</span>
-                <span id="val-expandHandNameBounce" style="color: #00a2ff;">开</span>
-                <input id="inp-expandHandNameBounce" type="checkbox" checked style="margin:0;" />
-              </label>
-            </div>
-
-            <div id="sect-handNameBounce-params">
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>初始比例</span>
-                  <span id="val-handNameBounceInitScale">1.50</span>
-                </div>
-                <input id="inp-handNameBounceInitScale" type="number" step="0.05" min="0.1" max="10" />
-              </div>
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>扫到时最大比例</span>
-                  <span id="val-handNameBounceMaxScale">1.80</span>
-                </div>
-                <input id="inp-handNameBounceMaxScale" type="number" step="0.05" min="0.1" max="10" />
-              </div>
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>目标稳定比例</span>
-                  <span id="val-handNameBounceStableScale">1.00</span>
-                </div>
-                <input id="inp-handNameBounceStableScale" type="number" step="0.05" min="0.1" max="10" />
-              </div>
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>扫描速度 (ms/字)</span>
-                  <span id="val-handNameBounceScanSpeed">50</span>
-                </div>
-                <input id="inp-handNameBounceScanSpeed" type="number" step="5" min="0" max="1000" />
-              </div>
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>缩放力度</span>
-                  <span id="val-handNameBounceScaleStrength">10.00</span>
-                </div>
-                <input id="inp-handNameBounceScaleStrength" type="number" step="0.5" min="0.1" max="50" />
-              </div>
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>播放速度比例</span>
-                  <span id="val-handNameBounceSpeedRatio">1.00</span>
-                </div>
-                <input id="inp-handNameBounceSpeedRatio" type="number" step="0.1" min="0.1" max="10" />
               </div>
             </div>
 

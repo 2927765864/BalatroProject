@@ -897,7 +897,6 @@ export interface RuntimeConfig {
       jokerSettleBgBlock: boolean;
       chipsBounce: boolean;
       multBounce: boolean;
-      handNameBounce: boolean;
       evalScoreBounce: boolean;
       evalScoreText: boolean;
       /** 「文字视效 → 【弹弹动画】文字抖动」专区展开状态。 */
@@ -1168,10 +1167,16 @@ export interface RuntimeConfig {
   };
   /** 可选：示例语义曲线，留作扩展（如未来按 combo 数缩放某个倍率） */
   scoreCurve: BezierCurveConfig;
+  /**
+   * 筹码数字弹弹（经典解析路径）。
+   * 牌型文字复用本配置（ScorePanel BounceTextComponent configKey = "chipsBounce"）。
+   */
   chipsBounce: BounceAnimationConfig;
-  /** 倍率数字弹弹：弹簧阻尼（同出牌堆结算动力学） */
+  /**
+   * 倍率数字弹弹：弹簧阻尼（同出牌堆结算动力学）。
+   * 牌型等级文字复用本配置（configKey = "multBounce"）。
+   */
   multBounce: SpringBounceAnimationConfig;
-  handNameBounce: BounceAnimationConfig;
   evalScoreBounce: BounceAnimationConfig;
   evalScoreText: EvalScoreTextConfig;
   /**
@@ -1660,7 +1665,6 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       jokerSettleBgBlock: true,
       chipsBounce: true,
       multBounce: true,
-      handNameBounce: true,
       evalScoreBounce: true,
       evalScoreText: true,
       textJitter: true,
@@ -1790,14 +1794,6 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     maxDurationMS: 900,
     maxDtSec: 1 / 30,
     substeps: 2,
-  }),
-  handNameBounce: Object.freeze({
-    initScale: 1.5,
-    maxScale: 1.8,
-    stableScale: 1.0,
-    scanSpeed: 50,
-    scaleStrength: 10.0,
-    speedRatio: 1.0,
   }),
   evalScoreBounce: Object.freeze({
     initScale: 1.5,
@@ -2003,7 +1999,6 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     },
     chipsBounce: { ...src.chipsBounce },
     multBounce: { ...src.multBounce },
-    handNameBounce: { ...src.handNameBounce },
     evalScoreBounce: { ...src.evalScoreBounce },
     evalScoreText: { ...src.evalScoreText },
     textJitter: { ...src.textJitter },
@@ -2036,12 +2031,33 @@ function cloneUINodes(
 
 /**
  * 把外部数据（旧 preset / 旧 localStorage）按字段名迁移到当前结构。
- * 留作演化兼容钩子，目前保持 no-op，但保留接口以便未来重命名/搬移字段。
  */
 export function migrateConfig(input: unknown): unknown {
   if (!input || typeof input !== "object") return input;
-  // 示例：未来若把 rules.handSize 重命名为 rules.maxHand，可以在此就地搬迁。
-  // const obj = input as Record<string, any>;
+  const obj = input as Record<string, unknown>;
+
+  // 弹弹 configKey 合并：牌型文字 → chipsBounce，牌型等级 → multBounce。
+  // 若 uiNodes 里 bounceText 仍写旧 key，hydrate 后读 CONFIG 会得到 undefined，动画立刻结束。
+  const bounceKeyAliases: Record<string, string> = {
+    handNameBounce: "chipsBounce",
+    handLevelBounce: "multBounce",
+  };
+  const uiNodes = obj["uiNodes"];
+  if (uiNodes && typeof uiNodes === "object") {
+    for (const node of Object.values(
+      uiNodes as Record<string, UINodeSerialized>,
+    )) {
+      if (!node?.components) continue;
+      for (const comp of node.components) {
+        if (comp?.type !== "bounceText" || !comp.data) continue;
+        const key = comp.data["configKey"];
+        if (typeof key === "string" && bounceKeyAliases[key]) {
+          comp.data["configKey"] = bounceKeyAliases[key];
+        }
+      }
+    }
+  }
+
   return input;
 }
 
@@ -2317,12 +2333,8 @@ export function applyConfig(source: unknown): void {
       ...incoming.multBounce,
     };
   }
-  if (incoming.handNameBounce) {
-    merged.handNameBounce = {
-      ...merged.handNameBounce,
-      ...incoming.handNameBounce,
-    };
-  }
+  // 旧 shipping 中的 handNameBounce / handLevelBounce 已废弃：
+  // 牌型文字 → chipsBounce，牌型等级 → multBounce，此处忽略以免污染类型。
   if (incoming.evalScoreBounce) {
     merged.evalScoreBounce = {
       ...merged.evalScoreBounce,
@@ -2394,7 +2406,6 @@ export function applyConfig(source: unknown): void {
   CONFIG.scoreCurve = merged.scoreCurve;
   CONFIG.chipsBounce = merged.chipsBounce;
   CONFIG.multBounce = merged.multBounce;
-  CONFIG.handNameBounce = merged.handNameBounce;
   CONFIG.evalScoreBounce = merged.evalScoreBounce;
   CONFIG.evalScoreText = merged.evalScoreText;
   CONFIG.textJitter = merged.textJitter;
@@ -2674,12 +2685,6 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.multBounce = {
       ...activeDefaultConfig.multBounce,
       ...incoming.multBounce,
-    };
-  }
-  if (incoming.handNameBounce) {
-    activeDefaultConfig.handNameBounce = {
-      ...activeDefaultConfig.handNameBounce,
-      ...incoming.handNameBounce,
     };
   }
   if (incoming.evalScoreBounce) {

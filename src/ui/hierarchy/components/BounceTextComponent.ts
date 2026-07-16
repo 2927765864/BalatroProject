@@ -4,10 +4,10 @@
  * 从左到右逐字扫描的"弹弹"效果。实现 CharEffect，向宿主 CharLayer 注册。
  *
  * 两条动力学路径：
- *   1) 经典解析路径（筹码 / 牌型 / 预期分）：init→max 二次升起 + e^(-strength·t) 衰减；
- *      可选旧版 rotAngle1/2 伪相位旋转。
- *   2) 弹簧阻尼路径（倍率数字 multBounce）：复刻出牌堆结算的 SpringDamper1D 双通道
- *      （scale→1、rot→0），公式与积分见 docs/play-pile-settle-spring-damper-plan.md。
+ *   1) 经典解析路径（chipsBounce：筹码数字 / 牌型文字；以及 evalScoreBounce 等）：
+ *      init→max 二次升起 + e^(-strength·t) 衰减；可选旧版 rotAngle1/2 伪相位旋转。
+ *   2) 弹簧阻尼路径（multBounce：倍率数字 / 牌型等级文字）：复刻出牌堆结算的
+ *      SpringDamper1D 双通道（scale→1、rot→0），见 docs/play-pile-settle-spring-damper-plan.md。
  *
  * 触发：业务调 trigger() → 置 isAnimating + 记 startTime。逐字层每帧 contribute。
  */
@@ -50,6 +50,21 @@ function isSpringBounceConfig(
   );
 }
 
+/**
+ * 已废弃的独立弹弹 configKey → 共用专区。
+ * shipping / localStorage 里若仍写旧 key，CONFIG 上已无对应字段，
+ * contribute 会读到 undefined 并立刻 finish，表现为「完全没动画」。
+ */
+const BOUNCE_CONFIG_KEY_ALIASES: Readonly<Record<string, string>> = {
+  handNameBounce: "chipsBounce",
+  handLevelBounce: "multBounce",
+};
+
+/** 将废弃 key 归一到当前有效 CONFIG 字段名。 */
+export function resolveBounceConfigKey(key: string): string {
+  return BOUNCE_CONFIG_KEY_ALIASES[key] ?? key;
+}
+
 type CharSpringState = {
   scale: SpringDamper1D;
   rot: SpringDamper1D;
@@ -75,11 +90,20 @@ export class BounceTextComponent extends UIComponent implements CharEffect {
 
   constructor(configKey: string = "chipsBounce") {
     super();
-    this.configKey = configKey;
+    this.configKey = resolveBounceConfigKey(configKey);
   }
 
   public getAnimating(): boolean {
     return this.isAnimating;
+  }
+
+  /** 业务侧可强制绑定专区（hydrate 后若需纠偏可调用）。 */
+  public setConfigKey(key: string): void {
+    this.configKey = resolveBounceConfigKey(key);
+  }
+
+  public getConfigKey(): string {
+    return this.configKey;
   }
 
   // ---- 生命周期 -------------------------------------------------
@@ -137,6 +161,10 @@ export class BounceTextComponent extends UIComponent implements CharEffect {
 
   contribute(i: number, _count: number, now: number, acc: CharFrame): void {
     if (!this.isAnimating) return;
+
+    // 运行时自愈：旧存档/hydrate 可能仍带着 handNameBounce 等已删 key。
+    const resolved = resolveBounceConfigKey(this.configKey);
+    if (resolved !== this.configKey) this.configKey = resolved;
 
     const config = (CONFIG as unknown as Record<string, unknown>)[
       this.configKey
@@ -337,7 +365,9 @@ export class BounceTextComponent extends UIComponent implements CharEffect {
   }
 
   deserialize(d: Record<string, unknown>): void {
-    if (typeof d["configKey"] === "string") this.configKey = d["configKey"];
+    if (typeof d["configKey"] === "string") {
+      this.configKey = resolveBounceConfigKey(d["configKey"]);
+    }
   }
 
   buildInspector(): HTMLElement {

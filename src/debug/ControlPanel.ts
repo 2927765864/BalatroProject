@@ -1822,14 +1822,7 @@ export function setupControlPanel(
     bindNumber("inp-multBounceMaxDtSec", "val-multBounceMaxDtSec", "multBounce.maxDtSec", { digits: 4 });
     bindNumber("inp-multBounceSubsteps", "val-multBounceSubsteps", "multBounce.substeps", { integer: true });
 
-    // === 【弹弹动画】牌型文字 ===
-    bindSectionExpand("inp-expandHandNameBounce", "val-expandHandNameBounce", "cardVisuals.expandedSections.handNameBounce", "sect-handNameBounce-params");
-    bindNumber("inp-handNameBounceInitScale", "val-handNameBounceInitScale", "handNameBounce.initScale", { digits: 2 });
-    bindNumber("inp-handNameBounceMaxScale", "val-handNameBounceMaxScale", "handNameBounce.maxScale", { digits: 2 });
-    bindNumber("inp-handNameBounceStableScale", "val-handNameBounceStableScale", "handNameBounce.stableScale", { digits: 2 });
-    bindNumber("inp-handNameBounceScanSpeed", "val-handNameBounceScanSpeed", "handNameBounce.scanSpeed", { integer: true });
-    bindNumber("inp-handNameBounceScaleStrength", "val-handNameBounceScaleStrength", "handNameBounce.scaleStrength", { digits: 2 });
-    bindNumber("inp-handNameBounceSpeedRatio", "val-handNameBounceSpeedRatio", "handNameBounce.speedRatio", { digits: 2 });
+    // 牌型文字弹弹已复用 chipsBounce；牌型等级弹弹已复用 multBounce（无独立专区）
 
     // === 【弹弹动画】预期得分文字 ===
     bindSectionExpand("inp-expandEvalScoreBounce", "val-expandEvalScoreBounce", "cardVisuals.expandedSections.evalScoreBounce", "sect-evalScoreBounce-params");
