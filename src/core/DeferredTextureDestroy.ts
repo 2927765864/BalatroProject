@@ -11,7 +11,7 @@ import type { Texture } from "pixi.js";
  *   就会在 BindGroupSystem._createBindGroup 读到
  *   `null.textureSource1` 而整帧崩溃（黑屏）。
  *
- *   表现上常见于：待机一段时间、呼吸文字持续重烤阴影、refreshArt 等路径上
+ *   表现上常见于：待机一段时间、逐字弹弹重烤阴影、refreshArt 等路径上
  *   "立刻 destroy 旧 generateTexture 结果"。
  *
  * 策略：

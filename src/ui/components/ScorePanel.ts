@@ -4,7 +4,7 @@ import { GameFonts } from "../fonts";
 import { Panel, PanelBackground } from "./Panel";
 import { Button } from "./Button";
 import { BlindChipBadge } from "./BlindChipBadge";
-import { UINode, BounceTextComponent } from "@ui/hierarchy";
+import { UINode, BounceTextComponent, TextJitterComponent } from "@ui/hierarchy";
 import { UIText } from "./UIText";
 import { assets } from "@core/AssetManager";
 
@@ -115,6 +115,7 @@ export class ScorePanel extends UINode {
   private readonly rewardText: UIText;
   private readonly blindTitleText: UIText;
 
+  private readonly chipsJitterComp: TextJitterComponent;
   private readonly chipsBounceComp: BounceTextComponent;
   private readonly multBounceComp: BounceTextComponent;
   private readonly handNameBounceComp: BounceTextComponent;
@@ -447,6 +448,9 @@ export class ScorePanel extends UINode {
       gapCenter - 18 - 12,
       chipsRowY + chipBoxH / 2,
     );
+    // 先挂常态抖动，再挂触发式弹弹（底噪 + 脉冲）。
+    this.chipsJitterComp = new TextJitterComponent("textJitter");
+    this.chipsText.addComponent(this.chipsJitterComp);
     this.chipsBounceComp = new BounceTextComponent("chipsBounce");
     this.chipsText.addComponent(this.chipsBounceComp);
     chipMultSection.addChild(this.chipsText);

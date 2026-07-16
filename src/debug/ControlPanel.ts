@@ -1784,6 +1784,16 @@ export function setupControlPanel(
       });
     }
 
+    // === 【弹弹动画】文字抖动 ===
+    bindSectionExpand("inp-expandTextJitter", "val-expandTextJitter", "cardVisuals.expandedSections.textJitter", "sect-textJitter-params");
+    bindToggle("inp-textJitterEnabled", "val-textJitterEnabled", "textJitter.enabled");
+    bindNumber("inp-textJitterBaseAngleDeg", "val-textJitterBaseAngleDeg", "textJitter.baseAngleDeg", { digits: 1 });
+    bindNumber("inp-textJitterFrequencyHz", "val-textJitterFrequencyHz", "textJitter.frequencyHz", { digits: 1 });
+    bindNumber("inp-textJitterPhaseStaggerDeg", "val-textJitterPhaseStaggerDeg", "textJitter.phaseStaggerDeg", { digits: 1 });
+    bindNumber("inp-textJitterDigitGrowth", "val-textJitterDigitGrowth", "textJitter.digitGrowth", { digits: 2 });
+    bindNumber("inp-textJitterMinDigits", "val-textJitterMinDigits", "textJitter.minDigits", { integer: true });
+    bindNumber("inp-textJitterSpeedRatio", "val-textJitterSpeedRatio", "textJitter.speedRatio", { digits: 2 });
+
     // === 【弹弹动画】筹码数字 ===
     bindSectionExpand("inp-expandChipsBounce", "val-expandChipsBounce", "cardVisuals.expandedSections.chipsBounce", "sect-chipsBounce-params");
     bindNumber("inp-chipsBounceInitScale", "val-chipsBounceInitScale", "chipsBounce.initScale", { digits: 2 });

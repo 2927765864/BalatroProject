@@ -9,15 +9,19 @@
  *   挂两个时，它们会抢 `pixiText.visible`、各建一组重叠的逐字节点，靠互相
  *   检测避让又会出现"谁都不渲染"的死区。
  *
- *   现在把"拆字 + 接管渲染"收敛成唯一的 CharLayer。呼吸 / 弹弹退化成纯粹的
- *   "效果提供者"（CharEffect）：每帧只往逐字层申请到的字符上叠加自己的贡献
- *   （呼吸写 y 偏移，弹弹写 scale），不再碰 visible、不再自建节点。
+ *   现在把"拆字 + 接管渲染"收敛成唯一的 CharLayer。呼吸 / 弹弹 / 文字抖动
+ *   退化成纯粹的"效果提供者"（CharEffect）：每帧只往逐字层申请到的字符上
+ *   叠加自己的贡献（呼吸写 y 偏移，弹弹写 scale，抖动写 rotation），
+ *   不再碰 visible、不再自建节点。
  *
  * 每帧固定流程（tick）：
  *   1. 若文本 / 样式变了就重建逐字 Text（并通知宿主 visualChanged 让阴影重烤）。
- *   2. 把每个字复位到基线：position = (baseX, baseY)，scale = 1。
- *   3. 依次让已注册的效果把贡献累加上去（y 累加、scale 累乘）。
- *   4. 有 scale/rotation 时立刻 notifyVisualChanged（阴影同帧同步）；仅位移则节流。
+ *   2. 把每个字复位到基线：position = (baseX, baseY），scale = 1。
+ *   3. 依次让已注册的效果把贡献累加上去（y 累加、scale 累乘、rotation 累加）。
+ *   4. 仅当 scale/rotation 改变剪影时 notifyVisualChanged（弹弹 / 文字抖动同帧同步阴影）；
+ *      纯位移（呼吸起伏）**不**触发重烤。
+ *   5. 一旦因 scale/rotation 重烤：烤纹理前把字 **钉回基线 position**（去掉 offset），
+ *      保留 scale/rotation —— 阴影跟角/缩放抖，但**不**跟呼吸上下起伏；烤完再恢复位移。
  *
  * 不变量：
  *   - 任意时刻宿主上最多只有这一组逐字 Text。
@@ -66,6 +70,12 @@ export interface CharEffect {
    * 此接口预留给未来做"全静止时停 tick 省电"的优化。
    */
   isActive(): boolean;
+  /**
+   * 为 true 时，本效果造成的 scale/rotation 不计入阴影剪影重烤。
+   * 常态微抖（文字抖动）应设为 true，避免每帧 DropShadow 重烤。
+   * 弹弹等瞬时剪影动画保持默认 false。
+   */
+  ignoreSilhouetteForShadow?: boolean;
 }
 
 /** 判断宿主是不是 UIText（有 getPixiText 接口）。 */
@@ -105,10 +115,12 @@ export class CharLayerComponent extends UIComponent {
   private lastStyleHash = "";
   /** 注册到本层的效果（呼吸 / 弹弹）。按注册顺序应用。 */
   private effects: CharEffect[] = [];
-  /** 上一帧是否有活跃效果。用于动画结束那帧补一次阴影重烤、落回稳态。 */
-  private wasActiveLastFrame = false;
-  /** 上次通知阴影重烤的时间戳（performance.now），用于节流。 */
-  private lastShadowNotify = 0;
+  /**
+   * 上一帧是否有「会改剪影」的活跃效果（scale/rotation 非基线）。
+   * 用于动画结束那帧补一次阴影重烤、落回稳态。
+   * 纯位移（呼吸）不算——阴影本就不该跟着起伏。
+   */
+  private wasSilhouetteActiveLastFrame = false;
   /** App ticker 反注册。 */
   private unsubscribeTick: (() => void) | null = null;
 
@@ -300,63 +312,85 @@ export class CharLayerComponent extends UIComponent {
     // 自注销），快照可避免在本帧迭代中被修改而漏算 / 报错。
     const effectsSnapshot = this.effects.slice();
 
-    // 逐字 transform 是否改变了剪影形状：
+    // 逐字 transform 与阴影策略：
     //   - scale / rotation 会改变字的外形 → 阴影必须同帧重烤，否则肉眼可见滞后
-    //   - 仅 offsetX/Y（呼吸起伏）外形不变，只是位移 → 可适度节流以降低 GPU 压力
+    //     （弹弹、文字抖动均走此路径，ShadowComponent 同步 rebuild）
+    //   - 仅 offsetX/Y（呼吸起伏）不触发重烤
+    //   - 重烤时必须钉回基线 position：否则 generateTexture 会把呼吸 Y 烤进阴影，
+    //     导致「抖动开阴影 → 呼吸起伏连带进影」；scale/rotation 仍保留进烤片
+    //   - 标记 ignoreSilhouetteForShadow 的效果不计入阴影剪影判定
     let silhouetteChanged = false;
-    let translationOnly = false;
 
     for (let i = 0; i < count; i += 1) {
       const ch = this.chars[i]!;
       // 1) 复位到基线。
       const acc: CharFrame = { offsetX: 0, offsetY: 0, scale: 1, rotation: 0 };
+      // 阴影剪影判定：只看 scale/rotation（位移永不单独触发重烤）。
+      let shadowScale = 1;
+      let shadowRotation = 0;
       // 2) 累加所有效果的贡献。
       for (const effect of effectsSnapshot) {
+        const beforeScale = acc.scale;
+        const beforeRot = acc.rotation;
         effect.contribute(i, count, now, acc);
+        if (!effect.ignoreSilhouetteForShadow) {
+          const scaleMul =
+            beforeScale !== 0 ? acc.scale / beforeScale : acc.scale;
+          shadowScale *= scaleMul;
+          shadowRotation += acc.rotation - beforeRot;
+        }
       }
-      // 3) 写回。
+      // 3) 写回（视觉含全部效果，含呼吸位移）。
       ch.position.set(this.baseX[i]! + acc.offsetX, this.baseY[i]! + acc.offsetY);
       ch.scale.set(acc.scale);
       ch.rotation = acc.rotation;
 
-      if (Math.abs(acc.scale - 1) > 0.001 || Math.abs(acc.rotation) > 0.001) {
+      if (
+        Math.abs(shadowScale - 1) > 0.001 ||
+        Math.abs(shadowRotation) > 0.001
+      ) {
         silhouetteChanged = true;
-      }
-      if (Math.abs(acc.offsetX) > 0.01 || Math.abs(acc.offsetY) > 0.01) {
-        translationOnly = true;
       }
     }
 
-    // 阴影是"烤宿主快照"的——逐字动画期间字符只是 transform 在变，不会自动
-    // 触发重烤，阴影会停在静态快照。这里在动画期间通知宿主视觉变化，
-    // 让 ShadowComponent 重烤，使阴影跟随。
-    //
-    // 策略：
-    //   - 有 scale/rotation（弹弹等）→ 每帧通知，阴影与数字同帧同步
-    //   - 仅有位移（呼吸）→ 约 20fps 节流；外形未变，位移滞后不那么刺眼，
-    //     且呼吸 isActive 常为 true，全帧重烤 + 旧 RT 释放会加重 WebGPU 压力
-    //   - 动画结束那一帧必定补发一次，落回稳态
+    // 阴影是"烤宿主快照"的。只在剪影形状（scale/rotation）变化时重烤：
+    //   - 有 scale/rotation（弹弹 / 抖动）→ 每帧通知，但烤前钉回基线 XY
+    //   - 仅位移（呼吸）→ 不通知
+    //   - 剪影动画结束那一帧补发一次，落回稳态
     // 旧纹理释放走 DeferredTextureDestroy，避免 BindGroup 悬空黑屏。
-    const anyActive = effectsSnapshot.some((e) => e.isActive());
-    /** 仅位移时的重烤间隔（ms），约 20fps。 */
-    const SHADOW_TRANSLATION_REBAKE_INTERVAL = 50;
-    if (anyActive) {
-      if (silhouetteChanged) {
-        this.host.notifyVisualChanged();
-        this.lastShadowNotify = now;
-      } else if (
-        translationOnly &&
-        now - this.lastShadowNotify >= SHADOW_TRANSLATION_REBAKE_INTERVAL
-      ) {
-        this.host.notifyVisualChanged();
-        this.lastShadowNotify = now;
-      }
-    } else if (this.wasActiveLastFrame) {
-      // 动画刚结束：补一次，确保阴影回到最终稳态。
-      this.host.notifyVisualChanged();
-      this.lastShadowNotify = now;
+    if (silhouetteChanged || this.wasSilhouetteActiveLastFrame) {
+      this.notifyShadowSilhouetteBake();
     }
-    this.wasActiveLastFrame = anyActive;
+    this.wasSilhouetteActiveLastFrame = silhouetteChanged;
+  }
+
+  /**
+   * 为阴影重烤：临时去掉逐字 position 偏移（呼吸等），保留 scale/rotation，
+   * 同步 notifyVisualChanged，再恢复位移。
+   *
+   * 这样阴影跟角抖 / 缩放，不跟上下起伏。
+   */
+  private notifyShadowSilhouetteBake(): void {
+    const count = this.chars.length;
+    if (count === 0) {
+      this.host.notifyVisualChanged();
+      return;
+    }
+
+    const savedX: number[] = new Array(count);
+    const savedY: number[] = new Array(count);
+    for (let i = 0; i < count; i += 1) {
+      const ch = this.chars[i]!;
+      savedX[i] = ch.position.x;
+      savedY[i] = ch.position.y;
+      ch.position.set(this.baseX[i]!, this.baseY[i]!);
+    }
+
+    this.host.notifyVisualChanged();
+
+    for (let i = 0; i < count; i += 1) {
+      this.chars[i]!.position.set(savedX[i]!, savedY[i]!);
+    }
   }
 
   // ---- 序列化 ----------------------------------------------------

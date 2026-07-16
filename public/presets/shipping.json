@@ -29,7 +29,7 @@
         "colour3": 992312
       },
       "crt": {
-        "enabled": false,
+        "enabled": true,
         "preset": "subtle",
         "intensity": 0.21,
         "scanlineCount": 280,
@@ -506,6 +506,7 @@
         "handNameBounce": false,
         "evalScoreBounce": false,
         "evalScoreText": false,
+        "textJitter": true,
         "mouseOffset": true,
         "cardOvershoot": false,
         "handSwap": false,
@@ -707,6 +708,15 @@
       "decreaseDurationMS": 500,
       "stayDurationMS": 800
     },
+    "textJitter": {
+      "enabled": true,
+      "baseAngleDeg": 1.3,
+      "frequencyHz": 8,
+      "phaseStaggerDeg": 55,
+      "digitGrowth": 1.2,
+      "minDigits": 2,
+      "speedRatio": 1
+    },
     "joker": {
       "slotCount": 5,
       "cardSpacing": 120,
@@ -802,8 +812,8 @@
             "data": {
               "color": "#000000",
               "alpha": 0.5,
-              "angle": 45,
-              "distance": 4,
+              "angle": 90,
+              "distance": 2,
               "scaleX": 1,
               "scaleY": 1,
               "skewX": 0,
@@ -865,7 +875,7 @@
             "type": "transform",
             "data": {
               "x": 70,
-              "y": 30,
+              "y": 37,
               "rotation": 0,
               "scaleX": 1,
               "scaleY": 1
@@ -882,8 +892,8 @@
             "data": {
               "color": "#000000",
               "alpha": 0.5,
-              "angle": 45,
-              "distance": 4,
+              "angle": 90,
+              "distance": 2,
               "scaleX": 1,
               "scaleY": 1,
               "skewX": 0,
@@ -1042,8 +1052,8 @@
             "data": {
               "color": "#000000",
               "alpha": 0.5,
-              "angle": 45,
-              "distance": 4,
+              "angle": 90,
+              "distance": 2,
               "scaleX": 1,
               "scaleY": 1,
               "skewX": 0,
@@ -1122,8 +1132,8 @@
             "data": {
               "color": "#000000",
               "alpha": 0.5,
-              "angle": 45,
-              "distance": 4,
+              "angle": 90,
+              "distance": 2,
               "scaleX": 1,
               "scaleY": 1,
               "skewX": 0,
@@ -1364,13 +1374,41 @@
             "data": {
               "color": "#000000",
               "alpha": 0.5,
-              "angle": 45,
-              "distance": 4,
+              "angle": 90,
+              "distance": 2,
               "scaleX": 1,
               "scaleY": 1,
               "skewX": 0,
               "skewY": 0
             }
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 330,
+              "cycle": 3350,
+              "loopGap": 0,
+              "amplitudeMin": 0,
+              "amplitudeMax": -3,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 0.58,
+                  "y": 1
+                }
+              }
+            }
+          },
+          {
+            "type": "charLayer",
+            "data": {}
           }
         ]
       },
@@ -1693,6 +1731,34 @@
               "skewX": 0,
               "skewY": 0
             }
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 440,
+              "cycle": 800,
+              "loopGap": 2850,
+              "amplitudeMin": 0,
+              "amplitudeMax": -4,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 0.58,
+                  "y": 1
+                }
+              }
+            }
+          },
+          {
+            "type": "charLayer",
+            "data": {}
           }
         ]
       },
@@ -2003,7 +2069,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "对子"
+              "text": "高牌"
             }
           },
           {
@@ -2048,7 +2114,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "36"
+              "text": "12"
             }
           },
           {
@@ -2128,7 +2194,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "10"
+              "text": "0"
             }
           },
           {
@@ -2145,14 +2211,20 @@
             }
           },
           {
-            "type": "bounceText",
+            "type": "textJitter",
             "data": {
-              "configKey": "chipsBounce"
+              "configKey": "textJitter"
             }
           },
           {
             "type": "charLayer",
             "data": {}
+          },
+          {
+            "type": "bounceText",
+            "data": {
+              "configKey": "chipsBounce"
+            }
           },
           {
             "type": "breathingText",
@@ -2162,7 +2234,7 @@
               "cycle": 2550,
               "loopGap": 0,
               "amplitudeMin": 0,
-              "amplitudeMax": -2,
+              "amplitudeMax": -1.5,
               "curve": {
                 "enabled": true,
                 "startScale": 0,
@@ -2267,7 +2339,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "2"
+              "text": "0"
             }
           },
           {
@@ -2292,6 +2364,30 @@
           {
             "type": "charLayer",
             "data": {}
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 180,
+              "cycle": 2550,
+              "loopGap": 0,
+              "amplitudeMin": 0,
+              "amplitudeMax": -1.5,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 1,
+                  "y": -0.021740522540983687
+                },
+                "p2": {
+                  "x": 1,
+                  "y": 1
+                }
+              }
+            }
           }
         ]
       },
@@ -2515,8 +2611,8 @@
               "x": 33,
               "y": 15,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 1.2,
+              "scaleY": 1.2
             }
           },
           {
@@ -2674,8 +2770,8 @@
               "x": 33,
               "y": 15,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 1.2,
+              "scaleY": 1.2
             }
           },
           {
@@ -2829,13 +2925,41 @@
             "data": {
               "color": "#000000",
               "alpha": 0.5,
-              "angle": 45,
-              "distance": 4,
+              "angle": 64,
+              "distance": 3.5,
               "scaleX": 1,
               "scaleY": 1,
               "skewX": 0,
               "skewY": 0
             }
+          },
+          {
+            "type": "breathingText",
+            "data": {
+              "enabled": true,
+              "stagger": 290,
+              "cycle": 800,
+              "loopGap": 1250,
+              "amplitudeMin": 0,
+              "amplitudeMax": -4,
+              "curve": {
+                "enabled": true,
+                "startScale": 0,
+                "endScale": 1,
+                "p1": {
+                  "x": 0,
+                  "y": 0
+                },
+                "p2": {
+                  "x": 0.58,
+                  "y": 1
+                }
+              }
+            }
+          },
+          {
+            "type": "charLayer",
+            "data": {}
           }
         ]
       },

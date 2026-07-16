@@ -109,6 +109,34 @@ export interface EvalScoreTextConfig {
   stayDurationMS: number;
 }
 
+/**
+ * 【弹弹动画】文字抖动 — 常态逐字角摆动（筹码数字等）。
+ * 位数分级：n < minDigits → 0；n == minDigits → baseAngleDeg；
+ * n > minDigits → baseAngleDeg * digitGrowth^(n - minDigits)。
+ */
+export interface TextJitterConfig {
+  /** 总开关 */
+  enabled: boolean;
+  /**
+   * minDigits 位时的最大摆角（度，单侧峰值）。
+   * 实际 θ ∈ [-A, +A]。
+   */
+  baseAngleDeg: number;
+  /** 角频率（Hz），越大越「快」 */
+  frequencyHz: number;
+  /** 相邻字相位差（度），避免整串同步 */
+  phaseStaggerDeg: number;
+  /** 位数增长底数，默认 1.2 */
+  digitGrowth: number;
+  /**
+   * 开始抖动的最小位数（默认 2）。
+   * n < minDigits → 幅度 0。
+   */
+  minDigits: number;
+  /** 时间倍率（叠在 wall-clock 上；一般 1） */
+  speedRatio: number;
+}
+
 /** 全屏 paint-mix 背景质量档（见 BackgroundView / BalatroBackgroundFilter）。 */
 export type BackgroundQuality = "off" | "low" | "med" | "high";
 
@@ -872,6 +900,8 @@ export interface RuntimeConfig {
       handNameBounce: boolean;
       evalScoreBounce: boolean;
       evalScoreText: boolean;
+      /** 「文字视效 → 【弹弹动画】文字抖动」专区展开状态。 */
+      textJitter: boolean;
     };
 
     /**
@@ -1144,6 +1174,11 @@ export interface RuntimeConfig {
   handNameBounce: BounceAnimationConfig;
   evalScoreBounce: BounceAnimationConfig;
   evalScoreText: EvalScoreTextConfig;
+  /**
+   * 【弹弹动画】文字抖动 — 常态逐字角摆动。
+   * 调参面板：「文字视效 → 【弹弹动画】文字抖动」。
+   */
+  textJitter: TextJitterConfig;
   /**
    * 小丑牌系统
    *
@@ -1628,6 +1663,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       handNameBounce: true,
       evalScoreBounce: true,
       evalScoreText: true,
+      textJitter: true,
     }),
     selectMoveEnabled: true,
     selectRiseY: 30,
@@ -1724,6 +1760,15 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     scanSpeed: 40,
     scaleStrength: 12.0,
     speedRatio: 1.0,
+  }),
+  textJitter: Object.freeze({
+    enabled: true,
+    baseAngleDeg: 5,
+    frequencyHz: 8,
+    phaseStaggerDeg: 55,
+    digitGrowth: 1.2,
+    minDigits: 2,
+    speedRatio: 1,
   }),
   multBounce: Object.freeze({
     // 扫描节奏沿用旧弹弹；动力学对齐 playPileSettleEffect（略偏 UI 字更脆）。
@@ -1961,6 +2006,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     handNameBounce: { ...src.handNameBounce },
     evalScoreBounce: { ...src.evalScoreBounce },
     evalScoreText: { ...src.evalScoreText },
+    textJitter: { ...src.textJitter },
     joker: {
       ...src.joker,
       effects: { ...src.joker.effects },
@@ -2289,6 +2335,12 @@ export function applyConfig(source: unknown): void {
       ...incoming.evalScoreText,
     };
   }
+  if (incoming.textJitter) {
+    merged.textJitter = {
+      ...merged.textJitter,
+      ...incoming.textJitter,
+    };
+  }
   if (incoming.joker) {
     merged.joker = {
       ...merged.joker,
@@ -2345,6 +2397,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.handNameBounce = merged.handNameBounce;
   CONFIG.evalScoreBounce = merged.evalScoreBounce;
   CONFIG.evalScoreText = merged.evalScoreText;
+  CONFIG.textJitter = merged.textJitter;
   CONFIG.joker = merged.joker;
   CONFIG.uiNodes = merged.uiNodes;
 }
@@ -2639,6 +2692,12 @@ export function applyShippingDefaults(source: unknown): void {
     activeDefaultConfig.evalScoreText = {
       ...activeDefaultConfig.evalScoreText,
       ...incoming.evalScoreText,
+    };
+  }
+  if (incoming.textJitter) {
+    activeDefaultConfig.textJitter = {
+      ...activeDefaultConfig.textJitter,
+      ...incoming.textJitter,
     };
   }
   if (incoming.joker) {

@@ -21,6 +21,10 @@ import {
   BounceTextComponent,
   bounceTextCanAttach,
 } from "./components/BounceTextComponent";
+import {
+  TextJitterComponent,
+  textJitterCanAttach,
+} from "./components/TextJitterComponent";
 import { OpacityComponent } from "./components/OpacityComponent";
 import { ColorComponent } from "./components/ColorComponent";
 
@@ -38,6 +42,7 @@ export { ShadowComponent } from "./components/ShadowComponent";
 export { CharLayerComponent } from "./components/CharLayerComponent";
 export { BreathingTextComponent } from "./components/BreathingTextComponent";
 export { BounceTextComponent } from "./components/BounceTextComponent";
+export { TextJitterComponent } from "./components/TextJitterComponent";
 export { OpacityComponent } from "./components/OpacityComponent";
 export { ColorComponent } from "./components/ColorComponent";
 
@@ -107,4 +112,11 @@ componentRegistry.register({
   displayName: "弹弹动画",
   factory: () => new BounceTextComponent(),
   canAttach: bounceTextCanAttach,
+});
+
+componentRegistry.register({
+  type: "textJitter",
+  displayName: "文字抖动",
+  factory: () => new TextJitterComponent(),
+  canAttach: textJitterCanAttach,
 });
