@@ -591,6 +591,7 @@ export class BlindChipBadge extends UINode {
       );
       this.shadowGraphics.rotation = innerRot;
       this.shadowGraphics.scale.set(shadowConf.scaleRatio, shadowConf.scaleRatio);
+      // 拖拽阴影挂在自身，自带 alpha。
       this.shadowGraphics.alpha = shadowConf.alpha;
     } else {
       if (this.shadowGraphics.parent !== this.shadowContainer) {
@@ -605,7 +606,8 @@ export class BlindChipBadge extends UINode {
         this.scale.x * shadowConf.scaleRatio,
         this.scale.y * shadowConf.scaleRatio,
       );
-      this.shadowGraphics.alpha = shadowConf.alpha;
+      // 共享 shadowLayer 由 AlphaFilter 统一控制透明度；子阴影保持不透明以免重叠变黑。
+      this.shadowGraphics.alpha = 1;
       this.shadowGraphics.pivot.set(S / 2, S / 2);
     }
   }

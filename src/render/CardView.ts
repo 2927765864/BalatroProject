@@ -1184,7 +1184,12 @@ export class CardView extends Container {
     // 同步可见性
     this.shadowGraphics.visible = this.visible;
 
-    if (this.isDragging || this.isScoringLifted || !this.shadowContainer) {
+    // 挂载策略：
+    //   - 拖拽：阴影挂在 CardView 自身（牌 zIndex 极高，阴影随牌盖住下方牌，符合抓起感）。
+    //   - 计分抬升 / 常态：必须挂在共享 shadowContainer（zIndex 低于所有牌）。
+    //     若把 isScoringLifted 的阴影挂在牌上，后出的牌（更高 zIndex）会把阴影画在
+    //     前面牌的卡面上——出牌堆最典型的「第五张阴影盖住第四张」就是这样来的。
+    if (this.isDragging || !this.shadowContainer) {
       // 确保它挂在当前 CardView 下
       if (this.shadowGraphics.parent !== this) {
         if (this.shadowGraphics.parent) {
@@ -1217,6 +1222,7 @@ export class CardView extends Container {
       // 抓牌翻面：卡面沿竖中轴线被压缩（flipScaleX），阴影也要同步在 X 轴压缩，
       // 否则会出现"卡牌翻成一条线、阴影仍是满幅矩形"的脱节。
       this.shadowGraphics.scale.set(shadowConf.scaleRatio * this.flipScaleX, shadowConf.scaleRatio);
+      // 拖拽阴影不在共享层，自带 alpha（无重叠叠黑问题）。
       this.shadowGraphics.alpha = shadowConf.alpha;
     } else {
       // 确保它挂在独立的 shadowContainer 下
@@ -1227,7 +1233,7 @@ export class CardView extends Container {
         this.shadowContainer.addChild(this.shadowGraphics);
       }
 
-      // 常态阴影在独立层级中，需要直接把"卡牌视觉位姿"写到阴影自己身上
+      // 常态 / 计分抬升阴影在独立层级中，需要直接把"卡牌视觉位姿"写到阴影自己身上
       this.shadowGraphics.position.set(cx + worldDx, cy + worldDy);
       this.shadowGraphics.rotation = visualRot;
       // 抓牌翻面：阴影 X 轴跟随卡面的 flipScaleX 压缩（阴影旋转 visualRot 与卡面内层旋转一致，
@@ -1236,7 +1242,9 @@ export class CardView extends Container {
         this.scale.x * shadowConf.scaleRatio * this.flipScaleX,
         this.scale.y * shadowConf.scaleRatio,
       );
-      this.shadowGraphics.alpha = shadowConf.alpha;
+      // 共享阴影层用 AlphaFilter 统一乘 alpha：此处必须保持不透明，否则半透明阴影
+      // 在离屏合成前会彼此 alpha 叠加变黑。最终透明度由 shadowLayer 的 AlphaFilter 控制。
+      this.shadowGraphics.alpha = 1;
       this.shadowGraphics.pivot.set(width / 2, height / 2);
     }
   }

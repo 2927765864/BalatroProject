@@ -1,4 +1,4 @@
-import { Container } from "pixi.js";
+import { AlphaFilter, Container } from "pixi.js";
 import type { App } from "@core/App";
 import { EventBus } from "@core/EventBus";
 import { Store } from "@core/Store";
@@ -63,6 +63,12 @@ export class GameController {
 
   private readonly cardLayer = new Container();
   private readonly shadowLayer = new Container();
+  /**
+   * 共享阴影层的统一透明度。
+   * 子阴影以不透明黑色绘制，再经此 Filter 整体乘 alpha，避免多张半透明阴影
+   * 重叠时 alpha 叠加变黑（不符合真实阴影）。见 Pixi AlphaFilter 文档。
+   */
+  private readonly shadowAlphaFilter = new AlphaFilter({ alpha: 0.35 });
   private readonly background: BackgroundView;
   private readonly crtFilter: CrtFilter;
   private hud!: HUD;
@@ -98,6 +104,16 @@ export class GameController {
 
   private lastHandType = "";
   private lastSelectedCount = 0;
+  /** 上次展示的牌型等级；0 表示未展示（空）。用于「从空到有 / 等级变化」才弹弹。 */
+  private lastHandLevel = 0;
+
+  /**
+   * 最近一次「点数/花色」理牌模式。
+   * - null：未理过牌，补牌时仍随机插入（开局默认）
+   * - rank / suit：出牌/弃牌后抓新牌时，按该规则插入到正确槽位，而不是随机落位
+   * 手动拖拽换位不清除；再次点理牌会覆盖为新模式。
+   */
+  private handSortMode: HandSortMode | null = null;
 
   /**
    * 各牌型当前等级（Balatro 风格：默认均为 1；升级系统接入后改此表）。
@@ -161,8 +177,12 @@ export class GameController {
     this.app.worldRoot.addChild(this.cardLayer);
 
     // 阴影层作为 cardLayer 的子容器，zIndex = -1：在卡牌之下、仍整体高于 UI。
+    // AlphaFilter：先把不透明子阴影离屏合成（重叠处仍是单层黑），再统一乘 alpha，
+    // 避免半透明阴影彼此叠加变黑。
     this.shadowLayer.label = "ShadowLayer";
     this.shadowLayer.zIndex = -1;
+    this.shadowAlphaFilter.alpha = CONFIG.cardShadow.alpha;
+    this.shadowLayer.filters = [this.shadowAlphaFilter];
     this.cardLayer.addChild(this.shadowLayer);
   }
 
@@ -283,6 +303,8 @@ export class GameController {
       this.tween.update(dtMS);
       // 盲注徽章 home：锚点在 UI 树内，本体在 cardLayer，需每帧同步归位目标。
       this.syncBlindChipHomeFromAnchor();
+      // 共享阴影层统一透明度（调参面板改 cardShadow.alpha 后即时生效）
+      this.shadowAlphaFilter.alpha = CONFIG.cardShadow.alpha;
       // 更新卡牌 / 盲注徽章状态、阴影与动画（均在 cardLayer，渲染于 UI 之上）
       for (const child of this.cardLayer.children) {
         if (child instanceof CardView) {
@@ -713,8 +735,9 @@ export class GameController {
         });
 
         const currentHand = [...this.store.getState().hand];
-        const insertIndex = Math.floor(Math.random() * (currentHand.length + 1));
-        
+        // 已理过牌：按 handSortMode 插入有序位置；否则保持随机插入。
+        const insertIndex = this.findDrawInsertIndex(currentHand, view);
+
         currentHand.splice(insertIndex, 0, view);
         this.store.setState({ hand: currentHand });
         this.hud.deckView.setCount(this.deck.size);
@@ -945,17 +968,56 @@ export class GameController {
   }
 
   /**
+   * 理牌比较：返回负值表示 a 应排在 b 左侧。
+   *
+   * 规则（与 sortHand 一致）：
+   *   - rank：主键 value 降序（A…2），次键花色顺序（♠♥♣♦）；
+   *   - suit：主键花色顺序（♠♥♣♦），次键 value 升序。
+   */
+  private compareCardsForSort(a: CardView, b: CardView, mode: HandSortMode): number {
+    const suitIndex = (suit: string): number => {
+      const i = SUITS.indexOf(suit as (typeof SUITS)[number]);
+      return i >= 0 ? i : 0;
+    };
+
+    if (mode === "rank") {
+      const dv = b.data.value - a.data.value;
+      if (dv !== 0) return dv;
+      return suitIndex(a.data.suit) - suitIndex(b.data.suit);
+    }
+    const ds = suitIndex(a.data.suit) - suitIndex(b.data.suit);
+    if (ds !== 0) return ds;
+    return a.data.value - b.data.value;
+  }
+
+  /**
+   * 补牌插入下标：
+   *   - 有 handSortMode：按理牌规则找第一个「新牌应在其左侧」的位置（保持有序）；
+   *   - 否则：随机插入（开局/未点理牌时的旧行为）。
+   */
+  private findDrawInsertIndex(hand: readonly CardView[], newCard: CardView): number {
+    const mode = this.handSortMode;
+    if (!mode) {
+      return Math.floor(Math.random() * (hand.length + 1));
+    }
+    for (let j = 0; j < hand.length; j++) {
+      // new 应严格排在 hand[j] 左侧 → 插在 j
+      if (this.compareCardsForSort(newCard, hand[j]!, mode) < 0) {
+        return j;
+      }
+    }
+    return hand.length;
+  }
+
+  /**
    * 按点数或花色理牌。
    *
    * 流程：
-   *   1. 根据 mode 计算每张牌的最终下标（稳定排序，相等键保留相对顺序）；
-   *   2. 立刻写回 hand 数组；
-   *   3. layoutHand：先按最终下标写 zIndex（落点靠左下层、靠右上层），
+   *   1. 记住 mode（后续 drawToFull 补牌按该序插入）；
+   *   2. 根据 mode 计算每张牌的最终下标（稳定排序，相等键保留相对顺序）；
+   *   3. 立刻写回 hand 数组；
+   *   4. layoutHand：先按最终下标写 zIndex（落点靠左下层、靠右上层），
    *      再让每张需要移动的牌走 CardFx.sortMove（距离越大速度越大）。
-   *
-   * 排序规则：
-   *   - rank：主键 value 降序（A…2，大的在左、小的在右），次键花色顺序（♠♥♣♦）；
-   *   - suit：主键花色顺序（♠♥♣♦），次键 value 升序。
    */
   sortHand(mode: HandSortMode): void {
     if (this.isPlaying) return;
@@ -966,22 +1028,12 @@ export class GameController {
     // 拖拽进行中不理牌：拖拽牌由鼠标主导位置，强行改 hand 序会和松手归位打架。
     if (hand.some((v) => v.isDragging)) return;
 
-    const suitIndex = (suit: string): number => {
-      const i = SUITS.indexOf(suit as (typeof SUITS)[number]);
-      return i >= 0 ? i : 0;
-    };
+    // 无论当前是否已有序，都记下模式，保证之后补牌按理牌序插入。
+    this.handSortMode = mode;
 
-    const sorted = hand.slice().sort((a, b) => {
-      if (mode === "rank") {
-        // 降序：点数大的靠左，小的靠右（A … 2）
-        const dv = b.data.value - a.data.value;
-        if (dv !== 0) return dv;
-        return suitIndex(a.data.suit) - suitIndex(b.data.suit);
-      }
-      const ds = suitIndex(a.data.suit) - suitIndex(b.data.suit);
-      if (ds !== 0) return ds;
-      return a.data.value - b.data.value;
-    });
+    const sorted = hand
+      .slice()
+      .sort((a, b) => this.compareCardsForSort(a, b, mode));
 
     // 已是目标顺序：无需动画，但仍可刷新一次按钮态。
     const unchanged = sorted.every((v, i) => v === hand[i]);
@@ -1189,13 +1241,16 @@ export class GameController {
         this.hud.scorePanel.triggerChipsBounce();
         this.hud.scorePanel.triggerMultBounce();
       }
+      // 等级文案已隐藏：记为「空」，下次再出现时才走从空到有弹弹
+      this.lastHandLevel = 0;
     } else {
       this.hud.scorePanel.setHandNameVisible(true);
       this.hud.scorePanel.setExpectScoreVisible(false);
 
       this.hud.scorePanel.setHandName(result.handType);
       // 牌型等级：当前无升级系统时默认 1；后续可按 handType 查表
-      this.hud.scorePanel.setHandLevel(this.getHandLevel(result.handType));
+      const handLevel = this.getHandLevel(result.handType);
+      this.hud.scorePanel.setHandLevel(handLevel);
       // HUD 预览只显示牌型对应的基础筹码与倍率，不计入所选牌的点数
       this.hud.scorePanel.setChipsMult(result.baseChips, result.mult);
       this.hud.scorePanel.setExpectScore(result.score);
@@ -1203,13 +1258,19 @@ export class GameController {
       const isJustSelected = this.lastSelectedCount === 0;
       const isHandTypeChanged = !isJustSelected && this.lastHandType !== result.handType;
 
+      // 牌型名 / 筹码 / 倍率：新选中或牌型切换时弹（数值常会变）
       if (isJustSelected || isHandTypeChanged) {
         this.hud.scorePanel.triggerHandNameBounce();
-        // 等级文字：与【弹弹动画】倍率数字相同的弹簧弹弹
-        this.hud.scorePanel.triggerHandLevelBounce();
         this.hud.scorePanel.triggerChipsBounce();
         this.hud.scorePanel.triggerMultBounce();
       }
+
+      // 牌型等级（复用 multBounce 弹簧）：仅「从空到有」或等级数字真正变化时弹。
+      // 当前各牌型默认均为 1，切换牌型时 lastHandLevel 不变 → 不重复弹。
+      if (handLevel > 0 && handLevel !== this.lastHandLevel) {
+        this.hud.scorePanel.triggerHandLevelBounce();
+      }
+      this.lastHandLevel = handLevel;
     }
 
     this.lastSelectedCount = count;
