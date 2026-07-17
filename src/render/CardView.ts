@@ -1144,14 +1144,26 @@ export class CardView extends Container {
     // 调用时机：GameController 每帧先调 child.update(dtMS)（其末尾会写好
     // displayWrapper.rotation/position），再调 child.updateShadow()——所以
     // 这里读 displayWrapper 是"最新一帧"的。
+    //
+    // 拖拽例外：呼吸晃动（breathingY / wobbleRot，以及 hover 通道）只作用在牌面，
+    // 不写入阴影。拖拽阴影仍跟随牌根位移/缩放，以及 velocityRotation 的轴点补偿，
+    // 但不跟 sin/cos 呼吸一起抖，避免「灯下影子也在喘气」。
     // ─────────────────────────────────────────────────────────────────────
     const wrapper = this.displayWrapper;
     // displayWrapper 的内层旋转（wobble + hoverWobble + velocityRotation）
-    const innerRot = wrapper ? wrapper.rotation : 0;
+    let innerRot = wrapper ? wrapper.rotation : 0;
     // displayWrapper 在 CardView 本地坐标里相对"默认中心 (W/2, H/2)"的位移
     // （包含 breathingY + hoverBreathingY + pivotComp）
-    const innerLocalOffsetX = wrapper ? wrapper.position.x - width / 2 : 0;
-    const innerLocalOffsetY = wrapper ? wrapper.position.y - height / 2 : 0;
+    let innerLocalOffsetX = wrapper ? wrapper.position.x - width / 2 : 0;
+    let innerLocalOffsetY = wrapper ? wrapper.position.y - height / 2 : 0;
+
+    if (this.isDragging) {
+      // 从 wrapper 位姿中剥离呼吸/晃动分量（hover 拖拽中本就为 0，一并扣掉更稳妥）
+      const breathY = this.breathingY + this.hoverBreathingY;
+      const wobbleTotal = this.wobbleRot + this.hoverWobbleRot;
+      innerLocalOffsetY -= breathY;
+      innerRot -= wobbleTotal;
+    }
 
     // 卡牌真实视觉旋转角（用于阴影自身姿态）
     const visualRot = this.rotation + innerRot;
@@ -2095,7 +2107,8 @@ export class CardView extends Container {
 
     // 常态呼吸晃动：纯由时间驱动，不受 hover / 拖拽 通道影响。
     // 拖拽位置作用在卡牌根节点，常态呼吸作用在内层 displayWrapper，
-    // 两者独立叠加，因此拖拽时仍保留常态呼吸不会引起抖动。
+    // 两者独立叠加，因此拖拽时仍保留牌面呼吸。阴影在 updateShadow 拖拽分支
+    // 会剥离本通道，避免影子跟着呼吸抖。
     this.breathingTime += dtMS * visualConf.breathingSpeed;
     this.wobbleTime += dtMS * visualConf.wobbleSpeed;
 

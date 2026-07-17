@@ -72,7 +72,7 @@
       "cardSpacing": 74,
       "arcEnabled": true,
       "arcHeight": 13,
-      "fanAnglePerCardDeg": 1
+      "fanAnglePerCardDeg": 1.2
     },
     "playfield": {
       "handBaseY": 470,
@@ -205,7 +205,7 @@
     },
     "playPileDisplacement": {
       "enabled": true,
-      "cardSpacing": 110,
+      "cardSpacing": 117,
       "firstIntervalMS": 180,
       "intervalReductionMS": 10,
       "lastIntervalMS": 170,
@@ -222,9 +222,9 @@
       "shadowColor": 0,
       "shadowAlpha": 0.35,
       "shadowLightX": 720,
-      "shadowLightY": 565,
-      "shadowDistanceRatio": 0.08,
-      "shadowScaleRatio": 0.92,
+      "shadowLightY": 800,
+      "shadowDistanceRatio": 0.0642,
+      "shadowScaleRatio": 0.95,
       "overshoot": 15,
       "springStiffness": 10.5,
       "dropOvershoot": 16,
@@ -486,12 +486,12 @@
     "cardVisuals": {
       "expandedSections": {
         "shadow": false,
-        "dragShadow": false,
-        "blindChipShadow": true,
+        "dragShadow": true,
+        "blindChipShadow": false,
         "breathing": false,
         "idleTilt": false,
         "hoverScale": false,
-        "hoverBreathing": true,
+        "hoverBreathing": false,
         "mouse3DTilt": false,
         "dragHandCard": false,
         "hoverHit": false,
@@ -505,13 +505,13 @@
         "handSort": false,
         "playHandGroupShift": false,
         "playPileDisplacement": false,
-        "playPileLiftEffect": false,
+        "playPileLiftEffect": true,
         "playPileSettleEffect": false,
         "playPileSettleText": false,
         "playPileSettleBgBlock": false,
         "jokerEffects": false,
         "jokerLayout": false,
-        "jokerSettleText": true,
+        "jokerSettleText": false,
         "jokerSettleBgBlock": false,
         "chipsBounce": false,
         "multBounce": false,
@@ -540,10 +540,10 @@
       "idleTiltStrength": 1.1,
       "idleTiltRadius": 0.45,
       "hoverScaleEnabled": true,
-      "hoverSettleScale": 1.06,
+      "hoverSettleScale": 1.05,
       "hoverScaleMass": 1,
       "hoverScaleAngularFreq": 60,
-      "hoverScaleDampingRatio": 0.4,
+      "hoverScaleDampingRatio": 0.35,
       "hoverScaleImpulseScale": 0,
       "hoverScaleImpulseScaleVel": 5,
       "hoverScaleSettleEpsScale": 0.004,
@@ -553,16 +553,16 @@
       "hoverBreathingEnabled": true,
       "hoverBreathingMass": 1,
       "hoverBreathingAngularFreq": 50,
-      "hoverBreathingDampingRatio": 0.25,
+      "hoverBreathingDampingRatio": 0.23,
       "hoverBreathingImpulseY": 0,
       "hoverBreathingImpulseYVel": 0,
       "hoverBreathingImpulseRotDeg": 0,
-      "hoverBreathingImpulseRotVelDeg": 130,
+      "hoverBreathingImpulseRotVelDeg": -130,
       "hoverBreathingSettleEpsY": 0.15,
       "hoverBreathingSettleVelY": 2,
-      "hoverBreathingSettleEpsRotDeg": 0.15,
-      "hoverBreathingSettleVelRotDeg": 2,
-      "hoverBreathingMaxDurationMS": 1200,
+      "hoverBreathingSettleEpsRotDeg": 0.05,
+      "hoverBreathingSettleVelRotDeg": 0.5,
+      "hoverBreathingMaxDurationMS": 2000,
       "hoverBreathingMaxDtSec": 0.03333333333333333,
       "hoverBreathingSubsteps": 2,
       "mouse3DTiltEnabled": true,
@@ -998,7 +998,7 @@
       },
       "hud.deckView": {
         "parentId": null,
-        "siblingIndex": 0,
+        "siblingIndex": 1,
         "components": [
           {
             "type": "transform",
@@ -1027,7 +1027,7 @@
       },
       "hud": {
         "parentId": null,
-        "siblingIndex": 2,
+        "siblingIndex": 3,
         "components": [
           {
             "type": "transform",
@@ -1203,7 +1203,7 @@
       },
       "hud.jokerBar": {
         "parentId": null,
-        "siblingIndex": 1,
+        "siblingIndex": 2,
         "components": [
           {
             "type": "transform",
@@ -2013,7 +2013,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "15419"
             }
           },
           {
@@ -2168,7 +2168,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "15"
+              "text": "0"
             }
           },
           {
