@@ -122,36 +122,28 @@
     },
     "dragHandCard": {
       "dragScaleTarget": 1.1,
-      "dragScaleInDurationMS": 50,
-      "dragScaleOutDurationMS": 20,
-      "dragScaleInCurve": {
-        "enabled": true,
-        "startScale": 0,
-        "endScale": 1,
-        "p1": {
-          "x": 0.22,
-          "y": 1
-        },
-        "p2": {
-          "x": 0.36,
-          "y": 1
-        }
+      "scaleIn": {
+        "mass": 1,
+        "angularFreq": 50,
+        "dampingRatio": 0.55,
+        "impulseScale": 0,
+        "impulseScaleVel": 5,
+        "settleEpsScale": 0.004,
+        "settleVelScale": 0.05,
+        "maxDtSec": 0.03333333333333333,
+        "substeps": 2
       },
-      "dragScaleOutCurve": {
-        "enabled": true,
-        "startScale": 0,
-        "endScale": 1,
-        "p1": {
-          "x": 0.4,
-          "y": 0
-        },
-        "p2": {
-          "x": 0.6,
-          "y": 1
-        }
-      },
-      "maxSpeed": 4000,
-      "lerpFactor": 0.85
+      "scaleOut": {
+        "mass": 1,
+        "angularFreq": 50,
+        "dampingRatio": 0.55,
+        "impulseScale": 0,
+        "impulseScaleVel": 5,
+        "settleEpsScale": 0.004,
+        "settleVelScale": 0.05,
+        "maxDtSec": 0.03333333333333333,
+        "substeps": 2
+      }
     },
     "drawCard": {
       "lastCardAdvanceMS": 80,
@@ -242,7 +234,7 @@
     "playPileSettleEffect": {
       "enabled": true,
       "firstIntervalMS": 300,
-      "intervalReductionMS": 60,
+      "intervalReductionMS": 70,
       "lastIntervalMS": 800,
       "mass": 1,
       "angularFreq": 36,
@@ -493,13 +485,13 @@
     },
     "cardVisuals": {
       "expandedSections": {
-        "shadow": true,
+        "shadow": false,
         "dragShadow": false,
         "blindChipShadow": true,
         "breathing": false,
         "idleTilt": false,
         "hoverScale": false,
-        "hoverBreathing": false,
+        "hoverBreathing": true,
         "mouse3DTilt": false,
         "dragHandCard": false,
         "hoverHit": false,
@@ -515,7 +507,7 @@
         "playPileDisplacement": false,
         "playPileLiftEffect": false,
         "playPileSettleEffect": false,
-        "playPileSettleText": true,
+        "playPileSettleText": false,
         "playPileSettleBgBlock": false,
         "jokerEffects": false,
         "jokerLayout": false,
@@ -548,37 +540,31 @@
       "idleTiltStrength": 1.1,
       "idleTiltRadius": 0.45,
       "hoverScaleEnabled": true,
-      "hoverOvershootScale": 1.07,
       "hoverSettleScale": 1.06,
-      "hoverOvershootCount": 2,
-      "hoverOvershootDamping": 0.05,
-      "hoverScaleDurationMS": 200,
-      "hoverScaleCurve": {
-        "enabled": true,
-        "startScale": 0,
-        "endScale": 1,
-        "p1": {
-          "x": 0,
-          "y": 0
-        },
-        "p2": {
-          "x": 0.58,
-          "y": 1
-        }
-      },
-      "hoverScaleOutDurationMS": 150,
-      "hoverScaleOutOvershootCount": 2,
-      "hoverScaleOutOvershootFirstScale": 0.99,
-      "hoverScaleOutOvershootDamping": 0.05,
-      "hoverScaleOutSpeed": 1,
+      "hoverScaleMass": 1,
+      "hoverScaleAngularFreq": 60,
+      "hoverScaleDampingRatio": 0.4,
+      "hoverScaleImpulseScale": 0,
+      "hoverScaleImpulseScaleVel": 5,
+      "hoverScaleSettleEpsScale": 0.004,
+      "hoverScaleSettleVelScale": 0.05,
+      "hoverScaleMaxDtSec": 0.03333333333333333,
+      "hoverScaleSubsteps": 2,
       "hoverBreathingEnabled": true,
-      "hoverBreathingDurationMS": 450,
-      "hoverBreathingSpeed": 0,
-      "hoverBreathingAmplitude": 0,
-      "hoverWobbleSpeed": 0.047,
-      "hoverWobbleAmplitude": 0.04,
-      "hoverBreathingSpeedDecay": 0,
-      "hoverBreathingAmplitudeDecay": 5,
+      "hoverBreathingMass": 1,
+      "hoverBreathingAngularFreq": 50,
+      "hoverBreathingDampingRatio": 0.25,
+      "hoverBreathingImpulseY": 0,
+      "hoverBreathingImpulseYVel": 0,
+      "hoverBreathingImpulseRotDeg": 0,
+      "hoverBreathingImpulseRotVelDeg": 130,
+      "hoverBreathingSettleEpsY": 0.15,
+      "hoverBreathingSettleVelY": 2,
+      "hoverBreathingSettleEpsRotDeg": 0.15,
+      "hoverBreathingSettleVelRotDeg": 2,
+      "hoverBreathingMaxDurationMS": 1200,
+      "hoverBreathingMaxDtSec": 0.03333333333333333,
+      "hoverBreathingSubsteps": 2,
       "mouse3DTiltEnabled": true,
       "mouse3DTiltStrength": 1,
       "mouse3DTiltInvertTL": true,
@@ -593,8 +579,15 @@
       "clickThresholdMS": 250,
       "clickDistanceThreshold": 50,
       "hoverHitEnabled": true,
-      "hoverHitEnterScale": 0.9,
+      "hoverHitEnterScale": 1.05,
       "hoverHitLeaveScale": 1.1,
+      "hoverBreathingDurationMS": 450,
+      "hoverBreathingSpeed": 0,
+      "hoverBreathingAmplitude": 0,
+      "hoverWobbleSpeed": 0.047,
+      "hoverWobbleAmplitude": 0.04,
+      "hoverBreathingSpeedDecay": 0,
+      "hoverBreathingAmplitudeDecay": 5,
       "mouseOffsetEnabled": true,
       "mouseOffsetFactorX": 0.08,
       "mouseOffsetFactorY": 0.08,
@@ -638,7 +631,29 @@
       "selectMoveStiffness": 43,
       "selectFallStartSpeed": 1040,
       "selectFallOvershoot": 7,
-      "selectFallStiffness": 8
+      "selectFallStiffness": 8,
+      "hoverOvershootScale": 1.07,
+      "hoverOvershootCount": 2,
+      "hoverOvershootDamping": 0.05,
+      "hoverScaleDurationMS": 200,
+      "hoverScaleCurve": {
+        "enabled": true,
+        "startScale": 0,
+        "endScale": 1,
+        "p1": {
+          "x": 0,
+          "y": 0
+        },
+        "p2": {
+          "x": 0.58,
+          "y": 1
+        }
+      },
+      "hoverScaleOutDurationMS": 150,
+      "hoverScaleOutOvershootCount": 2,
+      "hoverScaleOutOvershootFirstScale": 0.99,
+      "hoverScaleOutOvershootDamping": 0.05,
+      "hoverScaleOutSpeed": 1
     },
     "playPile": {
       "baseYOffset": -220,
@@ -2153,7 +2168,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "11"
+              "text": "15"
             }
           },
           {

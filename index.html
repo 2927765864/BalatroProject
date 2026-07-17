@@ -840,8 +840,10 @@
             </div>
 
             <div id="sect-dragHandCard-params">
-              
-              
+              <div class="panel-row" style="opacity:0.75;font-size:11px;padding:6px 10px;">
+                缩放：按下用「放大」弹簧追目标缩放；松手时拖拽缩放瞬间归 1（无回落过程）。下方「松手缩小」参数当前不参与回落（保留备用）。触碰 hover / 呼吸仍在松手后立即重播。
+              </div>
+
               <div class="panel-row">
                 <div class="panel-row-header">
                   <span>拖拽目标缩放</span>
@@ -850,25 +852,157 @@
                 <input id="inp-dragScaleTarget" type="number" step="0.01" min="0.5" max="3.0" />
               </div>
 
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>进入拖拽缩放时长 (ms)</span>
-                  <span id="val-dragScaleInDurationMS">180</span>
-                </div>
-                <input id="inp-dragScaleInDurationMS" type="number" step="10" min="0" max="2000" />
+              <div class="panel-row" style="background: rgba(145, 197, 58, 0.05); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.15); flex-direction: row; align-items: center; display: flex; padding: 6px 10px; margin-top: 4px;">
+                <span style="font-size: 12px;">按下放大（scaleIn）</span>
               </div>
-
-              <div id="mount-dragScaleInCurve" style="padding: 6px 12px;"></div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>退出拖拽缩放时长 (ms)</span>
-                  <span id="val-dragScaleOutDurationMS">180</span>
+                  <span>自然频率 ωn (rad/s)</span>
+                  <span id="val-dragScaleInAngularFreq">14</span>
                 </div>
-                <input id="inp-dragScaleOutDurationMS" type="number" step="10" min="0" max="2000" />
+                <input id="inp-dragScaleInAngularFreq" type="number" step="0.5" min="0.5" max="60" />
               </div>
 
-              <div id="mount-dragScaleOutCurve" style="padding: 6px 12px;"></div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阻尼比 ζ</span>
+                  <span id="val-dragScaleInDampingRatio">0.45</span>
+                </div>
+                <input id="inp-dragScaleInDampingRatio" type="number" step="0.05" min="0" max="3" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>质量 m</span>
+                  <span id="val-dragScaleInMass">1</span>
+                </div>
+                <input id="inp-dragScaleInMass" type="number" step="0.05" min="0.05" max="10" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>进入位置冲量</span>
+                  <span id="val-dragScaleInImpulseScale">0</span>
+                </div>
+                <input id="inp-dragScaleInImpulseScale" type="number" step="0.01" min="-0.5" max="0.5" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>进入速度冲量 (1/s)</span>
+                  <span id="val-dragScaleInImpulseScaleVel">0</span>
+                </div>
+                <input id="inp-dragScaleInImpulseScaleVel" type="number" step="0.1" min="-20" max="20" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>位置收敛阈值</span>
+                  <span id="val-dragScaleInSettleEpsScale">0.004</span>
+                </div>
+                <input id="inp-dragScaleInSettleEpsScale" type="number" step="0.001" min="0.0001" max="0.1" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>速度收敛阈值</span>
+                  <span id="val-dragScaleInSettleVelScale">0.05</span>
+                </div>
+                <input id="inp-dragScaleInSettleVelScale" type="number" step="0.01" min="0.001" max="5" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>最大子步 dt (s)</span>
+                  <span id="val-dragScaleInMaxDtSec">0.0333</span>
+                </div>
+                <input id="inp-dragScaleInMaxDtSec" type="number" step="0.001" min="0.001" max="0.1" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>子步数</span>
+                  <span id="val-dragScaleInSubsteps">2</span>
+                </div>
+                <input id="inp-dragScaleInSubsteps" type="number" step="1" min="1" max="16" />
+              </div>
+
+              <div class="panel-row" style="background: rgba(145, 197, 58, 0.05); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.15); flex-direction: row; align-items: center; display: flex; padding: 6px 10px; margin-top: 4px;">
+                <span style="font-size: 12px;">松手缩小（scaleOut）</span>
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>自然频率 ωn (rad/s)</span>
+                  <span id="val-dragScaleOutAngularFreq">14</span>
+                </div>
+                <input id="inp-dragScaleOutAngularFreq" type="number" step="0.5" min="0.5" max="60" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>阻尼比 ζ</span>
+                  <span id="val-dragScaleOutDampingRatio">0.45</span>
+                </div>
+                <input id="inp-dragScaleOutDampingRatio" type="number" step="0.05" min="0" max="3" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>质量 m</span>
+                  <span id="val-dragScaleOutMass">1</span>
+                </div>
+                <input id="inp-dragScaleOutMass" type="number" step="0.05" min="0.05" max="10" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>退出位置冲量</span>
+                  <span id="val-dragScaleOutImpulseScale">0</span>
+                </div>
+                <input id="inp-dragScaleOutImpulseScale" type="number" step="0.01" min="-0.5" max="0.5" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>退出速度冲量 (1/s)</span>
+                  <span id="val-dragScaleOutImpulseScaleVel">0</span>
+                </div>
+                <input id="inp-dragScaleOutImpulseScaleVel" type="number" step="0.1" min="-20" max="20" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>位置收敛阈值</span>
+                  <span id="val-dragScaleOutSettleEpsScale">0.004</span>
+                </div>
+                <input id="inp-dragScaleOutSettleEpsScale" type="number" step="0.001" min="0.0001" max="0.1" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>速度收敛阈值</span>
+                  <span id="val-dragScaleOutSettleVelScale">0.05</span>
+                </div>
+                <input id="inp-dragScaleOutSettleVelScale" type="number" step="0.01" min="0.001" max="5" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>最大子步 dt (s)</span>
+                  <span id="val-dragScaleOutMaxDtSec">0.0333</span>
+                </div>
+                <input id="inp-dragScaleOutMaxDtSec" type="number" step="0.001" min="0.001" max="0.1" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>子步数</span>
+                  <span id="val-dragScaleOutSubsteps">2</span>
+                </div>
+                <input id="inp-dragScaleOutSubsteps" type="number" step="1" min="1" max="16" />
+              </div>
             </div>
 
             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
@@ -2252,6 +2386,10 @@
             </div>
 
             <div id="sect-hoverScale-params">
+              <div class="panel-row" style="opacity:0.75;font-size:11px;padding:6px 10px;">
+                弹簧阻尼（对齐出牌堆结算 / SpringDamper1D）。悬停 target=静止悬停缩放，离开 target=1；ζ&lt;1 自然过冲。
+              </div>
+
               <div class="panel-row">
                 <div class="panel-row-header">
                   <span>启用弹性缩放</span>
@@ -2264,14 +2402,6 @@
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>过弹最高缩放</span>
-                  <span id="val-hoverOvershootScale">1.10</span>
-                </div>
-                <input id="inp-hoverOvershootScale" type="number" step="0.01" min="0.5" max="2.0" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
                   <span>静止悬停缩放</span>
                   <span id="val-hoverSettleScale">1.05</span>
                 </div>
@@ -2280,69 +2410,75 @@
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>过弹次数</span>
-                  <span id="val-hoverOvershootCount">1</span>
+                  <span>自然频率 ωn (rad/s)</span>
+                  <span id="val-hoverScaleAngularFreq">16</span>
                 </div>
-                <input id="inp-hoverOvershootCount" type="number" step="1" min="1" max="6" />
+                <input id="inp-hoverScaleAngularFreq" type="number" step="0.5" min="0.5" max="60" />
               </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>过弹阻尼</span>
-                  <span id="val-hoverOvershootDamping">0.50</span>
+                  <span>阻尼比 ζ</span>
+                  <span id="val-hoverScaleDampingRatio">0.45</span>
                 </div>
-                <input id="inp-hoverOvershootDamping" type="number" step="0.05" min="0.05" max="1.0" />
+                <input id="inp-hoverScaleDampingRatio" type="number" step="0.05" min="0" max="3" />
               </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>悬停缩放时间 (ms)</span>
-                  <span id="val-hoverScaleDurationMS">250</span>
+                  <span>质量 m</span>
+                  <span id="val-hoverScaleMass">1</span>
                 </div>
-                <input id="inp-hoverScaleDurationMS" type="number" step="1" min="10" max="2000" />
+                <input id="inp-hoverScaleMass" type="number" step="0.05" min="0.05" max="10" />
               </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>回缩动画时间 (ms)</span>
-                  <span id="val-hoverScaleOutDurationMS">150</span>
+                  <span>进入位置冲量</span>
+                  <span id="val-hoverScaleImpulseScale">0</span>
                 </div>
-                <input id="inp-hoverScaleOutDurationMS" type="number" step="1" min="10" max="2000" />
+                <input id="inp-hoverScaleImpulseScale" type="number" step="0.01" min="-0.5" max="0.5" />
               </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>未正常完结动画的回缩过弹次数</span>
-                  <span id="val-hoverScaleOutOvershootCount">1</span>
+                  <span>进入速度冲量 (1/s)</span>
+                  <span id="val-hoverScaleImpulseScaleVel">0</span>
                 </div>
-                <input id="inp-hoverScaleOutOvershootCount" type="number" step="1" min="0" max="6" />
+                <input id="inp-hoverScaleImpulseScaleVel" type="number" step="0.1" min="-20" max="20" />
               </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>首次过缩的大小</span>
-                  <span id="val-hoverScaleOutOvershootFirstScale">0.97</span>
+                  <span>位置收敛阈值</span>
+                  <span id="val-hoverScaleSettleEpsScale">0.004</span>
                 </div>
-                <input id="inp-hoverScaleOutOvershootFirstScale" type="number" step="0.01" min="0.5" max="1.5" />
+                <input id="inp-hoverScaleSettleEpsScale" type="number" step="0.001" min="0.0001" max="0.1" />
               </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>回缩过弹阻尼</span>
-                  <span id="val-hoverScaleOutOvershootDamping">0.50</span>
+                  <span>速度收敛阈值</span>
+                  <span id="val-hoverScaleSettleVelScale">0.05</span>
                 </div>
-                <input id="inp-hoverScaleOutOvershootDamping" type="number" step="0.05" min="0.05" max="1.0" />
+                <input id="inp-hoverScaleSettleVelScale" type="number" step="0.01" min="0.001" max="5" />
               </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>回缩动画速度</span>
-                  <span id="val-hoverScaleOutSpeed">0.15</span>
+                  <span>最大子步 dt (s)</span>
+                  <span id="val-hoverScaleMaxDtSec">0.0333</span>
                 </div>
-                <input id="inp-hoverScaleOutSpeed" type="number" step="0.01" min="0.01" max="1.0" />
+                <input id="inp-hoverScaleMaxDtSec" type="number" step="0.001" min="0.001" max="0.1" />
               </div>
 
-              <div id="mount-hoverScaleCurve" style="padding: 6px 12px;"></div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>子步数</span>
+                  <span id="val-hoverScaleSubsteps">2</span>
+                </div>
+                <input id="inp-hoverScaleSubsteps" type="number" step="1" min="1" max="16" />
+              </div>
             </div>
 
             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
@@ -2355,6 +2491,10 @@
             </div>
 
             <div id="sect-hoverBreathing-params">
+              <div class="panel-row" style="opacity:0.75;font-size:11px;padding:6px 10px;">
+                弹簧阻尼双通道（对齐出牌堆结算 / SpringDamper1D）。Y 与 Z 旋转共享 m/ωn/ζ，触发时设冲量，目标=0；ζ&lt;1 自然过冲回落。
+              </div>
+
               <div class="panel-row">
                 <div class="panel-row-header">
                   <span>启用触碰呼吸晃动</span>
@@ -2367,58 +2507,114 @@
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>晃动总时间 (ms)</span>
-                  <span id="val-hoverBreathingDurationMS">800</span>
+                  <span>自然频率 ωn (rad/s)</span>
+                  <span id="val-hoverBreathingAngularFreq">14</span>
                 </div>
-                <input id="inp-hoverBreathingDurationMS" type="number" step="10" min="50" max="5000" />
+                <input id="inp-hoverBreathingAngularFreq" type="number" step="0.5" min="0.5" max="60" />
               </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>呼吸速率</span>
-                  <span id="val-hoverBreathingSpeed">0.006</span>
+                  <span>阻尼比 ζ</span>
+                  <span id="val-hoverBreathingDampingRatio">0.45</span>
                 </div>
-                <input id="inp-hoverBreathingSpeed" type="number" step="0.0005" min="0" />
+                <input id="inp-hoverBreathingDampingRatio" type="number" step="0.05" min="0" max="3" />
               </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>呼吸幅度 (像素)</span>
-                  <span id="val-hoverBreathingAmplitude">4.0</span>
+                  <span>质量 m</span>
+                  <span id="val-hoverBreathingMass">1</span>
                 </div>
-                <input id="inp-hoverBreathingAmplitude" type="number" step="0.5" min="0" />
+                <input id="inp-hoverBreathingMass" type="number" step="0.05" min="0.05" max="10" />
               </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>晃动速率</span>
-                  <span id="val-hoverWobbleSpeed">0.003</span>
+                  <span>Y 位置冲量 (像素)</span>
+                  <span id="val-hoverBreathingImpulseY">4.0</span>
                 </div>
-                <input id="inp-hoverWobbleSpeed" type="number" step="0.0005" min="0" />
+                <input id="inp-hoverBreathingImpulseY" type="number" step="0.5" min="-40" max="40" />
               </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>晃动幅度 (弧度)</span>
-                  <span id="val-hoverWobbleAmplitude">0.06</span>
+                  <span>Y 速度冲量 (px/s)</span>
+                  <span id="val-hoverBreathingImpulseYVel">0.0</span>
                 </div>
-                <input id="inp-hoverWobbleAmplitude" type="number" step="0.01" min="0" />
+                <input id="inp-hoverBreathingImpulseYVel" type="number" step="1" min="-500" max="500" />
               </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>速率衰减率 (越大频率收得越快)</span>
-                  <span id="val-hoverBreathingSpeedDecay">3.00</span>
+                  <span>旋转位置冲量 (度)</span>
+                  <span id="val-hoverBreathingImpulseRotDeg">3.50</span>
                 </div>
-                <input id="inp-hoverBreathingSpeedDecay" type="number" step="0.1" min="0" max="20" />
+                <input id="inp-hoverBreathingImpulseRotDeg" type="number" step="0.1" min="-30" max="30" />
               </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>幅度衰减率 (越大振幅收得越快)</span>
-                  <span id="val-hoverBreathingAmplitudeDecay">4.00</span>
+                  <span>旋转速度冲量 (deg/s)</span>
+                  <span id="val-hoverBreathingImpulseRotVelDeg">0.0</span>
                 </div>
-                <input id="inp-hoverBreathingAmplitudeDecay" type="number" step="0.1" min="0" max="20" />
+                <input id="inp-hoverBreathingImpulseRotVelDeg" type="number" step="1" min="-360" max="360" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>Y 位置收敛阈值</span>
+                  <span id="val-hoverBreathingSettleEpsY">0.15</span>
+                </div>
+                <input id="inp-hoverBreathingSettleEpsY" type="number" step="0.05" min="0.01" max="5" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>Y 速度收敛阈值</span>
+                  <span id="val-hoverBreathingSettleVelY">2.0</span>
+                </div>
+                <input id="inp-hoverBreathingSettleVelY" type="number" step="0.5" min="0.1" max="50" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>旋转位置收敛阈值 (度)</span>
+                  <span id="val-hoverBreathingSettleEpsRotDeg">0.15</span>
+                </div>
+                <input id="inp-hoverBreathingSettleEpsRotDeg" type="number" step="0.05" min="0.01" max="5" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>旋转速度收敛阈值 (deg/s)</span>
+                  <span id="val-hoverBreathingSettleVelRotDeg">2.0</span>
+                </div>
+                <input id="inp-hoverBreathingSettleVelRotDeg" type="number" step="0.5" min="0.1" max="50" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>最长时长 (ms)</span>
+                  <span id="val-hoverBreathingMaxDurationMS">1200</span>
+                </div>
+                <input id="inp-hoverBreathingMaxDurationMS" type="number" step="10" min="50" max="5000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>最大子步 dt (s)</span>
+                  <span id="val-hoverBreathingMaxDtSec">0.0333</span>
+                </div>
+                <input id="inp-hoverBreathingMaxDtSec" type="number" step="0.001" min="0.001" max="0.1" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>子步数</span>
+                  <span id="val-hoverBreathingSubsteps">2</span>
+                </div>
+                <input id="inp-hoverBreathingSubsteps" type="number" step="1" min="1" max="16" />
               </div>
             </div>
 

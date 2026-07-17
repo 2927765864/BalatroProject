@@ -20,13 +20,13 @@ import {
   type Ticker,
 } from "pixi.js";
 import { assets } from "@core/AssetManager";
-import { CONFIG, scaleTimeMS } from "@game/config";
-import { sampleCurve } from "@/debug/BezierCurveEditor";
+import { CONFIG } from "@game/config";
 import { ElasticRopeMotion } from "@/motion/ElasticRopeMotion";
 import {
   defaultElasticRopeAnchorLocal,
   readElasticRopeParams,
 } from "@/motion/elasticRopeUtils";
+import { SpringDamper1D } from "@/motion/SpringDamper1D";
 import { Theme } from "../theme";
 import { UINode, uiHierarchy } from "@ui/hierarchy";
 import { GameFonts } from "../fonts";
@@ -78,17 +78,21 @@ export class BlindChipBadge extends UINode {
   private isMouseOver = false;
 
   private currentScale = 1;
-  private hoverScaleProgress = 0;
-  private hoverScaleSettled = false;
-  private outOvershootActive = false;
-  private outOvershootProgress = 0;
-  private outOvershootStartScale = 1;
+  private readonly hoverScaleSpring = (() => {
+    const s = new SpringDamper1D();
+    s.reset(1, 0);
+    return s;
+  })();
+  private hoverScaleWasHovered = false;
   private suppressHoverScaleUntilReenter = false;
 
   private dragScaleAnim: "in" | "out" | null = null;
-  private dragScaleProgress = 0;
-  private dragScaleFromMul = 1;
-  private dragScaleToMul = 1;
+  private dragScaleSpringTarget = 1;
+  private readonly dragScaleSpring = (() => {
+    const s = new SpringDamper1D();
+    s.reset(1, 0);
+    return s;
+  })();
   private dragScaleMul = 1;
 
   private breathingTime = Math.random() * 100;
@@ -97,9 +101,17 @@ export class BlindChipBadge extends UINode {
   private wobbleRot = 0;
 
   private hoverBreathingActive = false;
-  private hoverBreathingProgress = 0;
-  private hoverBreathTime = 0;
-  private hoverWobbleTime = 0;
+  private hoverBreathingElapsedMS = 0;
+  private readonly hoverBreathYSpring = (() => {
+    const s = new SpringDamper1D();
+    s.reset(0, 0);
+    return s;
+  })();
+  private readonly hoverBreathRotSpring = (() => {
+    const s = new SpringDamper1D();
+    s.reset(0, 0);
+    return s;
+  })();
   private hoverBreathingY = 0;
   private hoverWobbleRot = 0;
 
@@ -394,11 +406,13 @@ export class BlindChipBadge extends UINode {
 
     {
       const dragConf = CONFIG.dragHandCard;
+      const scaleIn = dragConf?.scaleIn;
       const target = dragConf?.dragScaleTarget ?? 1.15;
       this.dragScaleAnim = "in";
-      this.dragScaleProgress = 0;
-      this.dragScaleFromMul = this.dragScaleMul;
-      this.dragScaleToMul = target;
+      this.dragScaleSpringTarget = target;
+      const x0 = this.dragScaleSpring.x + (scaleIn?.impulseScale ?? 0);
+      this.dragScaleSpring.reset(x0, scaleIn?.impulseScaleVel ?? 0);
+      this.dragScaleMul = this.dragScaleSpring.x;
     }
 
     const parent = this.parent;
@@ -483,12 +497,8 @@ export class BlindChipBadge extends UINode {
     this.isDragging = false;
     this.zIndex = 0;
 
-    {
-      this.dragScaleAnim = "out";
-      this.dragScaleProgress = 0;
-      this.dragScaleFromMul = this.dragScaleMul;
-      this.dragScaleToMul = 1.0;
-    }
+    // 拖拽缩放瞬间回 1；触碰入场由 restartHoverScaleEntrance 负责。
+    this.snapDragScaleToRest();
 
     const threshold = CONFIG.cardVisuals?.clickThresholdMS ?? 250;
     const distanceThreshold = CONFIG.cardVisuals?.clickDistanceThreshold ?? 10;
@@ -503,7 +513,7 @@ export class BlindChipBadge extends UINode {
     } else {
       this.badgeState = this.isMouseOver ? BadgeState.Hovered : BadgeState.Normal;
       if (this.isMouseOver) {
-        this.restartHoverScaleEntrance();
+        this.restartHoverScaleEntrance({ forceImmediate: true });
       }
     }
 
@@ -645,44 +655,52 @@ export class BlindChipBadge extends UINode {
     }
   }
 
+  /** 拖拽缩放瞬间归 1，并解除 hoverScale suppress。 */
+  private snapDragScaleToRest(): void {
+    this.dragScaleSpring.reset(1, 0);
+    this.dragScaleMul = 1;
+    this.dragScaleSpringTarget = 1;
+    this.dragScaleAnim = null;
+    this.suppressHoverScaleUntilReenter = false;
+  }
+
   private updateDragScale(dtMS: number): void {
-    if (this.dragScaleAnim === null) return;
-
-    const dragConf = CONFIG.dragHandCard;
-    const durationMS = scaleTimeMS(
-      this.dragScaleAnim === "in"
-        ? (dragConf?.dragScaleInDurationMS ?? 180)
-        : (dragConf?.dragScaleOutDurationMS ?? 180),
-    );
-
-    if (durationMS <= 0) {
-      const wasOut = this.dragScaleAnim === "out";
-      this.dragScaleMul = this.dragScaleToMul;
-      this.dragScaleAnim = null;
-      if (wasOut) {
-        this.suppressHoverScaleUntilReenter = false;
-        this.triggerHoverBreathing();
-      }
+    if (this.dragScaleAnim === "out") {
+      this.snapDragScaleToRest();
       return;
     }
 
-    this.dragScaleProgress = Math.min(1, this.dragScaleProgress + dtMS / durationMS);
-    const curve =
-      this.dragScaleAnim === "in"
-        ? dragConf?.dragScaleInCurve
-        : dragConf?.dragScaleOutCurve;
-    const t = curve ? sampleCurve(curve, this.dragScaleProgress) : this.dragScaleProgress;
-    this.dragScaleMul =
-      this.dragScaleFromMul + (this.dragScaleToMul - this.dragScaleFromMul) * t;
+    if (this.dragScaleAnim === null) {
+      this.dragScaleMul = this.dragScaleSpring.x;
+      return;
+    }
 
-    if (this.dragScaleProgress >= 1) {
-      const wasOut = this.dragScaleAnim === "out";
-      this.dragScaleMul = this.dragScaleToMul;
+    // dragScaleAnim === "in"
+    const dragConf = CONFIG.dragHandCard;
+    const springConf = dragConf?.scaleIn;
+    const target = this.dragScaleSpringTarget;
+    const params = {
+      mass: springConf?.mass ?? 1,
+      angularFreq: springConf?.angularFreq ?? 14,
+      dampingRatio: springConf?.dampingRatio ?? 0.45,
+    };
+    const maxDtSec = springConf?.maxDtSec ?? 1 / 30;
+    const substeps = springConf?.substeps ?? 2;
+    const eps = springConf?.settleEpsScale ?? 0.004;
+    const velEps = springConf?.settleVelScale ?? 0.05;
+
+    const speed = CONFIG.gameSpeed;
+    const effectiveDtMS =
+      dtMS * (Number.isFinite(speed) && speed > 0 ? speed : 1);
+    const dtSec = effectiveDtMS / 1000;
+
+    this.dragScaleSpring.step(dtSec, target, params, maxDtSec, substeps);
+    this.dragScaleMul = this.dragScaleSpring.x;
+
+    if (this.dragScaleSpring.isSettled(target, eps, velEps)) {
+      this.dragScaleSpring.reset(target, 0);
+      this.dragScaleMul = target;
       this.dragScaleAnim = null;
-      if (wasOut) {
-        this.suppressHoverScaleUntilReenter = false;
-        this.triggerHoverBreathing();
-      }
     }
   }
 
@@ -702,11 +720,21 @@ export class BlindChipBadge extends UINode {
   private triggerHoverBreathing(): void {
     const conf = CONFIG.cardVisuals;
     if (!conf?.hoverBreathingEnabled) return;
-    if ((conf.hoverBreathingDurationMS ?? 0) <= 0) return;
+    if ((conf.hoverBreathingMaxDurationMS ?? 0) <= 0) return;
+
+    const deg2rad = (deg: number) => (deg * Math.PI) / 180;
+    this.hoverBreathYSpring.reset(
+      conf.hoverBreathingImpulseY ?? 0,
+      conf.hoverBreathingImpulseYVel ?? 0,
+    );
+    this.hoverBreathRotSpring.reset(
+      deg2rad(conf.hoverBreathingImpulseRotDeg ?? 0),
+      deg2rad(conf.hoverBreathingImpulseRotVelDeg ?? 0),
+    );
+    this.hoverBreathingY = this.hoverBreathYSpring.x;
+    this.hoverWobbleRot = this.hoverBreathRotSpring.x;
+    this.hoverBreathingElapsedMS = 0;
     this.hoverBreathingActive = true;
-    this.hoverBreathingProgress = 0;
-    this.hoverBreathTime = 0;
-    this.hoverWobbleTime = 0;
   }
 
   private updateHoverBreathing(dtMS: number): void {
@@ -718,41 +746,64 @@ export class BlindChipBadge extends UINode {
     ) {
       this.hoverBreathingY = 0;
       this.hoverWobbleRot = 0;
-      if (!conf?.hoverBreathingEnabled) this.hoverBreathingActive = false;
+      if (!conf?.hoverBreathingEnabled || this.badgeState === BadgeState.Dragging) {
+        this.hoverBreathingActive = false;
+        this.hoverBreathYSpring.reset(0, 0);
+        this.hoverBreathRotSpring.reset(0, 0);
+        this.hoverBreathingElapsedMS = 0;
+      }
       return;
     }
 
-    const dur = Math.max(1, conf.hoverBreathingDurationMS ?? 1);
-    this.hoverBreathingProgress += dtMS / dur;
-    if (this.hoverBreathingProgress >= 1) {
+    const params = {
+      mass: conf.hoverBreathingMass ?? 1,
+      angularFreq: conf.hoverBreathingAngularFreq ?? 14,
+      dampingRatio: conf.hoverBreathingDampingRatio ?? 0.45,
+    };
+    const maxDtSec = conf.hoverBreathingMaxDtSec ?? 1 / 30;
+    const substeps = conf.hoverBreathingSubsteps ?? 2;
+    const maxDurationMS = conf.hoverBreathingMaxDurationMS ?? 1200;
+
+    const speed = CONFIG.gameSpeed;
+    const effectiveDtMS =
+      dtMS * (Number.isFinite(speed) && speed > 0 ? speed : 1);
+    const dtSec = effectiveDtMS / 1000;
+    this.hoverBreathingElapsedMS += effectiveDtMS;
+
+    this.hoverBreathYSpring.step(dtSec, 0, params, maxDtSec, substeps);
+    this.hoverBreathRotSpring.step(dtSec, 0, params, maxDtSec, substeps);
+    this.hoverBreathingY = this.hoverBreathYSpring.x;
+    this.hoverWobbleRot = this.hoverBreathRotSpring.x;
+
+    const deg2rad = (deg: number) => (deg * Math.PI) / 180;
+    const ySettled = this.hoverBreathYSpring.isSettled(
+      0,
+      conf.hoverBreathingSettleEpsY ?? 0.15,
+      conf.hoverBreathingSettleVelY ?? 2,
+    );
+    const rotSettled = this.hoverBreathRotSpring.isSettled(
+      0,
+      deg2rad(conf.hoverBreathingSettleEpsRotDeg ?? 0.15),
+      deg2rad(conf.hoverBreathingSettleVelRotDeg ?? 2),
+    );
+    const timedOut = this.hoverBreathingElapsedMS >= maxDurationMS;
+
+    if ((ySettled && rotSettled) || timedOut) {
       this.hoverBreathingActive = false;
-      this.hoverBreathingProgress = 0;
+      this.hoverBreathingElapsedMS = 0;
+      this.hoverBreathYSpring.reset(0, 0);
+      this.hoverBreathRotSpring.reset(0, 0);
       this.hoverBreathingY = 0;
       this.hoverWobbleRot = 0;
-      return;
     }
-
-    const speedDecay = Math.max(0, conf.hoverBreathingSpeedDecay ?? 0);
-    const ampDecay = Math.max(0, conf.hoverBreathingAmplitudeDecay ?? 0);
-    const speedEnv = Math.exp(-speedDecay * this.hoverBreathingProgress);
-    const ampEnv = Math.exp(-ampDecay * this.hoverBreathingProgress);
-
-    this.hoverBreathTime += dtMS * (conf.hoverBreathingSpeed ?? 0) * speedEnv;
-    this.hoverWobbleTime += dtMS * (conf.hoverWobbleSpeed ?? 0) * speedEnv;
-    this.hoverBreathingY =
-      Math.sin(this.hoverBreathTime) * (conf.hoverBreathingAmplitude ?? 0) * ampEnv;
-    this.hoverWobbleRot =
-      Math.cos(this.hoverWobbleTime) * (conf.hoverWobbleAmplitude ?? 0) * ampEnv;
   }
 
   private updateHoverScale(dtMS: number): void {
     const visualConf = CONFIG.cardVisuals;
     if (!visualConf?.hoverScaleEnabled) {
+      this.hoverScaleSpring.reset(1, 0);
       this.currentScale = 1;
-      this.hoverScaleProgress = 0;
-      this.hoverScaleSettled = false;
-      this.outOvershootActive = false;
-      this.outOvershootProgress = 0;
+      this.hoverScaleWasHovered = false;
       return;
     }
 
@@ -760,94 +811,39 @@ export class BlindChipBadge extends UINode {
       !this.suppressHoverScaleUntilReenter &&
       this.badgeState === BadgeState.Hovered;
 
-    if (isHovered) {
-      if (this.outOvershootActive) {
-        this.outOvershootActive = false;
-        this.outOvershootProgress = 0;
-      }
+    const settleScale = visualConf.hoverSettleScale ?? 1.05;
+    const target = isHovered ? settleScale : 1.0;
 
-      if (this.hoverScaleProgress < 1) {
-        const duration = visualConf.hoverScaleDurationMS || 250;
-        this.hoverScaleProgress = Math.min(1, this.hoverScaleProgress + dtMS / duration);
-        if (this.hoverScaleProgress >= 1) this.hoverScaleSettled = true;
-      }
-
-      const y = sampleCurve(visualConf.hoverScaleCurve, this.hoverScaleProgress);
-      const overshoot = visualConf.hoverOvershootScale;
-      const settle = visualConf.hoverSettleScale;
-      const N = Math.max(1, Math.floor(visualConf.hoverOvershootCount ?? 1));
-      const damping = Math.min(1, Math.max(0.0001, visualConf.hoverOvershootDamping ?? 0.5));
-
-      if (overshoot > settle && settle > 1.0) {
-        const y1 = 1 / (2 * N);
-        const baseY1 = 1.0 + (settle - 1.0) * y1;
-        const amp0 = overshoot - baseY1;
-        const phase = N * Math.PI * y;
-        const envelope = Math.pow(damping, N * y - 0.5);
-        const base = 1.0 + (settle - 1.0) * y;
-        this.currentScale = base + amp0 * envelope * Math.sin(phase);
-      } else {
-        const s = typeof settle === "number" ? settle : 1.05;
-        this.currentScale = 1.0 + (s - 1.0) * y;
-      }
-    } else {
-      const outN = Math.max(0, Math.floor(visualConf.hoverScaleOutOvershootCount ?? 0));
-
-      if (
-        !this.outOvershootActive &&
-        !this.hoverScaleSettled &&
-        this.hoverScaleProgress > 0 &&
-        outN >= 1
-      ) {
-        this.outOvershootActive = true;
-        this.outOvershootProgress = 0;
-        this.outOvershootStartScale = this.currentScale;
-        this.hoverScaleProgress = 0;
-      }
-
-      if (this.outOvershootActive) {
-        const duration = visualConf.hoverScaleOutDurationMS || 150;
-        this.outOvershootProgress = Math.min(1, this.outOvershootProgress + dtMS / duration);
-        const y = this.outOvershootProgress;
-        const N = Math.max(1, outN);
-        const damping = Math.min(
-          1,
-          Math.max(0.0001, visualConf.hoverScaleOutOvershootDamping ?? 0.5),
-        );
-        const startScale = this.outOvershootStartScale;
-        const firstScale = visualConf.hoverScaleOutOvershootFirstScale ?? 0.97;
-        const k = Math.min(N - 1, Math.floor(N * y));
-        const t = N * y - k;
-
-        const peakAt = (idx: number): number => {
-          if (idx <= 0) return startScale;
-          if (idx >= N) return 1.0;
-          const sign = (idx - 1) % 2 === 0 ? 1 : -1;
-          const mag = (firstScale - 1.0) * Math.pow(damping, idx - 1);
-          return 1.0 + sign * mag;
-        };
-
-        const a = peakAt(k);
-        const b = peakAt(k + 1);
-        const smoothT = (1 - Math.cos(Math.PI * t)) / 2;
-        this.currentScale = a + (b - a) * smoothT;
-
-        if (this.outOvershootProgress >= 1) {
-          this.currentScale = 1.0;
-          this.outOvershootActive = false;
-          this.outOvershootProgress = 0;
-          this.hoverScaleSettled = false;
-        }
-      } else {
-        if (this.hoverScaleProgress > 0) {
-          const duration = visualConf.hoverScaleOutDurationMS || 150;
-          this.hoverScaleProgress = Math.max(0, this.hoverScaleProgress - dtMS / duration);
-          if (this.hoverScaleProgress <= 0) this.hoverScaleSettled = false;
-        }
-        const speed = visualConf.hoverScaleOutSpeed || 0.15;
-        this.currentScale += (1.0 - this.currentScale) * speed * (dtMS / 16.67);
-      }
+    if (isHovered && !this.hoverScaleWasHovered) {
+      const x0 =
+        this.hoverScaleSpring.x + (visualConf.hoverScaleImpulseScale ?? 0);
+      this.hoverScaleSpring.reset(
+        x0,
+        visualConf.hoverScaleImpulseScaleVel ?? 0,
+      );
     }
+    this.hoverScaleWasHovered = isHovered;
+
+    const params = {
+      mass: visualConf.hoverScaleMass ?? 1,
+      angularFreq: visualConf.hoverScaleAngularFreq ?? 16,
+      dampingRatio: visualConf.hoverScaleDampingRatio ?? 0.45,
+    };
+    const maxDtSec = visualConf.hoverScaleMaxDtSec ?? 1 / 30;
+    const substeps = visualConf.hoverScaleSubsteps ?? 2;
+    const eps = visualConf.hoverScaleSettleEpsScale ?? 0.004;
+    const velEps = visualConf.hoverScaleSettleVelScale ?? 0.05;
+
+    const speed = CONFIG.gameSpeed;
+    const effectiveDtMS =
+      dtMS * (Number.isFinite(speed) && speed > 0 ? speed : 1);
+    const dtSec = effectiveDtMS / 1000;
+
+    this.hoverScaleSpring.step(dtSec, target, params, maxDtSec, substeps);
+    if (this.hoverScaleSpring.isSettled(target, eps, velEps)) {
+      this.hoverScaleSpring.reset(target, 0);
+    }
+    this.currentScale = this.hoverScaleSpring.x;
   }
 
   private updateMouse3DTilt(dtMS: number): void {
@@ -972,10 +968,12 @@ export class BlindChipBadge extends UINode {
   }
 
   private restartHoverScaleEntrance(opts?: { forceImmediate?: boolean }): void {
-    this.hoverScaleProgress = 0;
-    this.hoverScaleSettled = false;
-    this.outOvershootActive = false;
-    this.outOvershootProgress = 0;
+    const conf = CONFIG.cardVisuals;
+    const impulse = conf?.hoverScaleImpulseScale ?? 0;
+    const impulseVel = conf?.hoverScaleImpulseScaleVel ?? 0;
+    this.hoverScaleSpring.reset(1 + impulse, impulseVel);
+    this.currentScale = this.hoverScaleSpring.x;
+    this.hoverScaleWasHovered = true;
 
     const immediate = opts?.forceImmediate === true || this.dragScaleMul <= 1.02;
     if (immediate) {
@@ -983,6 +981,7 @@ export class BlindChipBadge extends UINode {
       this.triggerHoverBreathing();
     } else {
       this.suppressHoverScaleUntilReenter = true;
+      this.hoverScaleWasHovered = false;
     }
   }
 

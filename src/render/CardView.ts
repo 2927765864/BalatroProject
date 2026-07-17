@@ -12,8 +12,7 @@ import {
 import type { CardData } from "@domain/types";
 import { assets } from "@core/AssetManager";
 import { deferDestroyTexture } from "@core/DeferredTextureDestroy";
-import { CONFIG, isDrawingCards, scaleTimeMS } from "@game/config";
-import { sampleCurve } from "@/debug/BezierCurveEditor";
+import { CONFIG, isDrawingCards } from "@game/config";
 import { uiHierarchy } from "@ui/hierarchy";
 import { ElasticRopeMotion } from "@/motion/ElasticRopeMotion";
 import {
@@ -21,6 +20,7 @@ import {
   mapElasticRopeAnchorLocal,
   readElasticRopeParams,
 } from "@/motion/elasticRopeUtils";
+import { SpringDamper1D } from "@/motion/SpringDamper1D";
 import { CardSkin } from "./CardSkin";
 import { getPixelOutlineTexture } from "./PixelOutlineTexture";
 
@@ -247,46 +247,49 @@ export class CardView extends Container {
   // 常态伪3D倾斜呼吸晃动的时间累加器（随机初相，避免所有手牌同步）
   private idleTiltTime = Math.random() * Math.PI * 2;
   private currentScale = 1.0;
-  private hoverScaleProgress = 0;
-  // 拖拽缩放：以独立乘法通道作用到最终 displayWrapper.scale 上，
-  // 不污染 hover 流程对 currentScale 的写入。
-  // 0 = 进入态推进中；1 = 退出态推进中；null = 静止。
+  /** 悬停缩放弹簧（对齐 playPileSettleEffect / SpringDamper1D）。currentScale = spring.x */
+  private readonly hoverScaleSpring = (() => {
+    const s = new SpringDamper1D();
+    s.reset(1, 0);
+    return s;
+  })();
+  /** 上一帧是否处于悬停缩放目标（用于边沿冲量）。 */
+  private hoverScaleWasHovered = false;
+
+  // 拖拽缩放：独立乘法通道；弹簧目标在 pointerdown/up 切换。
   private dragScaleAnim: "in" | "out" | null = null;
-  private dragScaleProgress = 0;          // 0 → 1，按当前阶段时长推进
-  private dragScaleFromMul = 1.0;         // 当前阶段起点（用于打断时无缝衔接）
-  private dragScaleToMul = 1.0;           // 当前阶段终点
-  private dragScaleMul = 1.0;             // 当前帧实际应用的乘数
-  // 入场弹性动画是否已正常播放完毕（progress 达到 1）。
-  // 用显式 boolean 标志，避免依赖浮点比较判断"动画完结"。
-  private hoverScaleSettled = false;
-  // 入场动画被打断后，回缩过弹状态
-  // 仅当鼠标在入场动画未播完（hoverScaleSettled=false）就离开时启动。
-  private outOvershootActive = false;
-  private outOvershootProgress = 0;     // 0 → 1
-  private outOvershootStartScale = 1.0; // 离开瞬间的 currentScale
+  private dragScaleSpringTarget = 1.0;
+  private readonly dragScaleSpring = (() => {
+    const s = new SpringDamper1D();
+    s.reset(1, 0);
+    return s;
+  })();
+  private dragScaleMul = 1.0;
 
   // 松手后若 dragScaleMul 仍偏高：先压下 hoverScale 再放大，避免与 drag 缩放回落叠加顿挫。
-  // 由 restartHoverScaleEntrance() 在 dragScaleMul > 1.02 时置 true；同时会把 progress 打回 0。
-  // 解除时机：
-  //   (a) dragScale "out" 动画结束 → 以 progress=0 重新入场弹性；
-  //   (b) 新的 pointerover；
-  //   (c) pointerout。
-  // 注意：只设本标志而不重置 progress 时，短按几乎看不出重播（progress 仍≈1）。
+  // 由 restartHoverScaleEntrance() 在 dragScaleMul > 1.02 时置 true；同时重播入场冲量。
+  // 解除时机：(a) dragScale "out" 弹簧 settle 到 1；(b) 新的 pointerover；(c) pointerout。
   private suppressHoverScaleUntilReenter = false;
 
   // 鼠标触碰呼吸晃动（独立通道）：
-  // 一次性脱手脉冲，鼠标进入卡牌时触发：progress 0→1 按 hoverBreathingDurationMS 线性推进，
-  // 同时内部独立的相位累加器 hoverBreathTime / hoverWobbleTime 推进 sin/cos，
-  // 幅度由指数衰减包络 exp(-decay * progress) 控制（开头满幅、随时间衰减到接近 0）。
-  // 输出值 hoverBreathingY / hoverWobbleRot 会与常态 breathingY / wobbleRot 相加叠加，
-  // 与常态呼吸晃动相互独立、互不干扰。
+  // 一次性脱手脉冲：Y / Z-rot 各一条 SpringDamper1D（对齐 playPileSettleEffect 缩放通道）。
+  // 触发时设位置/速度冲量，目标恒为 0；欠阻尼自然过冲回落。
+  // 输出 hoverBreathingY / hoverWobbleRot 与常态 breathingY / wobbleRot 相加叠加。
   // active=false 时该通道完全归零（卡牌仅保留常态呼吸晃动）。
   private hoverBreathingActive = false;
-  private hoverBreathingProgress = 0; // 0 → 1
-  private hoverBreathTime = 0;        // 独立的 Y 位移呼吸相位
-  private hoverWobbleTime = 0;        // 独立的 Z 旋转晃动相位
-  private hoverBreathingY = 0;        // 当前帧 hover 通道 Y 位移输出
-  private hoverWobbleRot = 0;         // 当前帧 hover 通道 Z 旋转输出
+  private hoverBreathingElapsedMS = 0;
+  private readonly hoverBreathYSpring = (() => {
+    const s = new SpringDamper1D();
+    s.reset(0, 0);
+    return s;
+  })();
+  private readonly hoverBreathRotSpring = (() => {
+    const s = new SpringDamper1D();
+    s.reset(0, 0);
+    return s;
+  })();
+  private hoverBreathingY = 0; // 当前帧 hover 通道 Y 位移输出（像素）
+  private hoverWobbleRot = 0;  // 当前帧 hover 通道 Z 旋转输出（弧度）
 
   // 鼠标在卡牌本地坐标系下的位置（以左上角为 0,0；如果鼠标不在卡上则为 null）。
   // 由 pointer 事件 / 每帧 global→local 刷新写入，updateMouse3DTilt 消费。
@@ -1506,15 +1509,16 @@ export class CardView extends Container {
     this.cardState = CardState.Dragging;
     this.callbacks.onDragStart?.(this);
 
-    // 启动"进入拖拽"缩放动画：从当前 dragScaleMul 平滑过渡到 dragScaleTarget。
-    // 从当前 mul 起步，保证从 hover/未完成的 out 动画中打断也无缝。
+    // 进入拖拽：弹簧目标 → dragScaleTarget，用 scaleIn 弹簧参数 + 冲量。
     {
       const dragConf = CONFIG.dragHandCard;
+      const scaleIn = dragConf?.scaleIn;
       const target = dragConf?.dragScaleTarget ?? 1.15;
       this.dragScaleAnim = "in";
-      this.dragScaleProgress = 0;
-      this.dragScaleFromMul = this.dragScaleMul;
-      this.dragScaleToMul = target;
+      this.dragScaleSpringTarget = target;
+      const x0 = this.dragScaleSpring.x + (scaleIn?.impulseScale ?? 0);
+      this.dragScaleSpring.reset(x0, scaleIn?.impulseScaleVel ?? 0);
+      this.dragScaleMul = this.dragScaleSpring.x;
     }
 
     const parent = this.parent;
@@ -1619,13 +1623,9 @@ export class CardView extends Container {
 
     this.isDragging = false;
 
-    // 启动"退出拖拽"缩放动画：从当前 dragScaleMul 回到 1.0。
-    {
-      this.dragScaleAnim = "out";
-      this.dragScaleProgress = 0;
-      this.dragScaleFromMul = this.dragScaleMul;
-      this.dragScaleToMul = 1.0;
-    }
+    // 退出拖拽：拖拽缩放瞬间回 1（无 scaleOut 回落过程）。
+    // 触碰 hover / 呼吸入场仍由下方 restartHoverScaleEntrance 负责。
+    this.snapDragScaleToRest();
 
     // 获取配置中的快速点击时间阈值（卡牌操作逻辑专区：不受 gameSpeed 影响）
     const threshold = CONFIG.cardVisuals?.clickThresholdMS ?? 250;
@@ -1645,9 +1645,7 @@ export class CardView extends Container {
       }
 
       // 短按选中 / 取消选中：鼠标通常未离开，没有新的 pointerover。
-      // 必须强制把 hoverScale progress 打回 0，才能重播入场弹性（仅设 suppress 不够——
-      // 短按时 progress 几乎没降，松手后仍停在稳态）。
-      // forceImmediate：短按 dragScale 抬升有限，与弹性入场可叠加，立即重播更跟手。
+      // 必须强制把 hoverScale progress 打回 0，才能重播入场弹性。
       if (this.isMouseOver) {
         this.restartHoverScaleEntrance({ forceImmediate: true });
       }
@@ -1662,12 +1660,24 @@ export class CardView extends Container {
           ? CardState.Hovered
           : CardState.Normal;
 
-      // 长按/拖拽松手：重置 progress；若 dragScale 仍高则先 suppress，待 out 完成再入场。
+      // 长按/拖拽松手：dragScale 已瞬间=1，可直接重播触碰缩放/呼吸（不再等 out settle）。
       if (this.isMouseOver) {
-        this.restartHoverScaleEntrance();
+        this.restartHoverScaleEntrance({ forceImmediate: true });
       }
       this.callbacks.onDragEnd?.(this);
     }
+  }
+
+  /**
+   * 将拖拽缩放通道立刻归 1 并结束动画。
+   * 解除 hoverScale suppress，使后续触碰入场可立即生效。
+   */
+  private snapDragScaleToRest(): void {
+    this.dragScaleSpring.reset(1, 0);
+    this.dragScaleMul = 1;
+    this.dragScaleSpringTarget = 1;
+    this.dragScaleAnim = null;
+    this.suppressHoverScaleUntilReenter = false;
   }
 
   /**
@@ -1715,18 +1725,20 @@ export class CardView extends Container {
   /**
    * 强制重播触碰弹性缩放入场。
    *
-   * 短按选中/取消选中后鼠标常不离开，没有新 pointerover；若只设 suppress 而不把
-   * progress 打回 0，短按期间 progress 几乎不降，松手后仍停在稳态 → 看不到弹性。
+   * 短按选中/取消选中后鼠标常不离开，没有新 pointerover；若只改 suppress 而不重置弹簧，
+   * 松手后仍停在稳态 → 看不到弹性。此处按 playPileSettle 激励：x0=1+impulse，v0=impulseVel。
    *
-   * @param opts.forceImmediate 为 true 时立即入场（短按选中/取消：与 dragScale 可叠加）。
-   *   默认 false：若 dragScaleMul > 1.02 先 suppress，等 dragScale out 完成后再入场
-   *   （长按/拖拽松手，避免双重放大顿挫；out 结束时 updateDragScale 会清 suppress 并呼吸）。
+   * @param opts.forceImmediate 为 true 时立即入场（松手后 dragScale 已 snap 到 1，通常应立即重播）。
+   *   默认 false：若 dragScaleMul > 1.02 仍先 suppress（兼容其它调用路径）。
    */
   private restartHoverScaleEntrance(opts?: { forceImmediate?: boolean }): void {
-    this.hoverScaleProgress = 0;
-    this.hoverScaleSettled = false;
-    this.outOvershootActive = false;
-    this.outOvershootProgress = 0;
+    const conf = CONFIG.cardVisuals;
+    const impulse = conf?.hoverScaleImpulseScale ?? 0;
+    const impulseVel = conf?.hoverScaleImpulseScaleVel ?? 0;
+    this.hoverScaleSpring.reset(1 + impulse, impulseVel);
+    this.currentScale = this.hoverScaleSpring.x;
+    // 下一帧 isHovered 视为已进入，避免 updateHoverScale 再叠一次边沿冲量
+    this.hoverScaleWasHovered = true;
 
     const immediate = opts?.forceImmediate === true || this.dragScaleMul <= 1.02;
     if (immediate) {
@@ -1734,6 +1746,7 @@ export class CardView extends Container {
       this.triggerHoverBreathing();
     } else {
       this.suppressHoverScaleUntilReenter = true;
+      this.hoverScaleWasHovered = false;
     }
   }
 
@@ -1996,83 +2009,80 @@ export class CardView extends Container {
   }
 
   /**
-   * 推进"进入/退出拖拽"的缩放动画。
-   * 进入：dragScaleMul 从 1（或当前值）→ dragScaleTarget，受 dragScaleInCurve 控制。
-   * 退出：dragScaleMul 从当前值 → 1，受 dragScaleOutCurve 控制。
-   * 该乘数会在 applyVisuals 中与 currentScale 相乘，从而与 hover 等其他缩放复合。
+   * 推进拖拽缩放弹簧（对齐 playPileSettleEffect / SpringDamper1D）。
+   * 仅「按下放大」走 scaleIn 弹簧；松手由 snapDragScaleToRest 瞬间归 1，不再做 out 积分。
+   * 该乘数在 applyVisuals 中与 currentScale 相乘。
    */
   private updateDragScale(dtMS: number): void {
-    if (this.dragScaleAnim === null) return;
-
-    const dragConf = CONFIG.dragHandCard;
-    const durationMS = scaleTimeMS(
-      this.dragScaleAnim === "in"
-        ? (dragConf?.dragScaleInDurationMS ?? 180)
-        : (dragConf?.dragScaleOutDurationMS ?? 180),
-    );
-
-    if (durationMS <= 0) {
-      // 时长为 0：瞬间到位
-      const wasOut = this.dragScaleAnim === "out";
-      this.dragScaleMul = this.dragScaleToMul;
-      this.dragScaleAnim = null;
-      if (wasOut) {
-        // 卡牌完全回落：解除 pointerup 后的 hoverScale 抑制（短按选中/取消或长按），
-        // 并触发一次鼠标呼吸晃动。
-        this.suppressHoverScaleUntilReenter = false;
-        this.triggerHoverBreathing();
-      }
+    // 松手已改为瞬间归 1；若残留 "out" 状态则直接 snap，避免再播回落。
+    if (this.dragScaleAnim === "out") {
+      this.snapDragScaleToRest();
       return;
     }
 
-    this.dragScaleProgress = Math.min(1, this.dragScaleProgress + dtMS / durationMS);
+    if (this.dragScaleAnim === null) {
+      // 静止时仍保持 mul 与弹簧一致
+      this.dragScaleMul = this.dragScaleSpring.x;
+      return;
+    }
 
-    const curve =
-      this.dragScaleAnim === "in"
-        ? dragConf?.dragScaleInCurve
-        : dragConf?.dragScaleOutCurve;
+    // dragScaleAnim === "in"
+    const dragConf = CONFIG.dragHandCard;
+    const springConf = dragConf?.scaleIn;
+    const target = this.dragScaleSpringTarget;
+    const params = {
+      mass: springConf?.mass ?? 1,
+      angularFreq: springConf?.angularFreq ?? 14,
+      dampingRatio: springConf?.dampingRatio ?? 0.45,
+    };
+    const maxDtSec = springConf?.maxDtSec ?? 1 / 30;
+    const substeps = springConf?.substeps ?? 2;
+    const eps = springConf?.settleEpsScale ?? 0.004;
+    const velEps = springConf?.settleVelScale ?? 0.05;
 
-    // 注意：sampleCurve 在 curve.enabled=false 时返回 1（即立即吸附到终点），
-    // 这是与 hoverScale 一致的"禁用曲线 = 跳过缓动"语义。
-    const t = curve ? sampleCurve(curve, this.dragScaleProgress) : this.dragScaleProgress;
-    this.dragScaleMul = this.dragScaleFromMul + (this.dragScaleToMul - this.dragScaleFromMul) * t;
+    const speed = CONFIG.gameSpeed;
+    const effectiveDtMS =
+      dtMS * (Number.isFinite(speed) && speed > 0 ? speed : 1);
+    const dtSec = effectiveDtMS / 1000;
 
-    if (this.dragScaleProgress >= 1) {
-      const wasOut = this.dragScaleAnim === "out";
-      this.dragScaleMul = this.dragScaleToMul;
+    this.dragScaleSpring.step(dtSec, target, params, maxDtSec, substeps);
+    this.dragScaleMul = this.dragScaleSpring.x;
+
+    if (this.dragScaleSpring.isSettled(target, eps, velEps)) {
+      this.dragScaleSpring.reset(target, 0);
+      this.dragScaleMul = target;
       this.dragScaleAnim = null;
-      // "退出拖拽缩放"动画刚刚完成：卡牌从放大态完全回落到 1.0 的瞬间，
-      // (1) 解除 pointerup 后的 hoverScale 抑制（短按选中/取消选中，或长按/慢点击）——
-      //     让 hoverScale 从这一刻起按 cardState 重新入场放大（若鼠标仍在卡上），
-      //     从而重播触碰弹性缩放。
-      // (2) 触发一次"鼠标触碰呼吸晃动"——这是"鼠标呼吸晃动（触碰与回落）"专区的第二个触发点。
-      //     与 pointerover 共用同一参数集，因此动画风格与"鼠标进入卡牌时"完全一致。
-      if (wasOut) {
-        this.suppressHoverScaleUntilReenter = false;
-        this.triggerHoverBreathing();
-      }
     }
   }
 
   /**
-   * 触发一次"鼠标触碰呼吸晃动"脉冲（一次性脱手动画）。
+   * 触发一次"鼠标触碰呼吸晃动"脉冲（一次性脱手弹簧动画）。
    *
    * 同一个触发点被两处复用：
    *   1. pointerover：鼠标进入卡牌时；
-   *   2. 拖拽缩放退出动画完成时（dragScaleMul 从 dragScaleTarget 回到 1.0 的瞬间）——
-   *      参数面板中"鼠标呼吸晃动（触碰与回落）"专区的第二个触发点。
+   *   2. 松手后 restartHoverScaleEntrance（dragScale 已瞬间归 1）。
    *
-   * 每次触发都重置进度与两个独立相位，从满幅度起跳，可打断上一次未播完的脉冲。
-   * 配置未启用或时长无效时静默跳过。
+   * 每次触发重置 Y/rot 弹簧初值（位置冲量 + 速度冲量），可打断上一次未 settle 的脉冲。
+   * 配置未启用或 maxDurationMS≤0 时静默跳过。
    */
   private triggerHoverBreathing(): void {
     const conf = CONFIG.cardVisuals;
     if (!this.isVisualEnabled("hoverBreathing")) return;
-    if ((conf?.hoverBreathingDurationMS ?? 0) <= 0) return;
+    if ((conf?.hoverBreathingMaxDurationMS ?? 0) <= 0) return;
+
+    const deg2rad = (deg: number) => (deg * Math.PI) / 180;
+    this.hoverBreathYSpring.reset(
+      conf.hoverBreathingImpulseY ?? 0,
+      conf.hoverBreathingImpulseYVel ?? 0,
+    );
+    this.hoverBreathRotSpring.reset(
+      deg2rad(conf.hoverBreathingImpulseRotDeg ?? 0),
+      deg2rad(conf.hoverBreathingImpulseRotVelDeg ?? 0),
+    );
+    this.hoverBreathingY = this.hoverBreathYSpring.x;
+    this.hoverWobbleRot = this.hoverBreathRotSpring.x;
+    this.hoverBreathingElapsedMS = 0;
     this.hoverBreathingActive = true;
-    this.hoverBreathingProgress = 0;
-    this.hoverBreathTime = 0;
-    this.hoverWobbleTime = 0;
   }
 
   private updateBreathing(dtMS: number): void {
@@ -2094,14 +2104,11 @@ export class CardView extends Container {
   }
 
   /**
-   * 推进鼠标触碰呼吸晃动（独立通道）。
+   * 推进鼠标触碰呼吸晃动（独立通道，SpringDamper1D 双通道）。
    *
-   * 这是一段完全独立于常态呼吸晃动的"脱手式"动画：触发瞬间幅度最大，
-   * 随时间按指数包络 exp(-decay * progress) 衰减到接近 0，
-   * progress 到达 1 时整段动画结束，hover 通道完全归零。
-   *
-   * 输出 hoverBreathingY / hoverWobbleRot 会在 applyVisuals 中与常态值相加叠加，
-   * 因此与常态呼吸晃动相互独立、互不干扰。
+   * 对齐 playPileSettleEffect 缩放通道：共享 mass/ωn/ζ，Y 与 rot 独立积分，
+   * 目标恒为 0；双通道 settle 或达到 maxDurationMS 后归零。
+   * 输出与常态 breathing 在 applyVisuals 中相加叠加。
    */
   private updateHoverBreathing(dtMS: number): void {
     const conf = CONFIG.cardVisuals;
@@ -2116,193 +2123,112 @@ export class CardView extends Container {
     ) {
       this.hoverBreathingY = 0;
       this.hoverWobbleRot = 0;
-      // 关闭/中断时顺便复位 active，避免下次开启后残留脉冲。
-      if (!hoverBreathingOn) {
+      if (!hoverBreathingOn || this.cardState === CardState.Dragging) {
         this.hoverBreathingActive = false;
+        this.hoverBreathYSpring.reset(0, 0);
+        this.hoverBreathRotSpring.reset(0, 0);
+        this.hoverBreathingElapsedMS = 0;
       }
       return;
     }
 
-    const dur = Math.max(1, conf.hoverBreathingDurationMS ?? 1);
-    this.hoverBreathingProgress += dtMS / dur;
-    if (this.hoverBreathingProgress >= 1) {
-      // 动画结束：彻底清零
+    const params = {
+      mass: conf.hoverBreathingMass ?? 1,
+      angularFreq: conf.hoverBreathingAngularFreq ?? 14,
+      dampingRatio: conf.hoverBreathingDampingRatio ?? 0.45,
+    };
+    const maxDtSec = conf.hoverBreathingMaxDtSec ?? 1 / 30;
+    const substeps = conf.hoverBreathingSubsteps ?? 2;
+    const maxDurationMS = conf.hoverBreathingMaxDurationMS ?? 1200;
+
+    const speed = CONFIG.gameSpeed;
+    const effectiveDtMS =
+      dtMS * (Number.isFinite(speed) && speed > 0 ? speed : 1);
+    const dtSec = effectiveDtMS / 1000;
+    this.hoverBreathingElapsedMS += effectiveDtMS;
+
+    this.hoverBreathYSpring.step(dtSec, 0, params, maxDtSec, substeps);
+    this.hoverBreathRotSpring.step(dtSec, 0, params, maxDtSec, substeps);
+    this.hoverBreathingY = this.hoverBreathYSpring.x;
+    this.hoverWobbleRot = this.hoverBreathRotSpring.x;
+
+    const deg2rad = (deg: number) => (deg * Math.PI) / 180;
+    const ySettled = this.hoverBreathYSpring.isSettled(
+      0,
+      conf.hoverBreathingSettleEpsY ?? 0.15,
+      conf.hoverBreathingSettleVelY ?? 2,
+    );
+    const rotSettled = this.hoverBreathRotSpring.isSettled(
+      0,
+      deg2rad(conf.hoverBreathingSettleEpsRotDeg ?? 0.15),
+      deg2rad(conf.hoverBreathingSettleVelRotDeg ?? 2),
+    );
+    const timedOut = this.hoverBreathingElapsedMS >= maxDurationMS;
+
+    if ((ySettled && rotSettled) || timedOut) {
       this.hoverBreathingActive = false;
-      this.hoverBreathingProgress = 0;
+      this.hoverBreathingElapsedMS = 0;
+      this.hoverBreathYSpring.reset(0, 0);
+      this.hoverBreathRotSpring.reset(0, 0);
       this.hoverBreathingY = 0;
       this.hoverWobbleRot = 0;
-      return;
     }
-
-    // 两条独立的指数衰减包络：
-    //   speedEnv = exp(-speedDecay * progress)  → 缩放相位累加速度（频率随时间变慢）
-    //   ampEnv   = exp(-ampDecay   * progress)  → 缩放幅度（每帧 sin/cos 输出按比例变小）
-    // 同时衰减速度和幅度，避免出现"恒频高速振荡 + 幅度被生硬压扁"的截断观感。
-    const speedDecay = Math.max(0, conf.hoverBreathingSpeedDecay ?? 0);
-    const ampDecay = Math.max(0, conf.hoverBreathingAmplitudeDecay ?? 0);
-    const speedEnv = Math.exp(-speedDecay * this.hoverBreathingProgress);
-    const ampEnv = Math.exp(-ampDecay * this.hoverBreathingProgress);
-
-    // 独立相位累加：速率随时间衰减，因此振荡频率会随 progress 增长逐渐放慢
-    this.hoverBreathTime += dtMS * (conf.hoverBreathingSpeed ?? 0) * speedEnv;
-    this.hoverWobbleTime += dtMS * (conf.hoverWobbleSpeed ?? 0) * speedEnv;
-
-    this.hoverBreathingY = Math.sin(this.hoverBreathTime) * (conf.hoverBreathingAmplitude ?? 0) * ampEnv;
-    this.hoverWobbleRot = Math.cos(this.hoverWobbleTime) * (conf.hoverWobbleAmplitude ?? 0) * ampEnv;
   }
 
+  /**
+   * 鼠标触碰弹性缩放：连续 1D 弹簧追踪目标（对齐 playPileSettleEffect）。
+   * 悬停 target = hoverSettleScale；离开 target = 1；ζ&lt;1 自然过冲。
+   */
   private updateHoverScale(dtMS: number): void {
     const visualConf = CONFIG.cardVisuals;
     if (!visualConf || !this.isVisualEnabled("hoverScale")) {
+      this.hoverScaleSpring.reset(1, 0);
       this.currentScale = 1.0;
-      this.hoverScaleProgress = 0;
-      this.hoverScaleSettled = false;
-      this.outOvershootActive = false;
-      this.outOvershootProgress = 0;
-      // 立即把 displayWrapper 恢复到 1.0 缩放（applyVisuals 当帧也会同步，但这里保险一下）。
+      this.hoverScaleWasHovered = false;
       this.displayWrapper?.scale.set(1.0);
       return;
     }
 
-    // 如果鼠标在这个牌上游走 (Hovered) 或者是点击选中态且有鼠标悬停 (Selected + isMouseOver)。
-    // 但若 pointerup 后压下了"抑制再次放大"标志（短按选中/取消选中，或长按/慢点击松手），
-    // 则即便 cardState=Hovered/Selected 也按未悬停处理：走平滑回缩分支、与 dragScaleMul
-    // 同步回到 1.0；待 suppress 解除后再重新入场，从而重播触碰弹性缩放。
+    // Hovered，或 Selected 且鼠标仍在牌上。suppress 时强制走回 1.0。
     const isHovered =
       !this.suppressHoverScaleUntilReenter &&
-      (this.cardState === CardState.Hovered || (this.isMouseOver && this.cardState === CardState.Selected));
+      (this.cardState === CardState.Hovered ||
+        (this.isMouseOver && this.cardState === CardState.Selected));
 
-    if (isHovered) {
-      // 鼠标重新进入：取消正在进行的过弹回缩，回到入场分支。
-      // 注意 progress 不重置（如果还有残余 progress 就接着涨）。
-      if (this.outOvershootActive) {
-        this.outOvershootActive = false;
-        this.outOvershootProgress = 0;
-      }
+    const settleScale = visualConf.hoverSettleScale ?? 1.05;
+    const target = isHovered ? settleScale : 1.0;
 
-      // 触碰悬停：向 1 递增 progress
-      if (this.hoverScaleProgress < 1) {
-        const duration = visualConf.hoverScaleDurationMS || 250;
-        this.hoverScaleProgress = Math.min(1, this.hoverScaleProgress + dtMS / duration);
-        if (this.hoverScaleProgress >= 1) {
-          // 入场动画达到饱和点，标记为"正常完结"。
-          this.hoverScaleSettled = true;
-        }
-      }
-
-      const curve = visualConf.hoverScaleCurve;
-      // 采样曲线
-      const y = sampleCurve(curve, this.hoverScaleProgress);
-
-      const overshoot = visualConf.hoverOvershootScale;
-      const settle = visualConf.hoverSettleScale;
-      // 极值点数量 N：1=经典一次过弹；>=2 时引入阻尼振荡（首峰、谷、次峰、…）。
-      const N = Math.max(1, Math.floor(visualConf.hoverOvershootCount ?? 1));
-      // 阻尼因子 damping∈(0,1]：每过一个极值振幅乘以此因子。仅 N>=2 生效。
-      const damping = Math.min(1, Math.max(0.0001, visualConf.hoverOvershootDamping ?? 0.5));
-
-      if (overshoot > settle && settle > 1.0) {
-        // 阻尼正弦振荡过弹模型：
-        //   base(y) = 1 + (settle - 1) · y                    // 线性基线：1.0 → settle
-        //   phase(y) = N · π · y                              // y=0:0, y=1:Nπ，起止 sin=0
-        //   极值点位于 y_k = (2k-1)/(2N), k=1..N
-        //   envelope(y) = damping^(N·y - 0.5)                 // 在 y_k 处恰为 damping^(k-1)
-        //   amp0 由首峰 = overshoot 反推：amp0 = overshoot - base(y_1)
-        //   s(y) = base(y) + amp0 · envelope(y) · sin(phase)
-        const y1 = 1 / (2 * N);                                // 首峰位置
-        const baseY1 = 1.0 + (settle - 1.0) * y1;
-        const amp0 = overshoot - baseY1;
-        const phase = N * Math.PI * y;
-        // envelope = damping^(N·y - 0.5)。N·y - 0.5 在 y=0 时是 -0.5，会让 envelope > 1，
-        // 但此处 sin(phase=0)=0，osc 仍为 0，不影响起点。
-        const envelope = Math.pow(damping, N * y - 0.5);
-        const base = 1.0 + (settle - 1.0) * y;
-        this.currentScale = base + amp0 * envelope * Math.sin(phase);
-      } else {
-        // 退化分支：overshoot 未真正大于 settle，普通插值
-        const s = typeof settle === "number" ? settle : 1.05;
-        this.currentScale = 1.0 + (s - 1.0) * y;
-      }
-    } else {
-      // ── 离开分支 ──────────────────────────────────────────────
-      // 如果离开瞬间入场动画尚未播完（hoverScaleSettled=false）且配置了过弹次数 >= 1，
-      // 走"阻尼正弦振荡回缩过弹"；否则走原来的平滑插值回缩。
-
-      const outN = Math.max(0, Math.floor(visualConf.hoverScaleOutOvershootCount ?? 0));
-
-      // 触发判定：仅在尚未进入过弹回缩、入场动画未播至完结（!hoverScaleSettled）、
-      // 且本次确实有入场进度（progress > 0）时启动过弹回缩。
-      // 正常停留至稳态后再移开，hoverScaleSettled=true 会一直保持到本周期 progress 归零，
-      // 整个回缩期间持续走原平滑回缩，不会被误触发过弹。
-      // 注意：hoverScaleSettled 不在此处清零；在平滑回缩 progress 减到 0 时统一清零。
-      if (!this.outOvershootActive && !this.hoverScaleSettled && this.hoverScaleProgress > 0 && outN >= 1) {
-        this.outOvershootActive = true;
-        this.outOvershootProgress = 0;
-        this.outOvershootStartScale = this.currentScale;
-        // 立即停止入场 progress 的统计（避免回缩期间被误判为"未被打断"）
-        this.hoverScaleProgress = 0;
-      }
-
-      if (this.outOvershootActive) {
-        // ── 阻尼振荡回缩（围绕 1.0 振动，首峰目标可参数化）──
-        // y: 0 → 1，按 hoverScaleOutDurationMS 推进
-        const duration = visualConf.hoverScaleOutDurationMS || 150;
-        this.outOvershootProgress = Math.min(1, this.outOvershootProgress + dtMS / duration);
-        const y = this.outOvershootProgress;
-
-        const N = Math.max(1, outN);
-        const damping = Math.min(1, Math.max(0.0001, visualConf.hoverScaleOutOvershootDamping ?? 0.5));
-        const startScale = this.outOvershootStartScale;
-        const firstScale = visualConf.hoverScaleOutOvershootFirstScale ?? 0.97;
-
-        // 极值序列 peak[k] (k=0..N)：
-        //   peak[0] = startScale                                    // 起点
-        //   peak[1] = firstScale                                    // 首次过缩目标（用户参数，绝对 scale 值）
-        //   peak[k] = 1 + (firstScale - 1) · (-1)^(k-1) · damping^(k-1)   // 后续按 damping 衰减并左右穿越 1.0
-        //   peak[N] = 1.0                                           // 终点钉死
-        // 相邻极值之间用 (1 - cos(π·t))/2 余弦平滑过渡。
-        const k = Math.min(N - 1, Math.floor(N * y));               // 当前所在区间索引 [k, k+1]
-        const t = N * y - k;                                        // 区间内进度 0~1
-
-        const peakAt = (idx: number): number => {
-          if (idx <= 0) return startScale;
-          if (idx >= N) return 1.0;
-          // idx >= 1：从首峰起每步按 damping 衰减、符号交替穿越 1.0。
-          // idx=1: 系数 +1 → 1 + (firstScale - 1) = firstScale  ✓
-          // idx=2: 系数 -1·damping → 落到 1 的对侧并衰减
-          const sign = (idx - 1) % 2 === 0 ? 1 : -1;
-          const mag = (firstScale - 1.0) * Math.pow(damping, idx - 1);
-          return 1.0 + sign * mag;
-        };
-
-        const a = peakAt(k);
-        const b = peakAt(k + 1);
-        const smoothT = (1 - Math.cos(Math.PI * t)) / 2;
-        this.currentScale = a + (b - a) * smoothT;
-
-        if (this.outOvershootProgress >= 1) {
-          // 收尾：钉死到 1.0，退出过弹回缩态。
-          // 本次悬停周期结束，清掉"完结"标志，准备下一次悬停从头开始。
-          this.currentScale = 1.0;
-          this.outOvershootActive = false;
-          this.outOvershootProgress = 0;
-          this.hoverScaleSettled = false;
-        }
-      } else {
-        // ── 原平滑回缩 ──
-        if (this.hoverScaleProgress > 0) {
-          const duration = visualConf.hoverScaleOutDurationMS || 150;
-          this.hoverScaleProgress = Math.max(0, this.hoverScaleProgress - dtMS / duration);
-          if (this.hoverScaleProgress <= 0) {
-            // 平滑回缩完成（progress 归零）。本次悬停周期结束，清掉"完结"标志。
-            this.hoverScaleSettled = false;
-          }
-        }
-        const targetScale = 1.0;
-        const speed = visualConf.hoverScaleOutSpeed || 0.15;
-        this.currentScale += (targetScale - this.currentScale) * speed * (dtMS / 16.67);
-      }
+    // 边沿进入：在当前位置上叠加冲量（硬重播已由 restartHoverScaleEntrance 设好 wasHovered）
+    if (isHovered && !this.hoverScaleWasHovered) {
+      const x0 =
+        this.hoverScaleSpring.x + (visualConf.hoverScaleImpulseScale ?? 0);
+      this.hoverScaleSpring.reset(
+        x0,
+        visualConf.hoverScaleImpulseScaleVel ?? 0,
+      );
     }
+    this.hoverScaleWasHovered = isHovered;
+
+    const params = {
+      mass: visualConf.hoverScaleMass ?? 1,
+      angularFreq: visualConf.hoverScaleAngularFreq ?? 16,
+      dampingRatio: visualConf.hoverScaleDampingRatio ?? 0.45,
+    };
+    const maxDtSec = visualConf.hoverScaleMaxDtSec ?? 1 / 30;
+    const substeps = visualConf.hoverScaleSubsteps ?? 2;
+    const eps = visualConf.hoverScaleSettleEpsScale ?? 0.004;
+    const velEps = visualConf.hoverScaleSettleVelScale ?? 0.05;
+
+    const speed = CONFIG.gameSpeed;
+    const effectiveDtMS =
+      dtMS * (Number.isFinite(speed) && speed > 0 ? speed : 1);
+    const dtSec = effectiveDtMS / 1000;
+
+    this.hoverScaleSpring.step(dtSec, target, params, maxDtSec, substeps);
+    if (this.hoverScaleSpring.isSettled(target, eps, velEps)) {
+      this.hoverScaleSpring.reset(target, 0);
+    }
+    this.currentScale = this.hoverScaleSpring.x;
   }
 
   /**

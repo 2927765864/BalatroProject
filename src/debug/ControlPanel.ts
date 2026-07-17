@@ -157,9 +157,7 @@ export function setupControlPanel(
     recordHistory(key);
   }
 
-  let hoverScaleCurvePanel: BezierCurvePanel | null = null;
-  let dragScaleInCurvePanel: BezierCurvePanel | null = null;
-  let dragScaleOutCurvePanel: BezierCurvePanel | null = null;
+
   let bgBlockFadeCurvePanel: BezierCurvePanel | null = null;
   let bgBlockScaleCurvePanel: BezierCurvePanel | null = null;
   let jokerBgBlockFadeCurvePanel: BezierCurvePanel | null = null;
@@ -1188,45 +1186,35 @@ export function setupControlPanel(
 
     bindSectionExpand("inp-expandHoverScale", "val-expandHoverScale", "cardVisuals.expandedSections.hoverScale", "sect-hoverScale-params");
     bindToggle("inp-hoverScaleEnabled", "val-hoverScaleEnabled", "cardVisuals.hoverScaleEnabled");
-    bindNumber("inp-hoverOvershootScale", "val-hoverOvershootScale", "cardVisuals.hoverOvershootScale", { digits: 2 });
     bindNumber("inp-hoverSettleScale", "val-hoverSettleScale", "cardVisuals.hoverSettleScale", { digits: 2 });
-    bindNumber("inp-hoverOvershootCount", "val-hoverOvershootCount", "cardVisuals.hoverOvershootCount", { integer: true });
-    bindNumber("inp-hoverOvershootDamping", "val-hoverOvershootDamping", "cardVisuals.hoverOvershootDamping", { digits: 2 });
-    bindNumber("inp-hoverScaleDurationMS", "val-hoverScaleDurationMS", "cardVisuals.hoverScaleDurationMS", { integer: true });
-    bindNumber("inp-hoverScaleOutDurationMS", "val-hoverScaleOutDurationMS", "cardVisuals.hoverScaleOutDurationMS", { integer: true });
-    bindNumber("inp-hoverScaleOutOvershootCount", "val-hoverScaleOutOvershootCount", "cardVisuals.hoverScaleOutOvershootCount", { integer: true });
-    bindNumber("inp-hoverScaleOutOvershootFirstScale", "val-hoverScaleOutOvershootFirstScale", "cardVisuals.hoverScaleOutOvershootFirstScale", { digits: 2 });
-    bindNumber("inp-hoverScaleOutOvershootDamping", "val-hoverScaleOutOvershootDamping", "cardVisuals.hoverScaleOutOvershootDamping", { digits: 2 });
-    bindNumber("inp-hoverScaleOutSpeed", "val-hoverScaleOutSpeed", "cardVisuals.hoverScaleOutSpeed", { digits: 2 });
+    bindNumber("inp-hoverScaleAngularFreq", "val-hoverScaleAngularFreq", "cardVisuals.hoverScaleAngularFreq", { digits: 1 });
+    bindNumber("inp-hoverScaleDampingRatio", "val-hoverScaleDampingRatio", "cardVisuals.hoverScaleDampingRatio", { digits: 2 });
+    bindNumber("inp-hoverScaleMass", "val-hoverScaleMass", "cardVisuals.hoverScaleMass", { digits: 2 });
+    bindNumber("inp-hoverScaleImpulseScale", "val-hoverScaleImpulseScale", "cardVisuals.hoverScaleImpulseScale", { digits: 2 });
+    bindNumber("inp-hoverScaleImpulseScaleVel", "val-hoverScaleImpulseScaleVel", "cardVisuals.hoverScaleImpulseScaleVel", { digits: 2 });
+    bindNumber("inp-hoverScaleSettleEpsScale", "val-hoverScaleSettleEpsScale", "cardVisuals.hoverScaleSettleEpsScale", { digits: 4 });
+    bindNumber("inp-hoverScaleSettleVelScale", "val-hoverScaleSettleVelScale", "cardVisuals.hoverScaleSettleVelScale", { digits: 3 });
+    bindNumber("inp-hoverScaleMaxDtSec", "val-hoverScaleMaxDtSec", "cardVisuals.hoverScaleMaxDtSec", { digits: 4 });
+    bindNumber("inp-hoverScaleSubsteps", "val-hoverScaleSubsteps", "cardVisuals.hoverScaleSubsteps", { integer: true });
 
-    // === 曲线面板 ===
-    const hoverScaleCurveMount = document.getElementById("mount-hoverScaleCurve");
-    if (hoverScaleCurveMount && !hoverScaleCurvePanel) {
-      hoverScaleCurvePanel = buildCurvePanel(hoverScaleCurveMount, CONFIG.cardVisuals.hoverScaleCurve, {
-        label: "悬停弹性缩放曲线",
-        onChange: () => {
-          notify("cardVisuals.hoverScaleCurve", CONFIG.cardVisuals.hoverScaleCurve);
-        }
-      });
-
-      syncers.push(() => {
-        if (hoverScaleCurvePanel) {
-          hoverScaleCurvePanel.setCurve(CONFIG.cardVisuals.hoverScaleCurve);
-        }
-      });
-    }
-
-    // 鼠标呼吸晃动（触碰与回落）：独立于常态呼吸晃动，叠加应用。
+    // 鼠标呼吸晃动（触碰与回落）：SpringDamper1D 双通道（Y/rot），对齐出牌堆结算缩放通道。
     // 触发时机：(1) 鼠标 pointerover 进入卡牌；(2) 卡牌拖拽缩放退出动画完成（完全回落到 1.0）。
     bindSectionExpand("inp-expandHoverBreathing", "val-expandHoverBreathing", "cardVisuals.expandedSections.hoverBreathing", "sect-hoverBreathing-params");
     bindToggle("inp-hoverBreathingEnabled", "val-hoverBreathingEnabled", "cardVisuals.hoverBreathingEnabled");
-    bindNumber("inp-hoverBreathingDurationMS", "val-hoverBreathingDurationMS", "cardVisuals.hoverBreathingDurationMS", { integer: true });
-    bindNumber("inp-hoverBreathingSpeed", "val-hoverBreathingSpeed", "cardVisuals.hoverBreathingSpeed", { digits: 4 });
-    bindNumber("inp-hoverBreathingAmplitude", "val-hoverBreathingAmplitude", "cardVisuals.hoverBreathingAmplitude", { digits: 1 });
-    bindNumber("inp-hoverWobbleSpeed", "val-hoverWobbleSpeed", "cardVisuals.hoverWobbleSpeed", { digits: 4 });
-    bindNumber("inp-hoverWobbleAmplitude", "val-hoverWobbleAmplitude", "cardVisuals.hoverWobbleAmplitude", { digits: 3 });
-    bindNumber("inp-hoverBreathingSpeedDecay", "val-hoverBreathingSpeedDecay", "cardVisuals.hoverBreathingSpeedDecay", { digits: 2 });
-    bindNumber("inp-hoverBreathingAmplitudeDecay", "val-hoverBreathingAmplitudeDecay", "cardVisuals.hoverBreathingAmplitudeDecay", { digits: 2 });
+    bindNumber("inp-hoverBreathingAngularFreq", "val-hoverBreathingAngularFreq", "cardVisuals.hoverBreathingAngularFreq", { digits: 1 });
+    bindNumber("inp-hoverBreathingDampingRatio", "val-hoverBreathingDampingRatio", "cardVisuals.hoverBreathingDampingRatio", { digits: 2 });
+    bindNumber("inp-hoverBreathingMass", "val-hoverBreathingMass", "cardVisuals.hoverBreathingMass", { digits: 2 });
+    bindNumber("inp-hoverBreathingImpulseY", "val-hoverBreathingImpulseY", "cardVisuals.hoverBreathingImpulseY", { digits: 1 });
+    bindNumber("inp-hoverBreathingImpulseYVel", "val-hoverBreathingImpulseYVel", "cardVisuals.hoverBreathingImpulseYVel", { digits: 1 });
+    bindNumber("inp-hoverBreathingImpulseRotDeg", "val-hoverBreathingImpulseRotDeg", "cardVisuals.hoverBreathingImpulseRotDeg", { digits: 2 });
+    bindNumber("inp-hoverBreathingImpulseRotVelDeg", "val-hoverBreathingImpulseRotVelDeg", "cardVisuals.hoverBreathingImpulseRotVelDeg", { digits: 1 });
+    bindNumber("inp-hoverBreathingSettleEpsY", "val-hoverBreathingSettleEpsY", "cardVisuals.hoverBreathingSettleEpsY", { digits: 2 });
+    bindNumber("inp-hoverBreathingSettleVelY", "val-hoverBreathingSettleVelY", "cardVisuals.hoverBreathingSettleVelY", { digits: 1 });
+    bindNumber("inp-hoverBreathingSettleEpsRotDeg", "val-hoverBreathingSettleEpsRotDeg", "cardVisuals.hoverBreathingSettleEpsRotDeg", { digits: 2 });
+    bindNumber("inp-hoverBreathingSettleVelRotDeg", "val-hoverBreathingSettleVelRotDeg", "cardVisuals.hoverBreathingSettleVelRotDeg", { digits: 1 });
+    bindNumber("inp-hoverBreathingMaxDurationMS", "val-hoverBreathingMaxDurationMS", "cardVisuals.hoverBreathingMaxDurationMS", { integer: true });
+    bindNumber("inp-hoverBreathingMaxDtSec", "val-hoverBreathingMaxDtSec", "cardVisuals.hoverBreathingMaxDtSec", { digits: 4 });
+    bindNumber("inp-hoverBreathingSubsteps", "val-hoverBreathingSubsteps", "cardVisuals.hoverBreathingSubsteps", { integer: true });
 
     bindSectionExpand("inp-expandMouse3DTilt", "val-expandMouse3DTilt", "cardVisuals.expandedSections.mouse3DTilt", "sect-mouse3DTilt-params");
     bindToggle("inp-mouse3DTiltEnabled", "val-mouse3DTiltEnabled", "cardVisuals.mouse3DTiltEnabled");
@@ -1250,40 +1238,26 @@ export function setupControlPanel(
 
     bindSectionExpand("inp-expandDragHandCard", "val-expandDragHandCard", "cardVisuals.expandedSections.dragHandCard", "sect-dragHandCard-params");
     bindNumber("inp-dragScaleTarget", "val-dragScaleTarget", "dragHandCard.dragScaleTarget", { digits: 2 });
-    bindNumber("inp-dragScaleInDurationMS", "val-dragScaleInDurationMS", "dragHandCard.dragScaleInDurationMS", { integer: true });
-    bindNumber("inp-dragScaleOutDurationMS", "val-dragScaleOutDurationMS", "dragHandCard.dragScaleOutDurationMS", { integer: true });
-
-    const dragScaleInCurveMount = document.getElementById("mount-dragScaleInCurve");
-    if (dragScaleInCurveMount && !dragScaleInCurvePanel) {
-      dragScaleInCurvePanel = buildCurvePanel(dragScaleInCurveMount, CONFIG.dragHandCard.dragScaleInCurve, {
-        label: "进入拖拽缩放曲线",
-        onChange: () => {
-          notify("dragHandCard.dragScaleInCurve", CONFIG.dragHandCard.dragScaleInCurve);
-        }
-      });
-
-      syncers.push(() => {
-        if (dragScaleInCurvePanel) {
-          dragScaleInCurvePanel.setCurve(CONFIG.dragHandCard.dragScaleInCurve);
-        }
-      });
-    }
-
-    const dragScaleOutCurveMount = document.getElementById("mount-dragScaleOutCurve");
-    if (dragScaleOutCurveMount && !dragScaleOutCurvePanel) {
-      dragScaleOutCurvePanel = buildCurvePanel(dragScaleOutCurveMount, CONFIG.dragHandCard.dragScaleOutCurve, {
-        label: "退出拖拽缩放曲线",
-        onChange: () => {
-          notify("dragHandCard.dragScaleOutCurve", CONFIG.dragHandCard.dragScaleOutCurve);
-        }
-      });
-
-      syncers.push(() => {
-        if (dragScaleOutCurvePanel) {
-          dragScaleOutCurvePanel.setCurve(CONFIG.dragHandCard.dragScaleOutCurve);
-        }
-      });
-    }
+    // 按下放大（scaleIn）
+    bindNumber("inp-dragScaleInAngularFreq", "val-dragScaleInAngularFreq", "dragHandCard.scaleIn.angularFreq", { digits: 1 });
+    bindNumber("inp-dragScaleInDampingRatio", "val-dragScaleInDampingRatio", "dragHandCard.scaleIn.dampingRatio", { digits: 2 });
+    bindNumber("inp-dragScaleInMass", "val-dragScaleInMass", "dragHandCard.scaleIn.mass", { digits: 2 });
+    bindNumber("inp-dragScaleInImpulseScale", "val-dragScaleInImpulseScale", "dragHandCard.scaleIn.impulseScale", { digits: 2 });
+    bindNumber("inp-dragScaleInImpulseScaleVel", "val-dragScaleInImpulseScaleVel", "dragHandCard.scaleIn.impulseScaleVel", { digits: 2 });
+    bindNumber("inp-dragScaleInSettleEpsScale", "val-dragScaleInSettleEpsScale", "dragHandCard.scaleIn.settleEpsScale", { digits: 4 });
+    bindNumber("inp-dragScaleInSettleVelScale", "val-dragScaleInSettleVelScale", "dragHandCard.scaleIn.settleVelScale", { digits: 3 });
+    bindNumber("inp-dragScaleInMaxDtSec", "val-dragScaleInMaxDtSec", "dragHandCard.scaleIn.maxDtSec", { digits: 4 });
+    bindNumber("inp-dragScaleInSubsteps", "val-dragScaleInSubsteps", "dragHandCard.scaleIn.substeps", { integer: true });
+    // 松手缩小（scaleOut）
+    bindNumber("inp-dragScaleOutAngularFreq", "val-dragScaleOutAngularFreq", "dragHandCard.scaleOut.angularFreq", { digits: 1 });
+    bindNumber("inp-dragScaleOutDampingRatio", "val-dragScaleOutDampingRatio", "dragHandCard.scaleOut.dampingRatio", { digits: 2 });
+    bindNumber("inp-dragScaleOutMass", "val-dragScaleOutMass", "dragHandCard.scaleOut.mass", { digits: 2 });
+    bindNumber("inp-dragScaleOutImpulseScale", "val-dragScaleOutImpulseScale", "dragHandCard.scaleOut.impulseScale", { digits: 2 });
+    bindNumber("inp-dragScaleOutImpulseScaleVel", "val-dragScaleOutImpulseScaleVel", "dragHandCard.scaleOut.impulseScaleVel", { digits: 2 });
+    bindNumber("inp-dragScaleOutSettleEpsScale", "val-dragScaleOutSettleEpsScale", "dragHandCard.scaleOut.settleEpsScale", { digits: 4 });
+    bindNumber("inp-dragScaleOutSettleVelScale", "val-dragScaleOutSettleVelScale", "dragHandCard.scaleOut.settleVelScale", { digits: 3 });
+    bindNumber("inp-dragScaleOutMaxDtSec", "val-dragScaleOutMaxDtSec", "dragHandCard.scaleOut.maxDtSec", { digits: 4 });
+    bindNumber("inp-dragScaleOutSubsteps", "val-dragScaleOutSubsteps", "dragHandCard.scaleOut.substeps", { integer: true });
 
     // === 【抓牌】抓牌相关参数 ===
     bindSectionExpand("inp-expandDrawCard", "val-expandDrawCard", "cardVisuals.expandedSections.drawCard", "sect-drawCard-params");
@@ -1923,9 +1897,6 @@ export function setupControlPanel(
     destroy(): void {
       editModePicker?.destroy();
       hierarchyView?.destroy();
-      hoverScaleCurvePanel?.destroy();
-      dragScaleInCurvePanel?.destroy();
-      dragScaleOutCurvePanel?.destroy();
       bgBlockFadeCurvePanel?.destroy();
       bgBlockScaleCurvePanel?.destroy();
       jokerBgBlockFadeCurvePanel?.destroy();
