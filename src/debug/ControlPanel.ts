@@ -1660,14 +1660,16 @@ export function setupControlPanel(
     bindNumber("inp-jokerSettleTextEffectFirstCharDelayMS", "val-jokerSettleTextEffectFirstCharDelayMS", "jokerSettleTextEffect.firstCharDelayMS", { integer: true });
     bindNumber("inp-jokerSettleTextEffectCharIntervalMS", "val-jokerSettleTextEffectCharIntervalMS", "jokerSettleTextEffect.charIntervalMS", { integer: true });
     bindNumber("inp-jokerSettleTextEffectCharIntervalReductionMS", "val-jokerSettleTextEffectCharIntervalReductionMS", "jokerSettleTextEffect.charIntervalReductionMS", { integer: true });
-    bindNumber("inp-jokerSettleTextEffectCharScaleDurationMS", "val-jokerSettleTextEffectCharScaleDurationMS", "jokerSettleTextEffect.charScaleDurationMS", { integer: true });
-    bindNumber("inp-jokerSettleTextEffectCharMaxScale", "val-jokerSettleTextEffectCharMaxScale", "jokerSettleTextEffect.charMaxScale", { digits: 2 });
-    bindNumber("inp-jokerSettleTextEffectCharStableScale", "val-jokerSettleTextEffectCharStableScale", "jokerSettleTextEffect.charStableScale", { digits: 2 });
-    bindNumber("inp-jokerSettleTextEffectSwingPivotY", "val-jokerSettleTextEffectSwingPivotY", "jokerSettleTextEffect.swingPivotY", { digits: 1 });
-    bindNumber("inp-jokerSettleTextEffectSwingMaxAngleDeg", "val-jokerSettleTextEffectSwingMaxAngleDeg", "jokerSettleTextEffect.swingMaxAngleDeg", { digits: 1 });
-    bindNumber("inp-jokerSettleTextEffectSwingFrequency", "val-jokerSettleTextEffectSwingFrequency", "jokerSettleTextEffect.swingFrequency", { digits: 2 });
-    bindNumber("inp-jokerSettleTextEffectSwingDamping", "val-jokerSettleTextEffectSwingDamping", "jokerSettleTextEffect.swingDamping", { digits: 2 });
-    bindNumber("inp-jokerSettleTextEffectSwingDurationMS", "val-jokerSettleTextEffectSwingDurationMS", "jokerSettleTextEffect.swingDurationMS", { integer: true });
+    bindNumber("inp-jokerSettleTextEffectAngularFreq", "val-jokerSettleTextEffectAngularFreq", "jokerSettleTextEffect.angularFreq", { digits: 1 });
+    bindNumber("inp-jokerSettleTextEffectDampingRatio", "val-jokerSettleTextEffectDampingRatio", "jokerSettleTextEffect.dampingRatio", { digits: 2 });
+    bindNumber("inp-jokerSettleTextEffectMass", "val-jokerSettleTextEffectMass", "jokerSettleTextEffect.mass", { digits: 2 });
+    bindNumber("inp-jokerSettleTextEffectImpulseScale", "val-jokerSettleTextEffectImpulseScale", "jokerSettleTextEffect.impulseScale", { digits: 2 });
+    bindNumber("inp-jokerSettleTextEffectMaxDurationMS", "val-jokerSettleTextEffectMaxDurationMS", "jokerSettleTextEffect.maxDurationMS", { integer: true });
+    bindNumber("inp-jokerSettleTextEffectImpulseScaleVel", "val-jokerSettleTextEffectImpulseScaleVel", "jokerSettleTextEffect.impulseScaleVel", { digits: 2 });
+    bindNumber("inp-jokerSettleTextEffectSettleEpsScale", "val-jokerSettleTextEffectSettleEpsScale", "jokerSettleTextEffect.settleEpsScale", { digits: 4 });
+    bindNumber("inp-jokerSettleTextEffectSettleVelScale", "val-jokerSettleTextEffectSettleVelScale", "jokerSettleTextEffect.settleVelScale", { digits: 3 });
+    bindNumber("inp-jokerSettleTextEffectMaxDtSec", "val-jokerSettleTextEffectMaxDtSec", "jokerSettleTextEffect.maxDtSec", { digits: 4 });
+    bindNumber("inp-jokerSettleTextEffectSubsteps", "val-jokerSettleTextEffectSubsteps", "jokerSettleTextEffect.substeps", { integer: true });
     bindNumber("inp-jokerSettleTextEffectStayDurationMS", "val-jokerSettleTextEffectStayDurationMS", "jokerSettleTextEffect.stayDurationMS", { integer: true });
     bindNumber("inp-jokerSettleTextEffectFadeDurationMS", "val-jokerSettleTextEffectFadeDurationMS", "jokerSettleTextEffect.fadeDurationMS", { integer: true });
     bindNumber("inp-jokerSettleTextEffectShrinkAnchorY", "val-jokerSettleTextEffectShrinkAnchorY", "jokerSettleTextEffect.shrinkAnchorY", { digits: 2 });
@@ -1724,17 +1726,18 @@ export function setupControlPanel(
     bindNumber("inp-playPileSettleTextEffectFirstCharDelayMS", "val-playPileSettleTextEffectFirstCharDelayMS", "playPileSettleTextEffect.firstCharDelayMS", { integer: true });
     bindNumber("inp-playPileSettleTextEffectCharIntervalMS", "val-playPileSettleTextEffectCharIntervalMS", "playPileSettleTextEffect.charIntervalMS", { integer: true });
     bindNumber("inp-playPileSettleTextEffectCharIntervalReductionMS", "val-playPileSettleTextEffectCharIntervalReductionMS", "playPileSettleTextEffect.charIntervalReductionMS", { integer: true });
-    
-    bindNumber("inp-playPileSettleTextEffectCharScaleDurationMS", "val-playPileSettleTextEffectCharScaleDurationMS", "playPileSettleTextEffect.charScaleDurationMS", { integer: true });
-    bindNumber("inp-playPileSettleTextEffectCharMaxScale", "val-playPileSettleTextEffectCharMaxScale", "playPileSettleTextEffect.charMaxScale", { digits: 2 });
-    bindNumber("inp-playPileSettleTextEffectCharStableScale", "val-playPileSettleTextEffectCharStableScale", "playPileSettleTextEffect.charStableScale", { digits: 2 });
-    
-    bindNumber("inp-playPileSettleTextEffectSwingPivotY", "val-playPileSettleTextEffectSwingPivotY", "playPileSettleTextEffect.swingPivotY", { digits: 1 });
-    bindNumber("inp-playPileSettleTextEffectSwingMaxAngleDeg", "val-playPileSettleTextEffectSwingMaxAngleDeg", "playPileSettleTextEffect.swingMaxAngleDeg", { digits: 1 });
-    bindNumber("inp-playPileSettleTextEffectSwingFrequency", "val-playPileSettleTextEffectSwingFrequency", "playPileSettleTextEffect.swingFrequency", { digits: 2 });
-    bindNumber("inp-playPileSettleTextEffectSwingDamping", "val-playPileSettleTextEffectSwingDamping", "playPileSettleTextEffect.swingDamping", { digits: 2 });
-    bindNumber("inp-playPileSettleTextEffectSwingDurationMS", "val-playPileSettleTextEffectSwingDurationMS", "playPileSettleTextEffect.swingDurationMS", { integer: true });
-    
+
+    bindNumber("inp-playPileSettleTextEffectAngularFreq", "val-playPileSettleTextEffectAngularFreq", "playPileSettleTextEffect.angularFreq", { digits: 1 });
+    bindNumber("inp-playPileSettleTextEffectDampingRatio", "val-playPileSettleTextEffectDampingRatio", "playPileSettleTextEffect.dampingRatio", { digits: 2 });
+    bindNumber("inp-playPileSettleTextEffectMass", "val-playPileSettleTextEffectMass", "playPileSettleTextEffect.mass", { digits: 2 });
+    bindNumber("inp-playPileSettleTextEffectImpulseScale", "val-playPileSettleTextEffectImpulseScale", "playPileSettleTextEffect.impulseScale", { digits: 2 });
+    bindNumber("inp-playPileSettleTextEffectMaxDurationMS", "val-playPileSettleTextEffectMaxDurationMS", "playPileSettleTextEffect.maxDurationMS", { integer: true });
+    bindNumber("inp-playPileSettleTextEffectImpulseScaleVel", "val-playPileSettleTextEffectImpulseScaleVel", "playPileSettleTextEffect.impulseScaleVel", { digits: 2 });
+    bindNumber("inp-playPileSettleTextEffectSettleEpsScale", "val-playPileSettleTextEffectSettleEpsScale", "playPileSettleTextEffect.settleEpsScale", { digits: 4 });
+    bindNumber("inp-playPileSettleTextEffectSettleVelScale", "val-playPileSettleTextEffectSettleVelScale", "playPileSettleTextEffect.settleVelScale", { digits: 3 });
+    bindNumber("inp-playPileSettleTextEffectMaxDtSec", "val-playPileSettleTextEffectMaxDtSec", "playPileSettleTextEffect.maxDtSec", { digits: 4 });
+    bindNumber("inp-playPileSettleTextEffectSubsteps", "val-playPileSettleTextEffectSubsteps", "playPileSettleTextEffect.substeps", { integer: true });
+
     bindNumber("inp-playPileSettleTextEffectStayDurationMS", "val-playPileSettleTextEffectStayDurationMS", "playPileSettleTextEffect.stayDurationMS", { integer: true });
     bindNumber("inp-playPileSettleTextEffectFadeDurationMS", "val-playPileSettleTextEffectFadeDurationMS", "playPileSettleTextEffect.fadeDurationMS", { integer: true });
     bindNumber("inp-playPileSettleTextEffectShrinkAnchorY", "val-playPileSettleTextEffectShrinkAnchorY", "playPileSettleTextEffect.shrinkAnchorY", { digits: 2 });

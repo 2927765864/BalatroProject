@@ -4,7 +4,8 @@ import { Easing } from "@tween/Easing";
 import type { CardView } from "@render/CardView";
 import { GameFonts } from "@ui/fonts";
 import { sampleCurve } from "../debug/BezierCurveEditor";
-import { scaleTimeMS, type BezierCurveConfig } from "@game/config";
+import { CONFIG, scaleTimeMS, type BezierCurveConfig } from "@game/config";
+import { SpringDamper1D } from "@/motion/SpringDamper1D";
 
 /**
  * 文字视效（占位起步）
@@ -23,6 +24,48 @@ export interface PopTextOptions {
   riseY?: number;
   durationMS?: number;
 }
+
+/**
+ * 结算数字参数：单字 scale 弹簧 + 整串跟随卡牌视觉位姿（无独立不倒翁）。
+ * 见 docs/play-pile-settle-spring-damper-plan.md（scale 通道）；rot 由 CardView 结算摆动驱动。
+ */
+export type SettleTextSpringConfig = {
+  fontSize: number;
+  letterSpacing: number;
+  color: number;
+  offsetY: number;
+  firstCharDelayMS: number;
+  charIntervalMS: number;
+  charIntervalReductionMS: number;
+  mass: number;
+  angularFreq: number;
+  dampingRatio: number;
+  impulseScale: number;
+  impulseScaleVel: number;
+  settleEpsScale: number;
+  settleVelScale: number;
+  maxDurationMS: number;
+  maxDtSec: number;
+  substeps: number;
+  stayDurationMS: number;
+  fadeDurationMS: number;
+  shrinkAnchorY: number;
+  shadowEnabled: boolean;
+  shadowColor: number;
+  shadowAlpha: number;
+  shadowDistance: number;
+  shadowAngleDeg: number;
+  shadowBlur: number;
+  bgBlockEnabled: boolean;
+  bgBlockColor: number;
+  bgBlockInitAngleDeg: number;
+  bgBlockEndAngleDeg: number;
+  bgBlockDurationMS: number;
+  bgBlockFadeCurve: BezierCurveConfig;
+  bgBlockScaleCurve: BezierCurveConfig;
+  /** 数字后缀，如小丑倍率的 "倍率"；缺省为空（手牌筹码保持 "+N"）。 */
+  textSuffix?: string;
+};
 
 export const TextFx = {
   popUp(parent: Container, tm: TweenManager, opts: PopTextOptions): Promise<void> {
@@ -59,55 +102,18 @@ export const TextFx = {
   },
 
   /**
-   * 创建结算时的专用往复震荡、逐字弹出数字效果。
-   * 手牌筹码弹字默认 "+N"；小丑倍率弹字可通过 cfg.textSuffix 显示为 "+N倍率"。
-   *
-   * @param parent 效果容器所在的父级节点（通常是卡牌的 parent，以便文字在相同层级显示并独立于卡牌自身运动）
-   * @param tm 缓动管理器
-   * @param card 对应的卡牌视图
-   * @param value 数值（筹码或倍率加成）
-   * @param cfg 结算文字效果配置
+   * 结算专用弹字：
+   * - 逐字 scale 弹簧（目标 1，初值 1+impulseScale）
+   * - 整串 position/rotation 每帧跟随对应卡牌视觉中心与摆动
+   *   （CardView.displayWrapper 含 scoringRotOffset，与卡牌结算同源）
+   * - 无独立不倒翁角弹簧
    */
   createSettleText(
     parent: Container,
     tm: TweenManager,
     card: CardView,
     value: number,
-    cfg: {
-      fontSize: number;
-      letterSpacing: number;
-      color: number;
-      offsetY: number;
-      firstCharDelayMS: number;
-      charIntervalMS: number;
-      charIntervalReductionMS: number;
-      charScaleDurationMS: number;
-      charMaxScale: number;
-      charStableScale: number;
-      swingPivotY: number;
-      swingMaxAngleDeg: number;
-      swingFrequency: number;
-      swingDamping: number;
-      swingDurationMS: number;
-      stayDurationMS: number;
-      fadeDurationMS: number;
-      shrinkAnchorY: number;
-      shadowEnabled: boolean;
-      shadowColor: number;
-      shadowAlpha: number;
-      shadowDistance: number;
-      shadowAngleDeg: number;
-      shadowBlur: number;
-      bgBlockEnabled: boolean;
-      bgBlockColor: number;
-      bgBlockInitAngleDeg: number;
-      bgBlockEndAngleDeg: number;
-      bgBlockDurationMS: number;
-      bgBlockFadeCurve: BezierCurveConfig;
-      bgBlockScaleCurve: BezierCurveConfig;
-      /** 数字后缀，如小丑倍率的 "倍率"；缺省为空（手牌筹码保持 "+N"）。 */
-      textSuffix?: string;
-    }
+    cfg: SettleTextSpringConfig
   ): void {
     // 文字视效中的 ms 时间参数按 gameSpeed 缩放（面板仍显示 1× 基准值）
     cfg = {
@@ -115,8 +121,7 @@ export const TextFx = {
       firstCharDelayMS: scaleTimeMS(cfg.firstCharDelayMS),
       charIntervalMS: scaleTimeMS(cfg.charIntervalMS),
       charIntervalReductionMS: scaleTimeMS(cfg.charIntervalReductionMS),
-      charScaleDurationMS: scaleTimeMS(cfg.charScaleDurationMS),
-      swingDurationMS: scaleTimeMS(cfg.swingDurationMS),
+      maxDurationMS: scaleTimeMS(cfg.maxDurationMS),
       stayDurationMS: scaleTimeMS(cfg.stayDurationMS),
       fadeDurationMS: scaleTimeMS(cfg.fadeDurationMS),
       bgBlockDurationMS: scaleTimeMS(cfg.bgBlockDurationMS),
@@ -126,12 +131,11 @@ export const TextFx = {
     const chars = Array.from(textStr);
 
     const container = new Container();
-    const targetX = card.x;
-    const targetY = card.y + cfg.offsetY;
-
-    // 设置不倒翁往复摆动的旋转圆心（设置为 local 下方偏移 swingPivotY 像素处）
-    container.pivot.set(0, cfg.swingPivotY);
-    container.position.set(targetX, targetY + cfg.swingPivotY);
+    // pivot 保持中心：旋转 = 卡牌视觉旋转时，整串绕数字几何中心转（与牌心同心偏移）
+    container.pivot.set(0, 0);
+    const pose0 = card.getVisualFollowPoseInParent(cfg.offsetY);
+    container.position.set(pose0.x, pose0.y);
+    container.rotation = pose0.rotation;
     parent.addChild(container);
 
     const textStyle = {
@@ -147,98 +151,107 @@ export const TextFx = {
       dropShadowBlur: cfg.shadowBlur,
     };
 
-    // 实例化单字以便测量宽度并进行精确排版
-    const charTexts = chars.map((char) => new Text({
-      text: char,
-      style: textStyle,
-      resolution: Math.max(3, (window.devicePixelRatio || 1) * 2),
-    }));
+    const charTexts = chars.map(
+      (char) =>
+        new Text({
+          text: char,
+          style: textStyle,
+          resolution: Math.max(3, (window.devicePixelRatio || 1) * 2),
+        })
+    );
 
     const letterSpacing = cfg.letterSpacing;
     const widths = charTexts.map((t) => t.width);
-    const totalWidth = widths.reduce((sum, w) => sum + w, 0) + (chars.length - 1) * letterSpacing;
+    const totalWidth =
+      widths.reduce((sum, w) => sum + w, 0) + (chars.length - 1) * letterSpacing;
 
     let currentX = -totalWidth / 2;
     charTexts.forEach((t, idx) => {
       const w = widths[idx]!;
-
-      // 将 X 轴锚点设为 0，Y 轴锚点设为偏上。这样单字出现时会向右侧展开，其左侧边缘完全固定，实现"一个萝卜一个坑"的固定排版
+      // 左缘锚点 + 上偏 shrinkAnchorY：弹出时左侧固定、向右展开
       t.anchor.set(0, cfg.shrinkAnchorY);
-
-      // 设置 X 轴定位为其左边缘。
       t.x = currentX;
-      // 设置 Y 轴偏置补偿，使单字原本的几何中心在 local y = 0
       t.y = (cfg.shrinkAnchorY - 0.5) * t.height;
-
-      // 初始比例为 0 达到不可见
       t.scale.set(0);
-
       container.addChild(t);
       currentX += w + letterSpacing;
     });
 
-    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-    // 1. 逐字从小变大弹出（从左到右依次执行）
-    const animateChar = async (idx: number, delay: number) => {
-      if (delay > 0) {
-        await sleep(delay);
-      }
-      const t = charTexts[idx]!;
-      const upDur = cfg.charScaleDurationMS * 0.6;
-      const downDur = cfg.charScaleDurationMS * 0.4;
-
-      tm.add(
-        tm.create(t.scale)
-          .to({ x: cfg.charMaxScale, y: cfg.charMaxScale }, upDur)
-          .easing(Easing.cubicOut)
-          .onComplete(() => {
-            tm.add(
-              tm.create(t.scale)
-                .to({ x: cfg.charStableScale, y: cfg.charStableScale }, downDur)
-                .easing(Easing.quadInOut)
-            );
-          })
-      );
+    const springParams = {
+      mass: cfg.mass,
+      angularFreq: cfg.angularFreq,
+      dampingRatio: cfg.dampingRatio,
     };
 
-    let currentDelay = cfg.firstCharDelayMS;
+    // 逐字启动延迟（墙钟，ms 已 scaleTimeMS）
+    const startDelays: number[] = [];
+    let delayAcc = cfg.firstCharDelayMS;
     for (let j = 0; j < chars.length; j++) {
-      void animateChar(j, currentDelay);
+      startDelays.push(delayAcc);
       if (j < chars.length - 1) {
-        const stepDelay = Math.max(0, cfg.charIntervalMS - j * cfg.charIntervalReductionMS);
-        currentDelay += stepDelay;
+        const stepDelay = Math.max(
+          0,
+          cfg.charIntervalMS - j * cfg.charIntervalReductionMS
+        );
+        delayAcc += stepDelay;
       }
     }
+    const lastCharStartDelay = startDelays[chars.length - 1] ?? 0;
 
-    // 1.5 在完整数字全部从小变大后，生成背景蓝色小方块衬托效果
-    const spawnBgBlock = async () => {
-      if (!cfg.bgBlockEnabled) return;
-      const totalScaleDelay = currentDelay + cfg.charScaleDurationMS;
-      if (totalScaleDelay > 0) {
-        await sleep(totalScaleDelay);
+    const scaleSprings = chars.map(() => new SpringDamper1D());
+    const scaleStarted = chars.map(() => false);
+    const scaleSettled = chars.map(() => false);
+
+    let wallElapsedMS = 0;
+    let springElapsedMS = 0;
+    let lastWallNow = performance.now();
+    let lifeDone = false;
+    let bgSpawned = false;
+    let fadeStarted = false;
+    let bgContainer: Container | null = null;
+    // 背景方块相对跟随点的“本地旋转偏移”（动画过程中再叠加 tween 目标角）
+    let bgBaseFollowRot = 0;
+
+    const sleep = (ms: number) =>
+      new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+    const applyFollowPose = (): void => {
+      if (container.destroyed || card.destroyed) return;
+      const pose = card.getVisualFollowPoseInParent(cfg.offsetY);
+      container.position.set(pose.x, pose.y);
+      container.rotation = pose.rotation;
+      if (bgContainer && !bgContainer.destroyed) {
+        // 方块中心跟数字同一视觉锚点；自转角 = 卡牌角 + 方块自身 tween 角差
+        // 方块 spawn 时已设 init 角；onUpdate 里会写绝对 rotation，这里只同步位置
+        // 若方块旋转仍由独立 tween 写绝对角，则只跟位置，避免覆盖旋转动画。
+        bgContainer.position.set(pose.x, pose.y);
       }
-      if (container.destroyed) return;
+    };
 
-      // 背景容器定位到“数字整体的中心”——即 targetX / targetY（数字单字几何中心所在的世界坐标）。
-      // 关键点：pivot 必须保持 (0,0)，让缩放与旋转都围绕方块自身中心进行，
-      // 而不是沿用文字摆动用的 swingPivotY（否则 scale=0 时方块会塌缩到卡牌附近）。
-      const bgContainer = new Container();
-      bgContainer.position.set(targetX, targetY);
-      bgContainer.rotation = (cfg.bgBlockInitAngleDeg * Math.PI) / 180;
+    const spawnBgBlock = (): void => {
+      if (!cfg.bgBlockEnabled || bgSpawned || container.destroyed) return;
+      bgSpawned = true;
+
+      const pose = card.destroyed
+        ? { x: container.x, y: container.y, rotation: container.rotation }
+        : card.getVisualFollowPoseInParent(cfg.offsetY);
+
+      bgContainer = new Container();
+      bgContainer.position.set(pose.x, pose.y);
+      bgBaseFollowRot = pose.rotation;
+      // 方块自转：相对跟随角的本地 init→end（与旧语义一致，再叠卡牌角）
+      const initLocal = (cfg.bgBlockInitAngleDeg * Math.PI) / 180;
+      const endLocal = (cfg.bgBlockEndAngleDeg * Math.PI) / 180;
+      bgContainer.rotation = pose.rotation + initLocal;
       bgContainer.alpha = 1.0;
       bgContainer.scale.set(cfg.bgBlockScaleCurve.startScale);
 
       const bgBlock = new Graphics();
-      // 蓝色小方块的大小比文本宽度和高度稍大，让它作为一个很好的背景（直角方块，无圆角）
       const bgSize = Math.max(totalWidth + 24, cfg.fontSize * 1.6);
       bgBlock.rect(-bgSize / 2, -bgSize / 2, bgSize, bgSize);
       bgBlock.fill({ color: cfg.bgBlockColor });
-
-      // bgBlock 放在 bgContainer 的中心 (0, 0) 处
       bgContainer.addChild(bgBlock);
 
-      // 插入到 parent 的底层，刚好在 container 的下方，避免受 container 的生命周期、淡出和销毁限制
       const idx = parent.children.indexOf(container);
       if (idx >= 0) {
         parent.addChildAt(bgContainer, idx);
@@ -246,52 +259,62 @@ export const TextFx = {
         parent.addChild(bgContainer);
       }
 
-      const targetRotation = (cfg.bgBlockEndAngleDeg * Math.PI) / 180;
       const duration = cfg.bgBlockDurationMS;
-
-      // 旋转仍使用传统的 Easing 运动
-      tm.add(
-        tm.create(bgContainer)
-          .to({ rotation: targetRotation }, duration)
-          .easing(Easing.cubicOut)
-      );
-
-      // 通过 progressDummy 同时驱动“大小曲线缩放”与“透明度曲线淡出”
       const progressDummy = { t: 0 };
+      const bgRef = bgContainer;
+
       tm.add(
-        tm.create(progressDummy)
+        tm
+          .create(progressDummy)
           .to({ t: 1 }, duration)
           .easing(Easing.linear)
           .onUpdate(() => {
-            // 1. 缩放变化曲线
-            const currentScale = sampleCurve(cfg.bgBlockScaleCurve, progressDummy.t);
-            bgContainer.scale.set(currentScale);
+            if (!bgRef || bgRef.destroyed) return;
+            // 位置每帧由 applyFollowPose 同步；此处只驱动 scale / alpha / 相对转角
+            const followRot = card.destroyed
+              ? bgBaseFollowRot
+              : card.getVisualFollowPoseInParent(cfg.offsetY).rotation;
+            bgBaseFollowRot = followRot;
+            // 旋转缓动：cubicOut 等价进度（叠在卡牌视觉角上）
+            const easeT = 1 - Math.pow(1 - progressDummy.t, 3);
+            const easedLocal =
+              initLocal + (endLocal - initLocal) * easeT;
+            bgRef.rotation = followRot + easedLocal;
 
-            // 2. 透明度淡出曲线
-            const fadeProgress = sampleCurve(cfg.bgBlockFadeCurve, progressDummy.t);
-            bgContainer.alpha = Math.max(0, Math.min(1, 1 - fadeProgress));
+            const currentScale = sampleCurve(
+              cfg.bgBlockScaleCurve,
+              progressDummy.t
+            );
+            bgRef.scale.set(currentScale);
+            const fadeProgress = sampleCurve(
+              cfg.bgBlockFadeCurve,
+              progressDummy.t
+            );
+            bgRef.alpha = Math.max(0, Math.min(1, 1 - fadeProgress));
           })
           .onComplete(() => {
-            bgContainer.parent?.removeChild(bgContainer);
-            bgContainer.destroy({ children: true });
+            bgRef.parent?.removeChild(bgRef);
+            bgRef.destroy({ children: true });
+            if (bgContainer === bgRef) bgContainer = null;
           })
       );
     };
-    void spawnBgBlock();
 
-    // 2. 整个文本不倒翁往复摆动效果（阻尼简谐振动模型，与 "+" 出现一瞬间同步启动）
-    const dummy = { progress: 0 };
-    const maxRotRad = (cfg.swingMaxAngleDeg * Math.PI) / 180;
+    const handleStayAndFade = async (): Promise<void> => {
+      if (fadeStarted || container.destroyed) return;
+      fadeStarted = true;
+      for (const t of charTexts) {
+        if (!t.destroyed) t.scale.set(1);
+      }
 
-    // 3. 摆动平稳后静止并在停留一段时间后收缩淡出
-    const handleStayAndFade = async () => {
       if (cfg.stayDurationMS > 0) {
         await sleep(cfg.stayDurationMS);
       }
+      if (container.destroyed) return;
 
-      // 整体数字淡出：透明度 1 -> 0
       tm.add(
-        tm.create(container)
+        tm
+          .create(container)
           .to({ alpha: 0 }, cfg.fadeDurationMS)
           .easing(Easing.cubicOut)
           .onComplete(() => {
@@ -300,29 +323,105 @@ export const TextFx = {
           })
       );
 
-      // 单字独立变小：大小从 1 -> 0
       charTexts.forEach((t) => {
+        if (t.destroyed) return;
         tm.add(
-          tm.create(t.scale)
+          tm
+            .create(t.scale)
             .to({ x: 0, y: 0 }, cfg.fadeDurationMS)
             .easing(Easing.cubicOut)
         );
       });
     };
 
+    // 长时驱动：每帧积分 scale 弹簧 + 跟随卡牌位姿
+    const driver = { t: 0 };
     tm.add(
-      tm.create(dummy)
-        .to({ progress: 1 }, cfg.swingDurationMS)
+      tm
+        .create(driver)
+        .to({ t: 1 }, 60_000)
         .easing(Easing.linear)
         .onUpdate(() => {
-          const p = dummy.progress;
-          // θ(p) = θ_max * e^(-damping * p) * sin(p * 2 * PI * frequency)
-          const angle = maxRotRad * Math.exp(-cfg.swingDamping * p) * Math.sin(p * Math.PI * 2 * cfg.swingFrequency);
-          container.rotation = angle;
+          if (container.destroyed) return;
+
+          // 始终跟随（含 stay / fade），直到销毁
+          applyFollowPose();
+
+          if (lifeDone || fadeStarted) return;
+
+          const now = performance.now();
+          let wallDtMS = now - lastWallNow;
+          lastWallNow = now;
+          if (!Number.isFinite(wallDtMS) || wallDtMS < 0) wallDtMS = 0;
+          wallDtMS = Math.min(wallDtMS, Math.max(1e-3, cfg.maxDtSec) * 1000 * 2);
+
+          const speed = CONFIG.gameSpeed;
+          const speedMul = Number.isFinite(speed) && speed > 0 ? speed : 1;
+          const effectiveDtMS = wallDtMS * speedMul;
+          const dtSec = effectiveDtMS / 1000;
+
+          wallElapsedMS += wallDtMS;
+          springElapsedMS += effectiveDtMS;
+
+          // 1) 逐字 scale 弹簧
+          for (let i = 0; i < chars.length; i++) {
+            if (!scaleStarted[i] && wallElapsedMS >= (startDelays[i] ?? 0)) {
+              scaleStarted[i] = true;
+              scaleSprings[i]!.reset(
+                1 + cfg.impulseScale,
+                cfg.impulseScaleVel
+              );
+            }
+            if (scaleStarted[i] && !scaleSettled[i]) {
+              const s = scaleSprings[i]!;
+              s.step(dtSec, 1, springParams, cfg.maxDtSec, cfg.substeps);
+              if (
+                s.isSettled(1, cfg.settleEpsScale, cfg.settleVelScale) ||
+                springElapsedMS >= cfg.maxDurationMS
+              ) {
+                s.reset(1, 0);
+                scaleSettled[i] = true;
+              }
+              const t = charTexts[i]!;
+              if (!t.destroyed) {
+                const sc = Math.max(0, s.x);
+                t.scale.set(sc);
+              }
+            } else if (scaleSettled[i]) {
+              const t = charTexts[i]!;
+              if (!t.destroyed) t.scale.set(1);
+            }
+          }
+
+          // 2) 背景方块：全部单字 scale 收敛后弹出
+          if (
+            !bgSpawned &&
+            scaleSettled.every(Boolean) &&
+            scaleStarted.every(Boolean)
+          ) {
+            spawnBgBlock();
+          }
+          if (
+            !bgSpawned &&
+            wallElapsedMS >= lastCharStartDelay + cfg.maxDurationMS * 0.5
+          ) {
+            spawnBgBlock();
+          }
+
+          // 3) scale 通道 settle 或硬帽 → 停留淡出（rot 由卡牌驱动，不单独 settle）
+          const allScaleDone =
+            scaleSettled.every(Boolean) || chars.length === 0;
+          const timedOut = springElapsedMS >= cfg.maxDurationMS;
+          if (allScaleDone || timedOut) {
+            lifeDone = true;
+            void handleStayAndFade();
+          }
         })
         .onComplete(() => {
-          container.rotation = 0;
-          void handleStayAndFade();
+          if (!lifeDone && !container.destroyed) {
+            lifeDone = true;
+            void handleStayAndFade();
+          }
         })
     );
   },

@@ -187,6 +187,47 @@ export class CardView extends Container {
    */
   settleSpringTick: ((dtMS: number) => void) | null = null;
 
+  /**
+   * 父容器坐标系下的「视觉跟随位姿」：卡牌视觉中心 + 沿视觉朝向的 local 偏移。
+   * 旋转 = 外层 layout 角 + displayWrapper 内层角（含 scoringRotOffset 结算摆动）。
+   * 供结算数字等与卡牌左右摆动同源同步（不独立做不倒翁）。
+   *
+   * @param localOffsetY 相对视觉中心的 local Y（负值在牌面上方；与 CONFIG.offsetY 同语义）
+   */
+  getVisualFollowPoseInParent(localOffsetY = 0): {
+    x: number;
+    y: number;
+    rotation: number;
+  } {
+    const W = CardSkin.width;
+    const H = CardSkin.height;
+    const wrapper = this.displayWrapper;
+    const innerRot = wrapper ? wrapper.rotation : 0;
+    const innerLocalOffsetX = wrapper ? wrapper.position.x - W / 2 : 0;
+    const innerLocalOffsetY = wrapper ? wrapper.position.y - H / 2 : 0;
+
+    const cosOuter = Math.cos(this.rotation);
+    const sinOuter = Math.sin(this.rotation);
+    // displayWrapper 本地位移 → 父级（世界）偏移（含 this.scale）
+    const innerWorldOffsetX =
+      (innerLocalOffsetX * cosOuter - innerLocalOffsetY * sinOuter) * this.scale.x;
+    const innerWorldOffsetY =
+      (innerLocalOffsetX * sinOuter + innerLocalOffsetY * cosOuter) * this.scale.y;
+
+    const cx = this.x + innerWorldOffsetX;
+    const cy = this.y + innerWorldOffsetY;
+    const visualRot = this.rotation + innerRot;
+
+    // local (0, localOffsetY) 绕视觉中心旋转到父级坐标
+    const cosV = Math.cos(visualRot);
+    const sinV = Math.sin(visualRot);
+    return {
+      x: cx - sinV * localOffsetY,
+      y: cy + cosV * localOffsetY,
+      rotation: visualRot,
+    };
+  }
+
   // 当前卡牌在手牌数组中的索引（0 = 最左）。由 GameController.layoutHand() 每次重排时写入。
   // 用于"鼠标悬停伪3D倾斜"按位置插值卡牌强度（最左 vs 最右）。未参与布局时默认 0。
   handIndex = 0;

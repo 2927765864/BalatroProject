@@ -650,24 +650,39 @@ export interface RuntimeConfig {
     /** 结算数字触发延迟 ms（受 gameSpeed 缩放） */
     textTriggerMS: number;
   };
-  /** 【出牌】出牌堆的结算数字效果 */
+  /**
+   * 【出牌】出牌堆的结算数字效果
+   * - 单字 scale：弹簧阻尼（对齐 playPileSettleEffect / SpringDamper1D）
+   * - 整串左右摆动：不独立驱动，每帧跟随对应卡牌视觉中心与 displayWrapper 旋转
+   *   （含 scoringRotOffset，与卡牌结算同源）
+   */
   playPileSettleTextEffect: {
     enabled: boolean;
     fontSize: number;
     letterSpacing: number;
     color: number;
+    /** 相对卡牌视觉中心的 local Y 偏移（负值在上方；随卡牌旋转一起转） */
     offsetY: number;
+    /** 下列 *MS 时间参数均在 TextFx 内受 gameSpeed 缩放 */
     firstCharDelayMS: number;
     charIntervalMS: number;
     charIntervalReductionMS: number;
-    charScaleDurationMS: number;
-    charMaxScale: number;
-    charStableScale: number;
-    swingPivotY: number;
-    swingMaxAngleDeg: number;
-    swingFrequency: number;
-    swingDamping: number;
-    swingDurationMS: number;
+    /** 单字 scale 弹簧：质量 m */
+    mass: number;
+    /** 单字 scale 弹簧：自然频率 ωn (rad/s) */
+    angularFreq: number;
+    /** 单字 scale 弹簧：阻尼比 ζ */
+    dampingRatio: number;
+    /** 单字缩放初值偏离：xS0 = 1 + impulseScale（常用 -1 → 从 0 弹出） */
+    impulseScale: number;
+    /** 单字缩放初速度 (1/s) */
+    impulseScaleVel: number;
+    settleEpsScale: number;
+    settleVelScale: number;
+    /** 单字 scale 弹簧最长逻辑时长 ms（受 gameSpeed 缩放）；超时强制进入停留/淡出 */
+    maxDurationMS: number;
+    maxDtSec: number;
+    substeps: number;
     stayDurationMS: number;
     fadeDurationMS: number;
     shrinkAnchorY: number;
@@ -689,8 +704,9 @@ export interface RuntimeConfig {
   };
   /**
    * 【小丑】小丑牌的结算数字效果（含红色背景小方块）
-   * 与 playPileSettleTextEffect 同构，默认红底；额外提供 defaultMultBonus（默认 +10）与 textSuffix（默认 "倍率"）。
-   * 弹簧阻尼结算本身不设独立专区，直接复用 playPileSettleEffect。
+   * 与 playPileSettleTextEffect 同构（单字 scale 弹簧 + 跟随卡牌摆动），默认红底；
+   * 额外提供 defaultMultBonus（默认 +10）与 textSuffix（默认 "倍率"）。
+   * 卡牌本体弹簧结算不设独立专区，直接复用 playPileSettleEffect。
    */
   jokerSettleTextEffect: {
     enabled: boolean;
@@ -706,14 +722,16 @@ export interface RuntimeConfig {
     firstCharDelayMS: number;
     charIntervalMS: number;
     charIntervalReductionMS: number;
-    charScaleDurationMS: number;
-    charMaxScale: number;
-    charStableScale: number;
-    swingPivotY: number;
-    swingMaxAngleDeg: number;
-    swingFrequency: number;
-    swingDamping: number;
-    swingDurationMS: number;
+    mass: number;
+    angularFreq: number;
+    dampingRatio: number;
+    impulseScale: number;
+    impulseScaleVel: number;
+    settleEpsScale: number;
+    settleVelScale: number;
+    maxDurationMS: number;
+    maxDtSec: number;
+    substeps: number;
     stayDurationMS: number;
     fadeDurationMS: number;
     shrinkAnchorY: number;
@@ -1477,14 +1495,17 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     firstCharDelayMS: 0,
     charIntervalMS: 120,
     charIntervalReductionMS: 20,
-    charScaleDurationMS: 240,
-    charMaxScale: 1.1,
-    charStableScale: 1.0,
-    swingPivotY: 100,
-    swingMaxAngleDeg: 20,
-    swingFrequency: 3,
-    swingDamping: 3.5,
-    swingDurationMS: 1200,
+    // 单字 scale 弹簧（整串左右摆动跟随卡牌 scoringRotOffset，无独立 rot）
+    mass: 1,
+    angularFreq: 16,
+    dampingRatio: 0.4,
+    impulseScale: -1,
+    impulseScaleVel: 0,
+    settleEpsScale: 0.004,
+    settleVelScale: 0.05,
+    maxDurationMS: 1200,
+    maxDtSec: 1 / 30,
+    substeps: 2,
     stayDurationMS: 500,
     fadeDurationMS: 300,
     shrinkAnchorY: 0.2,
@@ -1516,7 +1537,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       p2: { x: 0.25, y: 1.0 },
     }) as BezierCurveConfig,
   }),
-  // 小丑结算弹簧参数复用 playPileSettleEffect；此处仅保留倍率弹字/红底方块。
+  // 小丑弹字与出牌堆结算数字同构（弹簧）；卡牌本体弹簧仍复用 playPileSettleEffect。
   jokerSettleTextEffect: Object.freeze({
     enabled: true,
     defaultMultBonus: 10,
@@ -1528,14 +1549,16 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     firstCharDelayMS: 0,
     charIntervalMS: 120,
     charIntervalReductionMS: 20,
-    charScaleDurationMS: 240,
-    charMaxScale: 1.1,
-    charStableScale: 1.0,
-    swingPivotY: 100,
-    swingMaxAngleDeg: 20,
-    swingFrequency: 3,
-    swingDamping: 3.5,
-    swingDurationMS: 1200,
+    mass: 1,
+    angularFreq: 16,
+    dampingRatio: 0.4,
+    impulseScale: -1,
+    impulseScaleVel: 0,
+    settleEpsScale: 0.004,
+    settleVelScale: 0.05,
+    maxDurationMS: 1200,
+    maxDtSec: 1 / 30,
+    substeps: 2,
     stayDurationMS: 500,
     fadeDurationMS: 300,
     shrinkAnchorY: 0.2,

@@ -2619,68 +2619,78 @@
                 <input id="inp-playPileSettleTextEffectCharIntervalReductionMS" type="number" step="5" min="0" max="200" />
               </div>
 
+              <div class="panel-row" style="opacity:0.9;font-size:11px;color:#9ab86c;">单字缩放弹簧（左右摆动跟随卡牌结算，无独立不倒翁）</div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>单字变大时长 (ms)</span>
-                  <span id="val-playPileSettleTextEffectCharScaleDurationMS">240</span>
+                  <span>数字弹簧 · 自然频率 ωn</span>
+                  <span id="val-playPileSettleTextEffectAngularFreq">16</span>
                 </div>
-                <input id="inp-playPileSettleTextEffectCharScaleDurationMS" type="number" step="10" min="0" max="1000" />
+                <input id="inp-playPileSettleTextEffectAngularFreq" type="number" step="0.5" min="0.5" max="60" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>数字弹簧 · 阻尼比 ζ</span>
+                  <span id="val-playPileSettleTextEffectDampingRatio">0.40</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectDampingRatio" type="number" step="0.05" min="0" max="3" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>数字弹簧 · 质量 m</span>
+                  <span id="val-playPileSettleTextEffectMass">1</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectMass" type="number" step="0.05" min="0.05" max="10" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>单字初始缩放偏离</span>
+                  <span id="val-playPileSettleTextEffectImpulseScale">-1.00</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectImpulseScale" type="number" step="0.05" min="-1.5" max="1" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>弹簧最长时长 (ms)</span>
+                  <span id="val-playPileSettleTextEffectMaxDurationMS">1200</span>
+                </div>
+                <input id="inp-playPileSettleTextEffectMaxDurationMS" type="number" step="50" min="100" max="5000" />
               </div>
 
+              <div class="panel-row" style="opacity:0.9;font-size:11px;color:#9ab86c;">进阶 · 冲量速度 / settle / 积分</div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>单字最大缩放</span>
-                  <span id="val-playPileSettleTextEffectCharMaxScale">1.10</span>
+                  <span>单字初始缩放速度 (1/s)</span>
+                  <span id="val-playPileSettleTextEffectImpulseScaleVel">0</span>
                 </div>
-                <input id="inp-playPileSettleTextEffectCharMaxScale" type="number" step="0.05" min="0.5" max="3" />
+                <input id="inp-playPileSettleTextEffectImpulseScaleVel" type="number" step="0.1" min="-40" max="40" />
               </div>
-
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>单字稳定缩放</span>
-                  <span id="val-playPileSettleTextEffectCharStableScale">1.00</span>
+                  <span>settle 缩放位置阈值</span>
+                  <span id="val-playPileSettleTextEffectSettleEpsScale">0.004</span>
                 </div>
-                <input id="inp-playPileSettleTextEffectCharStableScale" type="number" step="0.05" min="0.5" max="2" />
+                <input id="inp-playPileSettleTextEffectSettleEpsScale" type="number" step="0.001" min="0.0001" max="0.1" />
               </div>
-
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>不倒翁圆心Y偏移</span>
-                  <span id="val-playPileSettleTextEffectSwingPivotY">100.0</span>
+                  <span>settle 缩放速度阈值</span>
+                  <span id="val-playPileSettleTextEffectSettleVelScale">0.050</span>
                 </div>
-                <input id="inp-playPileSettleTextEffectSwingPivotY" type="number" step="10" min="10" max="300" />
+                <input id="inp-playPileSettleTextEffectSettleVelScale" type="number" step="0.005" min="0.001" max="2" />
               </div>
-
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>不倒翁最大角度 (度)</span>
-                  <span id="val-playPileSettleTextEffectSwingMaxAngleDeg">20.0</span>
+                  <span>积分 maxDt (s)</span>
+                  <span id="val-playPileSettleTextEffectMaxDtSec">0.0333</span>
                 </div>
-                <input id="inp-playPileSettleTextEffectSwingMaxAngleDeg" type="number" step="1" min="0" max="90" />
+                <input id="inp-playPileSettleTextEffectMaxDtSec" type="number" step="0.001" min="0.001" max="0.1" />
               </div>
-
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>不倒翁摆动频率</span>
-                  <span id="val-playPileSettleTextEffectSwingFrequency">3.00</span>
+                  <span>积分子步数</span>
+                  <span id="val-playPileSettleTextEffectSubsteps">2</span>
                 </div>
-                <input id="inp-playPileSettleTextEffectSwingFrequency" type="number" step="0.1" min="0.5" max="10" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>不倒翁摆动阻尼</span>
-                  <span id="val-playPileSettleTextEffectSwingDamping">3.50</span>
-                </div>
-                <input id="inp-playPileSettleTextEffectSwingDamping" type="number" step="0.1" min="0" max="10" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>不倒翁摆动时间 (ms)</span>
-                  <span id="val-playPileSettleTextEffectSwingDurationMS">1200</span>
-                </div>
-                <input id="inp-playPileSettleTextEffectSwingDurationMS" type="number" step="50" min="100" max="5000" />
+                <input id="inp-playPileSettleTextEffectSubsteps" type="number" step="1" min="1" max="16" />
               </div>
 
               <div class="panel-row">
@@ -3408,68 +3418,78 @@
                 <input id="inp-jokerSettleTextEffectCharIntervalReductionMS" type="number" step="5" min="0" max="200" />
               </div>
 
+              <div class="panel-row" style="opacity:0.9;font-size:11px;color:#9ab86c;">单字缩放弹簧（左右摆动跟随卡牌结算，无独立不倒翁）</div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>单字变大时长 (ms)</span>
-                  <span id="val-jokerSettleTextEffectCharScaleDurationMS">240</span>
+                  <span>数字弹簧 · 自然频率 ωn</span>
+                  <span id="val-jokerSettleTextEffectAngularFreq">16</span>
                 </div>
-                <input id="inp-jokerSettleTextEffectCharScaleDurationMS" type="number" step="10" min="0" max="1000" />
+                <input id="inp-jokerSettleTextEffectAngularFreq" type="number" step="0.5" min="0.5" max="60" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>数字弹簧 · 阻尼比 ζ</span>
+                  <span id="val-jokerSettleTextEffectDampingRatio">0.40</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectDampingRatio" type="number" step="0.05" min="0" max="3" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>数字弹簧 · 质量 m</span>
+                  <span id="val-jokerSettleTextEffectMass">1</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectMass" type="number" step="0.05" min="0.05" max="10" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>单字初始缩放偏离</span>
+                  <span id="val-jokerSettleTextEffectImpulseScale">-1.00</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectImpulseScale" type="number" step="0.05" min="-1.5" max="1" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>弹簧最长时长 (ms)</span>
+                  <span id="val-jokerSettleTextEffectMaxDurationMS">1200</span>
+                </div>
+                <input id="inp-jokerSettleTextEffectMaxDurationMS" type="number" step="50" min="100" max="5000" />
               </div>
 
+              <div class="panel-row" style="opacity:0.9;font-size:11px;color:#9ab86c;">进阶 · 冲量速度 / settle / 积分</div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>单字最大缩放</span>
-                  <span id="val-jokerSettleTextEffectCharMaxScale">1.10</span>
+                  <span>单字初始缩放速度 (1/s)</span>
+                  <span id="val-jokerSettleTextEffectImpulseScaleVel">0</span>
                 </div>
-                <input id="inp-jokerSettleTextEffectCharMaxScale" type="number" step="0.05" min="0.5" max="3" />
+                <input id="inp-jokerSettleTextEffectImpulseScaleVel" type="number" step="0.1" min="-40" max="40" />
               </div>
-
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>单字稳定缩放</span>
-                  <span id="val-jokerSettleTextEffectCharStableScale">1.00</span>
+                  <span>settle 缩放位置阈值</span>
+                  <span id="val-jokerSettleTextEffectSettleEpsScale">0.004</span>
                 </div>
-                <input id="inp-jokerSettleTextEffectCharStableScale" type="number" step="0.05" min="0.5" max="2" />
+                <input id="inp-jokerSettleTextEffectSettleEpsScale" type="number" step="0.001" min="0.0001" max="0.1" />
               </div>
-
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>不倒翁圆心Y偏移</span>
-                  <span id="val-jokerSettleTextEffectSwingPivotY">100.0</span>
+                  <span>settle 缩放速度阈值</span>
+                  <span id="val-jokerSettleTextEffectSettleVelScale">0.050</span>
                 </div>
-                <input id="inp-jokerSettleTextEffectSwingPivotY" type="number" step="10" min="10" max="300" />
+                <input id="inp-jokerSettleTextEffectSettleVelScale" type="number" step="0.005" min="0.001" max="2" />
               </div>
-
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>不倒翁最大角度 (度)</span>
-                  <span id="val-jokerSettleTextEffectSwingMaxAngleDeg">20.0</span>
+                  <span>积分 maxDt (s)</span>
+                  <span id="val-jokerSettleTextEffectMaxDtSec">0.0333</span>
                 </div>
-                <input id="inp-jokerSettleTextEffectSwingMaxAngleDeg" type="number" step="1" min="0" max="90" />
+                <input id="inp-jokerSettleTextEffectMaxDtSec" type="number" step="0.001" min="0.001" max="0.1" />
               </div>
-
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>不倒翁摆动频率</span>
-                  <span id="val-jokerSettleTextEffectSwingFrequency">3.00</span>
+                  <span>积分子步数</span>
+                  <span id="val-jokerSettleTextEffectSubsteps">2</span>
                 </div>
-                <input id="inp-jokerSettleTextEffectSwingFrequency" type="number" step="0.1" min="0.5" max="10" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>不倒翁摆动阻尼</span>
-                  <span id="val-jokerSettleTextEffectSwingDamping">3.50</span>
-                </div>
-                <input id="inp-jokerSettleTextEffectSwingDamping" type="number" step="0.1" min="0" max="10" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>不倒翁摆动时间 (ms)</span>
-                  <span id="val-jokerSettleTextEffectSwingDurationMS">1200</span>
-                </div>
-                <input id="inp-jokerSettleTextEffectSwingDurationMS" type="number" step="50" min="100" max="5000" />
+                <input id="inp-jokerSettleTextEffectSubsteps" type="number" step="1" min="1" max="16" />
               </div>
 
               <div class="panel-row">
