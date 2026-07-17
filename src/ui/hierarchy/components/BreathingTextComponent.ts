@@ -28,7 +28,8 @@
  *   - amplitudeMax   最高点（像素，负值=向上）
  *   - curve          单字起伏的速率曲线（三次贝塞尔，BezierCurveEditor）
  *
- * 注意：曲线经 time-warp 后喂给 sin²，端点固定位移为 0（见 sampleBreathCurve）。
+ * 注意：曲线经 time-warp 后喂给 sin / sin²，端点固定位移为 0（见 sampleBreathCurve）。
+ * loopGap=0 时走 seamless 采样，避免包络在谷底二阶贴地造成的假停顿。
  */
 import { UIComponent, type SerializedComponent } from "../UIComponent";
 import { uiHierarchy } from "../UIHierarchy";
@@ -69,17 +70,18 @@ const DEFAULT_DATA: BreathingTextData = {
   loopGap: 0,
   amplitudeMin: 0,
   amplitudeMax: -10,
-  // 默认曲线：easeOut（"快速上拉、缓缓回落"的呼吸感）。
-  // sampleBreathCurve 会把 t 折叠成 |2t-1| 的三角再过曲线，所以端点 (0,0)/(1,1)
-  // 的固定属性正好保证"起伏开始 / 结束时位移=0"。
+  // 默认曲线：近似线性（控制点在对角线上 1/3、2/3）。
+  // 旧默认 p1.y=0 / p2.y=1 会变成 smoothstep，两端速度被抹平，
+  // 再叠 sin² 包络后，即使 loopGap=0 也会在谷底「假停顿」一大截。
+  // sampleBreathCurve 端点位移仍固定为 0（sin/sin² 在 0、1 处为 0）。
   curve: {
     enabled: true,
     // startScale / endScale 在 BreathingText 里**未使用**（端点固定为 0）；
     // 留着是为了与 BezierCurvePanel 共用面板，便于以后扩展。
     startScale: 0,
     endScale: 1,
-    p1: { x: 0, y: 0 },
-    p2: { x: 0.58, y: 1 },
+    p1: { x: 1 / 3, y: 1 / 3 },
+    p2: { x: 2 / 3, y: 2 / 3 },
   },
 };
 
@@ -96,34 +98,48 @@ function cloneCurve(c: BezierCurveConfig): BezierCurveConfig {
 /**
  * 用曲线把 [0,1] 的归一化时间进度映射成"位移强度"。
  *
- * 设计要点（这版要解决"长周期下动画一帧一帧硬切"的卡顿感）：
+ * 设计要点：
  *
- *   1) 单字波形用 sin²(πt)：t=0→0.5→1 时位移 0→1→0，
- *      并且一阶导数在端点 / 峰值处都连续。换言之"位置"和"速度"
- *      都不会出现折角，长 cycle 时也不会有"上到顶突然反向"的硬切。
+ *   1) 包络基础形：t=0→0.5→1 时位移 0→1→0。
+ *      - seamless=true（loopGap=0）：用 sin(πt)。在谷底为一阶接触，
+ *        位置连续但速度在跨周期处反向——观感是"落地即再起"，
+ *        不会在 0 附近磨蹭。
+ *      - seamless=false（有字内停顿）：用 sin²(πt)。谷底 C¹ 贴地，
+ *        进入 loopGap 停顿时更自然，不会在切入静止时带一脚速度。
  *
- *   2) 曲线作为"时间整形 (time warping)"：先把原始时间 t 过贝塞尔
- *      得到一个新的 t'（曲线端点固定 (0,0)/(1,1)，本身就是 0→1 单调），
- *      再喂给 sin²。这样曲线的语义对呼吸来说是直观的：
- *        - Linear  ：标准正弦呼吸（上升下降对称）。
- *        - EaseOut ：前段被拉长 → "缓慢起、快速落"。
- *        - EaseIn  ：前段被压缩 → "快速起、缓慢落"。
- *        - Smooth  ：起伏更慢更柔，更像深呼吸。
+ *   2) 曲线作为"时间整形 (time warping)"：t → t' 后再喂给 sin/sin²。
+ *      注意：y-only 三次贝塞尔在 p1.y=0、p2.y=1 时等价 smoothstep，
+ *      会在两端把速度抹成 0。若再叠 sin² 的二阶贴地，长 cycle 下
+ *      即使 loopGap=0 也会出现「归位后假停顿」——这是本 bug 的根因。
  *
- *   旧实现把 t 折叠成 |2t-1| 的三角波，然后再喂给贝塞尔；三角波本身
- *   在峰值处导数不连续，所以即使曲线再光滑也会留下一个"折角"，
- *   长 cycle 时这一帧的速度突变就被看出来了。
+ *   3) seamless 时对端点做保护：靠近 t=0/1 处把 warped 拉回线性时间，
+ *      避免用户曲线/旧预设的 smoothstep 端点抹平再次制造假停顿。
+ *      曲线仍主导中段（升/降节奏与峰值位置）。
  */
-function sampleBreathCurve(curve: BezierCurveConfig, t: number): number {
+function sampleBreathCurve(
+  curve: BezierCurveConfig,
+  t: number,
+  seamless: boolean,
+): number {
   const tt = Math.max(0, Math.min(1, t));
-  // 第一步：时间整形。曲线未启用就走 identity（=纯正弦呼吸）。
-  const warped =
-    curve && curve.enabled !== false
-      ? Math.max(0, Math.min(1, cubic(0, curve.p1.y, curve.p2.y, 1, tt)))
-      : tt;
-  // 第二步：sin²(π * t') —— 在端点 / 峰值都 C¹ 连续的钟形波。
-  const s = Math.sin(Math.PI * warped);
-  return s * s;
+  let u = tt;
+  if (curve && curve.enabled !== false) {
+    const warped = Math.max(
+      0,
+      Math.min(1, cubic(0, curve.p1.y, curve.p2.y, 1, tt)),
+    );
+    if (seamless) {
+      // d: 到最近端点的距离；端点附近 protect→1，强制用线性时间
+      const d = Math.min(tt, 1 - tt);
+      const protect = Math.max(0, 1 - d * 6); // d≤1/6 时逐渐保护
+      u = warped * (1 - protect) + tt * protect;
+    } else {
+      u = warped;
+    }
+  }
+  const s = Math.sin(Math.PI * u);
+  // sin 在 [0,1] 上非负，与 sin² 同峰位；seamless 用 sin 减谷底贴地时间
+  return seamless ? s : s * s;
 }
 
 /** 判断宿主是不是 UIText（有 getPixiText 接口）。 */
@@ -230,7 +246,8 @@ export class BreathingTextComponent extends UIComponent implements CharEffect {
       // JS 的 % 对正数即正向取模；elapsed 已保证 >= 0。
       const local = elapsed % period;
       if (local < cycle) {
-        intensity = sampleBreathCurve(this.data.curve, local / cycle);
+        // gap===0 → seamless：谷底不贴地磨蹭，周期衔接连贯
+        intensity = sampleBreathCurve(this.data.curve, local / cycle, gap === 0);
       }
       // else: 处于本字 loopGap，intensity 保持 0
     }

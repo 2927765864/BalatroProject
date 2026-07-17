@@ -1,13 +1,17 @@
 /**
  * TextJitterComponent（【弹弹动画】文字抖动）
  * ---------------------------------------------------------------
- * 常态逐字角摆动：每个字符绕自身中心做顺/逆时针正弦微抖。
+ * 常态逐字角摆动：每个字符绕可配置轴点做顺/逆时针正弦微抖。
  * 实现 CharEffect，向宿主 CharLayer 注册；不触发、不自注销。
  *
  * 位数分级（读 CONFIG.textJitter）：
  *   n < minDigits → 幅度 0
  *   n == minDigits → baseAngleDeg
  *   n > minDigits → baseAngleDeg * digitGrowth^(n - minDigits)
+ *
+ * 轴点：pivotX / pivotY（0–1 归一化，默认 0.5/0.5 = 字心）。
+ * 通过 CharFrame.pivotX/Y 交给 CharLayer 做位置补偿，不改 display anchor，
+ * 故 Bounce 的 scale 仍绕中心，仅抖动旋转绕所选轴点。
  *
  * 阴影：不设 ignoreSilhouetteForShadow —— CharLayer 每帧对 rotation 变化
  * 同步 notifyVisualChanged，ShadowComponent 同帧重烤，阴影与数字共抖。
@@ -105,6 +109,18 @@ export class TextJitterComponent extends UIComponent implements CharEffect {
     const cfg = this.readConfig();
     if (!cfg || !cfg.enabled) return;
 
+    // 轴点始终写入（即使本帧幅度为 0），便于面板调参后立刻反映、阴影补偿一致。
+    const pivotX =
+      typeof cfg.pivotX === "number" && Number.isFinite(cfg.pivotX)
+        ? cfg.pivotX
+        : 0.5;
+    const pivotY =
+      typeof cfg.pivotY === "number" && Number.isFinite(cfg.pivotY)
+        ? cfg.pivotY
+        : 0.5;
+    acc.pivotX = pivotX;
+    acc.pivotY = pivotY;
+
     const scale = digitAmplitudeScale(count, cfg.digitGrowth, cfg.minDigits);
     if (scale <= 0 || cfg.baseAngleDeg === 0 || cfg.frequencyHz <= 0) return;
 
@@ -133,6 +149,8 @@ export class TextJitterComponent extends UIComponent implements CharEffect {
     digitGrowth: number;
     minDigits: number;
     speedRatio: number;
+    pivotX: number;
+    pivotY: number;
   } | null {
     if (this.configKey === "textJitter") {
       return CONFIG.textJitter;
@@ -147,6 +165,8 @@ export class TextJitterComponent extends UIComponent implements CharEffect {
       digitGrowth: number;
       minDigits: number;
       speedRatio: number;
+      pivotX: number;
+      pivotY: number;
     };
   }
 

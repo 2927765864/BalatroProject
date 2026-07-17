@@ -135,6 +135,17 @@ export interface TextJitterConfig {
   minDigits: number;
   /** 时间倍率（叠在 wall-clock 上；一般 1） */
   speedRatio: number;
+  /**
+   * 单字旋转轴点 X（归一化 0–1）。
+   * 0 = 字左缘，0.5 = 水平中心（默认），1 = 字右缘。
+   * 不改 CharLayer 的 display anchor（缩放仍绕中心），仅对抖动角位移做枢轴补偿。
+   */
+  pivotX: number;
+  /**
+   * 单字旋转轴点 Y（归一化 0–1）。
+   * 0 = 字顶，0.5 = 垂直中心（默认），1 = 字底。
+   */
+  pivotY: number;
 }
 
 /** 全屏 paint-mix 背景质量档（见 BackgroundView / BalatroBackgroundFilter）。 */
@@ -1773,6 +1784,9 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     digitGrowth: 1.2,
     minDigits: 2,
     speedRatio: 1,
+    // 默认绕单字几何中心摆动（与 CharLayer anchor 中心一致）。
+    pivotX: 0.5,
+    pivotY: 0.5,
   }),
   multBounce: Object.freeze({
     // 扫描节奏沿用旧弹弹；动力学对齐 playPileSettleEffect（略偏 UI 字更脆）。

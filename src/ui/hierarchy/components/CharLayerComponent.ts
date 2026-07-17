@@ -49,6 +49,48 @@ export interface CharFrame {
   scale: number;
   /** 旋转弧度（多个效果累加，初值 0）。 */
   rotation: number;
+  /**
+   * 旋转轴点（单字本地归一化 0–1）。
+   * 未设置时绕 Char 当前 anchor（水平中心 + 宿主 anchorY）旋转。
+   * 文字抖动可写入以偏离几何中心；缩放仍绕 display anchor，不受影响。
+   * 多个效果写入时以后写为准。
+   */
+  pivotX?: number;
+  pivotY?: number;
+}
+
+/**
+ * 将「绕 display anchor 旋转」补偿为「绕归一化轴点 (pivotX, pivotY) 旋转」。
+ * 返回应叠加到 position 的像素偏移（与 offsetX/Y 相加）。
+ */
+function rotationPivotOffset(
+  ch: Text,
+  rotation: number,
+  pivotX: number,
+  pivotY: number
+): { ox: number; oy: number } {
+  const ax = ch.anchor.x;
+  const ay = ch.anchor.y;
+  const px = pivotX;
+  const py = pivotY;
+  if (Math.abs(px - ax) < 1e-6 && Math.abs(py - ay) < 1e-6) {
+    return { ox: 0, oy: 0 };
+  }
+  // 用当前 scale 反推未缩放字号（tick 里已先写 scale）。
+  const sx = ch.scale.x !== 0 ? ch.scale.x : 1;
+  const sy = ch.scale.y !== 0 ? ch.scale.y : 1;
+  const w = ch.width / Math.abs(sx);
+  const h = ch.height / Math.abs(sy);
+  // 本地空间：从轴点指向 display anchor 的向量。
+  const dx = (ax - px) * w;
+  const dy = (ay - py) * h;
+  const c = Math.cos(rotation);
+  const s = Math.sin(rotation);
+  // 旋转后 anchor 相对轴点的位移 − 未旋转时的位移 = 需平移量，使轴点视觉上固定。
+  return {
+    ox: dx * c - dy * s - dx,
+    oy: dx * s + dy * c - dy,
+  };
 }
 
 /**
@@ -121,6 +163,12 @@ export class CharLayerComponent extends UIComponent {
    * 纯位移（呼吸）不算——阴影本就不该跟着起伏。
    */
   private wasSilhouetteActiveLastFrame = false;
+  /**
+   * 上一帧每个字因旋转轴点补偿产生的 position 偏移。
+   * 阴影重烤时保留该偏移（跟角抖），只剥掉 offsetX/Y（呼吸等）。
+   */
+  private lastPivotOx: number[] = [];
+  private lastPivotOy: number[] = [];
   /** App ticker 反注册。 */
   private unsubscribeTick: (() => void) | null = null;
 
@@ -262,6 +310,8 @@ export class CharLayerComponent extends UIComponent {
     this.chars = chars;
     this.baseX = baseX;
     this.baseY = baseY;
+    this.lastPivotOx = new Array(chars.length).fill(0);
+    this.lastPivotOy = new Array(chars.length).fill(0);
   }
 
   private teardownChars(): void {
@@ -272,6 +322,8 @@ export class CharLayerComponent extends UIComponent {
     this.chars = [];
     this.baseX = [];
     this.baseY = [];
+    this.lastPivotOx = [];
+    this.lastPivotOy = [];
   }
 
   // ---- 每帧 tick ------------------------------------------------
@@ -340,10 +392,31 @@ export class CharLayerComponent extends UIComponent {
           shadowRotation += acc.rotation - beforeRot;
         }
       }
-      // 3) 写回（视觉含全部效果，含呼吸位移）。
-      ch.position.set(this.baseX[i]! + acc.offsetX, this.baseY[i]! + acc.offsetY);
+      // 3) 写回 scale/rotation 后，再算轴点补偿（依赖未缩放字宽/高）。
       ch.scale.set(acc.scale);
       ch.rotation = acc.rotation;
+
+      let pivotOx = 0;
+      let pivotOy = 0;
+      if (
+        acc.pivotX !== undefined ||
+        acc.pivotY !== undefined ||
+        Math.abs(acc.rotation) > 1e-8
+      ) {
+        const px = acc.pivotX ?? ch.anchor.x;
+        const py = acc.pivotY ?? ch.anchor.y;
+        const piv = rotationPivotOffset(ch, acc.rotation, px, py);
+        pivotOx = piv.ox;
+        pivotOy = piv.oy;
+      }
+      this.lastPivotOx[i] = pivotOx;
+      this.lastPivotOy[i] = pivotOy;
+
+      // 视觉 position = 基线 + 效果位移（呼吸）+ 旋转轴点补偿。
+      ch.position.set(
+        this.baseX[i]! + acc.offsetX + pivotOx,
+        this.baseY[i]! + acc.offsetY + pivotOy
+      );
 
       if (
         Math.abs(shadowScale - 1) > 0.001 ||
@@ -365,10 +438,10 @@ export class CharLayerComponent extends UIComponent {
   }
 
   /**
-   * 为阴影重烤：临时去掉逐字 position 偏移（呼吸等），保留 scale/rotation，
-   * 同步 notifyVisualChanged，再恢复位移。
+   * 为阴影重烤：临时去掉逐字「非剪影」位移（呼吸 offsetX/Y），
+   * 保留 scale/rotation 以及旋转轴点补偿，同步 notifyVisualChanged，再恢复。
    *
-   * 这样阴影跟角抖 / 缩放，不跟上下起伏。
+   * 这样阴影跟角抖 / 缩放 / 轴点，不跟上下起伏。
    */
   private notifyShadowSilhouetteBake(): void {
     const count = this.chars.length;
@@ -383,7 +456,11 @@ export class CharLayerComponent extends UIComponent {
       const ch = this.chars[i]!;
       savedX[i] = ch.position.x;
       savedY[i] = ch.position.y;
-      ch.position.set(this.baseX[i]!, this.baseY[i]!);
+      // 钉在「基线 + 轴点补偿」，剥掉呼吸等 offset。
+      ch.position.set(
+        this.baseX[i]! + (this.lastPivotOx[i] ?? 0),
+        this.baseY[i]! + (this.lastPivotOy[i] ?? 0)
+      );
     }
 
     this.host.notifyVisualChanged();

@@ -1793,6 +1793,8 @@ export function setupControlPanel(
     bindNumber("inp-textJitterDigitGrowth", "val-textJitterDigitGrowth", "textJitter.digitGrowth", { digits: 2 });
     bindNumber("inp-textJitterMinDigits", "val-textJitterMinDigits", "textJitter.minDigits", { integer: true });
     bindNumber("inp-textJitterSpeedRatio", "val-textJitterSpeedRatio", "textJitter.speedRatio", { digits: 2 });
+    bindNumber("inp-textJitterPivotX", "val-textJitterPivotX", "textJitter.pivotX", { digits: 2 });
+    bindNumber("inp-textJitterPivotY", "val-textJitterPivotY", "textJitter.pivotY", { digits: 2 });
 
     // === 【弹弹动画】筹码数字 ===
     bindSectionExpand("inp-expandChipsBounce", "val-expandChipsBounce", "cardVisuals.expandedSections.chipsBounce", "sect-chipsBounce-params");

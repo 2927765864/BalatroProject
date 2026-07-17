@@ -505,7 +505,7 @@
         "multBounce": false,
         "evalScoreBounce": false,
         "evalScoreText": false,
-        "textJitter": false,
+        "textJitter": true,
         "mouseOffset": true,
         "cardOvershoot": false,
         "handSwap": false,
@@ -703,12 +703,14 @@
     },
     "textJitter": {
       "enabled": true,
-      "baseAngleDeg": 1.3,
-      "frequencyHz": 8,
+      "baseAngleDeg": 0.6,
+      "frequencyHz": 4,
       "phaseStaggerDeg": 55,
       "digitGrowth": 1.2,
       "minDigits": 2,
-      "speedRatio": 1
+      "speedRatio": 1,
+      "pivotX": 0.5,
+      "pivotY": 0
     },
     "joker": {
       "slotCount": 5,
@@ -2122,16 +2124,16 @@
             "type": "transform",
             "data": {
               "x": 124,
-              "y": 14,
+              "y": 45,
               "rotation": 0,
-              "scaleX": 1,
-              "scaleY": 1
+              "scaleX": 2,
+              "scaleY": 2
             }
           },
           {
             "type": "textStyle",
             "data": {
-              "text": "13"
+              "text": "16"
             }
           },
           {
@@ -2140,7 +2142,7 @@
               "color": "#000000",
               "alpha": 0.5,
               "angle": 45,
-              "distance": 4,
+              "distance": 2,
               "scaleX": 1,
               "scaleY": 1,
               "skewX": 0,
