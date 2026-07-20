@@ -181,18 +181,17 @@ export const PlayPileFx = {
   },
 
   /**
-   * 计分抬升：目标 = 当前 y 上移 peakDist（自然过冲由绳提供）。
+   * 计分抬升：目标 = 当前 y 上移 distancePx（运动/过冲由弹性绳决定）。
    */
   liftCardScoring(
     tm: TweenManager,
     card: CardView,
     cfg: {
-      startSpeed: number;
-      decelerateTime: number;
+      distancePx: number;
     }
   ): Promise<void> {
-    const peakDist = (cfg.startSpeed * cfg.decelerateTime) / 2;
-    const stableY = card.y - peakDist;
+    const liftPx = Math.max(0, cfg.distancePx);
+    const stableY = card.y - liftPx;
 
     card.isScoringLifted = true;
     card.updateShadow();

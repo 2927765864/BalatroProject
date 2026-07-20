@@ -763,16 +763,19 @@ export class GameController {
         const duration = this.getAnimationDuration(view, slot, speedRatio);
         view.startDrawFlip(duration);
 
-        const nextCardAdvance = GameConfig.drawCard?.nextCardAdvanceMS ?? 0;
-        const scaledNextAdvance = nextCardAdvance / speedRatio;
-
-        let delayMS = Math.max(0, duration - scaledNextAdvance);
+        // 抓牌触发间隔：与多牌统一间隔共用 multiCardInterval.intervalMS。
+        // 先 / gameSpeed（scaleTimeMS），再 / 抓牌 speedRatio（与弃牌一致）。
+        const baseDrawOnly = Math.max(0.01, GameConfig.drawCard?.speedRatio ?? 1.0);
+        let delayMS = Math.max(
+          0,
+          scaleTimeMS(GameConfig.multiCardInterval?.intervalMS ?? 0) / baseDrawOnly,
+        );
 
         if (drawn.length >= 4 && i === drawn.length - 2) {
           const lastCardAdvance = GameConfig.drawCard?.lastCardAdvanceMS ?? 150;
-          // 最后一组牌的提前量为下一张牌提前量与最后一张牌提前量叠加
+          // 抽牌数>=4 时，倒数第二张与最后一张之间额外提前（阶段专属，不并入统一间隔）
           const scaledLastAdvance = lastCardAdvance / speedRatio;
-          delayMS = Math.max(0, duration - (scaledNextAdvance + scaledLastAdvance));
+          delayMS = Math.max(0, delayMS - scaledLastAdvance);
         }
 
         if (i < drawn.length - 1) {
@@ -1612,8 +1615,11 @@ export class GameController {
       const discardCfg = GameConfig.discard;
       const speedRatio = Math.max(0.01, discardCfg?.speedRatio ?? 1.0);
       const flyDurationMS = Math.max(1, GameConfig.animation.flyOutDurationMS / speedRatio);
-      // 弃牌间隔 / 末张等待：卡牌逻辑 ms 参数，受 gameSpeed 缩放（再叠 speedRatio）
-      const intervalMS = Math.max(0, scaleTimeMS(discardCfg?.intervalMS ?? 0) / speedRatio);
+      // 触发间隔：多牌统一 multiCardInterval；末张等待仍为 discard.lastCardWaitMS
+      const intervalMS = Math.max(
+        0,
+        scaleTimeMS(GameConfig.multiCardInterval?.intervalMS ?? 0) / speedRatio,
+      );
 
       // 视觉：从左到右逐张错开飞向弃牌堆（屏幕正右方外、垂直居中），飞行途中翻约 90° 压成一条线。
       const flyPromises: Promise<void>[] = [];

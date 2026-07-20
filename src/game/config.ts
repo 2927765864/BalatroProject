@@ -518,16 +518,31 @@ export interface RuntimeConfig {
     /** 松手缩小回落弹簧 */
     scaleOut: DragHandCardScaleSpring;
   };
+  /**
+   * 【多牌统一间隔时间】
+   *
+   * 相邻两张牌「发车/触发」的统一错开间隔（ms），作用于：
+   *   1) 出牌：手牌飞向出牌堆；
+   *   2) 出牌堆上移 / 下移；
+   *   3) 出牌结束后飞向弃牌堆；
+   *   4) 主动弃牌飞向弃牌堆；
+   *   5) 抓牌飞向手牌堆。
+   * 仅统一「触发间隔」；各阶段进入/结束后的停留时间仍由各自专区控制。
+   * 受 gameSpeed 缩放（scaleTimeMS）；弃牌/抓牌另可叠各自 speedRatio。
+   */
+  multiCardInterval: {
+    /** 多牌触发间隔（ms，相邻两张错开） */
+    intervalMS: number;
+  };
   /** 【抓牌】抓牌相关参数 */
   drawCard: {
     /** 抽牌数>=4时，最后一张牌提前的时间 (ms)；基准值，不直接乘倍速 */
     lastCardAdvanceMS: number;
-    /** 下一张牌的提前时间 (ms)；基准值，不直接乘倍速 */
-    nextCardAdvanceMS: number;
     /**
      * 整体抽牌动画的速度比例（1× 基准，面板可调）。
      * 倍速生效方式：effectiveSpeedRatio = speedRatio * gameSpeed（如 1.4 × 2 = 2.8）。
      * 飞行估时与发牌错开间隔都会除以 effectiveSpeedRatio。
+     * 触发间隔见 multiCardInterval.intervalMS。
      */
     speedRatio: number;
     /** 是否启用初始旋转角度 */
@@ -584,14 +599,10 @@ export interface RuntimeConfig {
    */
   discard: {
     /**
-     * 弃牌时间间隔（ms，相邻两张牌发车的错开间隔，从左到右）。
-     * 同时作用于「主动弃牌」与「出牌结束弃牌」两类弃牌移动。
-     */
-    intervalMS: number;
-    /**
      * 整体弃牌动画的速度比例。
-     * 同时缩放单张飞出时长与弃牌间隔：>1 更快（时长/间隔变短），<1 更慢。
+     * 同时缩放单张飞出时长与弃牌触发间隔：>1 更快（时长/间隔变短），<1 更慢。
      * 与 animation.flyOutDurationMS 联动（实际飞行时长 = flyOutDurationMS / speedRatio）。
+     * 触发间隔见 multiCardInterval.intervalMS。
      */
     speedRatio: number;
     /**
@@ -660,27 +671,28 @@ export interface RuntimeConfig {
     /** 上移完成后、开始发新牌前的等待（ms）。 */
     postUpWaitMS: number;
   };
-  /** 【出牌】出牌堆的位移 */
+  /** 【出牌】出牌堆的位移（触发间隔见 multiCardInterval.intervalMS） */
   playPileDisplacement: {
     enabled: boolean;
     cardSpacing: number;
-    firstIntervalMS: number;
-    intervalReductionMS: number;
+    /**
+     * 全部牌落定后、进入上移前的停留（ms，受 gameSpeed 缩放）。
+     * 多牌发车触发间隔已统一到 multiCardInterval.intervalMS。
+     */
     lastIntervalMS: number;
   };
-  /** 【出牌】出牌堆上移效果 */
+  /** 【出牌】出牌堆上移效果（目标 y 上移 distancePx；运动由弹性绳完成） */
   playPileLiftEffect: {
     enabled: boolean;
     /**
-     * 抬升高度系数：与 decelerateTime 合成 peakDist = startSpeed * decelerateTime / 2。
-     * 位移仍由弹性绳完成；本字段只决定目标抬升量。
+     * 上移距离（px，正值向上）。
+     * 仅决定目标抬升量；位移曲线 / 过冲由全局弹性绳子牵引模型决定。
      */
-    startSpeed: number;
-    /** 抬升高度系数：减速时间（秒） */
-    decelerateTime: number;
-    /** 每张要抬起的牌之间的时间间隔 */
-    interval: number;
-    /** 所有应该上移的牌上移后，停留时间，用来延迟进入结算的时机 (ms) */
+    distancePx: number;
+    /**
+     * 所有应该上移的牌上移后，停留时间，用来延迟进入结算的时机 (ms)。
+     * 上移/下移触发间隔见 multiCardInterval.intervalMS。
+     */
     stayDuration: number;
     /** 上移阴影颜色 */
     shadowColor: number;
@@ -990,6 +1002,7 @@ export interface RuntimeConfig {
       selectMove: boolean;
       cardOps: boolean;
       cardMoveRotation: boolean;
+      multiCardInterval: boolean;
       drawCard: boolean;
       drawFlip: boolean;
       discard: boolean;
@@ -1017,13 +1030,7 @@ export interface RuntimeConfig {
      * 选中与取消卡牌的位移效果（弹性绳飞向 layout 目标；过冲由绳自然产生）
      *
      * 触发：快速点击手牌 → toggleSelection 翻转 view.selected（仅对那张牌）。
-     * 模型（与出牌堆抬升 / dropCardScoring 同构）：
-     *   第一段：当前位置 → 过冲点（target 沿 y 再越过 overshoot），
-     *          以 startSpeed 为初速度恒定减速到 0（Easing.quadOut），
-     *          时长 T = 2 * D / startSpeed（D = 起点→过冲点距离）。
-     *   第二段 spring：过冲点 → 真正落点，Easing.cubicOut 收敛，
-     *          时长 = round(1000 / stiffness)。
-     *
+     * 模型：setMoveTarget 到 layout 目标；位移/过冲由弹性绳完成。
      * 上移（选中 rise）与下移（取消 fall）参数完全独立，可分别调手感。
      *
      * 注：动画期间该牌 isSelectAnimating=true，layoutHand 跳过对其下发 moveTo，
@@ -1475,9 +1482,11 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       substeps: 2,
     }),
   }),
+  multiCardInterval: Object.freeze({
+    intervalMS: 150,
+  }),
   drawCard: Object.freeze({
     lastCardAdvanceMS: 150,
-    nextCardAdvanceMS: 0,
     speedRatio: 1.0,
     useInitialRotation: false,
     initialRotationDeg: -15,
@@ -1490,7 +1499,6 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     secondHalfJitter: 0.15,
   }),
   discard: Object.freeze({
-    intervalMS: 80,
     speedRatio: 1.0,
     lastCardWaitMS: 0,
   }),
@@ -1514,15 +1522,12 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
   playPileDisplacement: Object.freeze({
     enabled: true,
     cardSpacing: 70,
-    firstIntervalMS: 400,
-    intervalReductionMS: 80,
     lastIntervalMS: 160,
   }),
   playPileLiftEffect: Object.freeze({
     enabled: true,
-    startSpeed: 400,
-    decelerateTime: 0.35,
-    interval: 150,
+    /** 默认 ≈ 旧 peakDist = 400 * 0.35 / 2 */
+    distancePx: 70,
     stayDuration: 0,
     shadowColor: 0x000000,
     shadowAlpha: 0.35,
@@ -1748,6 +1753,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       selectMove: true,
       cardOps: true,
       cardMoveRotation: true,
+      multiCardInterval: true,
       drawCard: true,
       drawFlip: true,
       discard: true,
@@ -2027,6 +2033,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
       scaleIn: { ...src.dragHandCard.scaleIn },
       scaleOut: { ...src.dragHandCard.scaleOut },
     },
+    multiCardInterval: { ...src.multiCardInterval },
     drawCard: { ...src.drawCard },
     drawFlip: { ...src.drawFlip },
     discard: { ...src.discard },
@@ -2148,6 +2155,21 @@ export function migrateConfig(input: unknown): unknown {
     }
   }
 
+  // 旧 preset：把分散的多牌触发间隔收敛到 multiCardInterval.intervalMS。
+  // 优先 discard.intervalMS（弃牌/出牌结束共用），其次抬牌 interval、出牌位移 firstIntervalMS。
+  if (!obj["multiCardInterval"] || typeof obj["multiCardInterval"] !== "object") {
+    const discard = obj["discard"] as Record<string, unknown> | undefined;
+    const lift = obj["playPileLiftEffect"] as Record<string, unknown> | undefined;
+    const disp = obj["playPileDisplacement"] as Record<string, unknown> | undefined;
+    const seed =
+      (typeof discard?.["intervalMS"] === "number" ? discard["intervalMS"] : undefined) ??
+      (typeof lift?.["interval"] === "number" ? lift["interval"] : undefined) ??
+      (typeof disp?.["firstIntervalMS"] === "number" ? disp["firstIntervalMS"] : undefined);
+    if (typeof seed === "number" && Number.isFinite(seed)) {
+      obj["multiCardInterval"] = { intervalMS: seed };
+    }
+  }
+
   return input;
 }
 
@@ -2264,6 +2286,12 @@ export function applyConfig(source: unknown): void {
       },
     };
   }
+  if (incoming.multiCardInterval) {
+    merged.multiCardInterval = {
+      ...merged.multiCardInterval,
+      ...incoming.multiCardInterval,
+    };
+  }
   if (incoming.drawCard) {
     merged.drawCard = {
       ...merged.drawCard,
@@ -2307,10 +2335,27 @@ export function applyConfig(source: unknown): void {
     };
   }
   if (incoming.playPileLiftEffect) {
+    const liftIn = incoming.playPileLiftEffect as Partial<
+      typeof merged.playPileLiftEffect
+    > & {
+      /** @deprecated 旧抬升高度系数，迁移为 distancePx = startSpeed * decelerateTime / 2 */
+      startSpeed?: number;
+      decelerateTime?: number;
+    };
+    const { startSpeed: legacyStart, decelerateTime: legacyDecel, ...liftRest } =
+      liftIn;
     merged.playPileLiftEffect = {
       ...merged.playPileLiftEffect,
-      ...incoming.playPileLiftEffect,
+      ...liftRest,
     };
+    // 旧预设只有 startSpeed/decelerateTime 时换算为上移距离
+    if (
+      liftRest.distancePx === undefined &&
+      typeof legacyStart === "number" &&
+      typeof legacyDecel === "number"
+    ) {
+      merged.playPileLiftEffect.distancePx = (legacyStart * legacyDecel) / 2;
+    }
   }
   if (incoming.playPileSettleEffect) {
     merged.playPileSettleEffect = {
@@ -2457,6 +2502,7 @@ export function applyConfig(source: unknown): void {
   CONFIG.dragHandCard = merged.dragHandCard;
   CONFIG.cardMoveRotation = merged.cardMoveRotation;
   CONFIG.elasticRopeCard = merged.elasticRopeCard;
+  CONFIG.multiCardInterval = merged.multiCardInterval;
   CONFIG.drawCard = merged.drawCard;
   CONFIG.drawFlip = merged.drawFlip;
   CONFIG.discard = merged.discard;
@@ -2595,6 +2641,12 @@ export function applyShippingDefaults(source: unknown): void {
       ...incoming.cardMoveRotation,
     };
   }
+  if (incoming.multiCardInterval) {
+    activeDefaultConfig.multiCardInterval = {
+      ...activeDefaultConfig.multiCardInterval,
+      ...incoming.multiCardInterval,
+    };
+  }
   if (incoming.drawCard) {
     activeDefaultConfig.drawCard = {
       ...activeDefaultConfig.drawCard,
@@ -2638,10 +2690,26 @@ export function applyShippingDefaults(source: unknown): void {
     };
   }
   if (incoming.playPileLiftEffect) {
+    const liftIn = incoming.playPileLiftEffect as Partial<
+      typeof activeDefaultConfig.playPileLiftEffect
+    > & {
+      startSpeed?: number;
+      decelerateTime?: number;
+    };
+    const { startSpeed: legacyStart, decelerateTime: legacyDecel, ...liftRest } =
+      liftIn;
     activeDefaultConfig.playPileLiftEffect = {
       ...activeDefaultConfig.playPileLiftEffect,
-      ...incoming.playPileLiftEffect,
+      ...liftRest,
     };
+    if (
+      liftRest.distancePx === undefined &&
+      typeof legacyStart === "number" &&
+      typeof legacyDecel === "number"
+    ) {
+      activeDefaultConfig.playPileLiftEffect.distancePx =
+        (legacyStart * legacyDecel) / 2;
+    }
   }
   if (incoming.playPileSettleEffect) {
     activeDefaultConfig.playPileSettleEffect = {

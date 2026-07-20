@@ -1259,17 +1259,19 @@ export function setupControlPanel(
     bindNumber("inp-dragScaleOutMaxDtSec", "val-dragScaleOutMaxDtSec", "dragHandCard.scaleOut.maxDtSec", { digits: 4 });
     bindNumber("inp-dragScaleOutSubsteps", "val-dragScaleOutSubsteps", "dragHandCard.scaleOut.substeps", { integer: true });
 
+    // === 多牌统一间隔时间 ===
+    bindSectionExpand("inp-expandMultiCardInterval", "val-expandMultiCardInterval", "cardVisuals.expandedSections.multiCardInterval", "sect-multiCardInterval-params");
+    bindNumber("inp-multiCardIntervalMS", "val-multiCardIntervalMS", "multiCardInterval.intervalMS", { integer: true });
+
     // === 【抓牌】抓牌相关参数 ===
     bindSectionExpand("inp-expandDrawCard", "val-expandDrawCard", "cardVisuals.expandedSections.drawCard", "sect-drawCard-params");
     bindNumber("inp-lastCardAdvanceMS", "val-lastCardAdvanceMS", "drawCard.lastCardAdvanceMS", { integer: true });
-    bindNumber("inp-nextCardAdvanceMS", "val-nextCardAdvanceMS", "drawCard.nextCardAdvanceMS", { integer: true });
     bindNumber("inp-drawCardSpeedRatio", "val-drawCardSpeedRatio", "drawCard.speedRatio", { digits: 1 });
     bindToggle("inp-drawCardUseInitialRotation", "val-drawCardUseInitialRotation", "drawCard.useInitialRotation");
     bindNumber("inp-drawCardInitialRotationDeg", "val-drawCardInitialRotationDeg", "drawCard.initialRotationDeg", { integer: true });
 
-    // === 【弃牌】弃牌相关参数 ===
+    // === 【弃牌】弃牌相关参数（触发间隔见 multiCardInterval）===
     bindSectionExpand("inp-expandDiscard", "val-expandDiscard", "cardVisuals.expandedSections.discard", "sect-discard-params");
-    bindNumber("inp-discardIntervalMS", "val-discardIntervalMS", "discard.intervalMS", { integer: true });
     bindNumber("inp-discardSpeedRatio", "val-discardSpeedRatio", "discard.speedRatio", { digits: 1 });
     bindNumber("inp-discardLastCardWaitMS", "val-discardLastCardWaitMS", "discard.lastCardWaitMS", { integer: true });
 
@@ -1301,20 +1303,16 @@ export function setupControlPanel(
     bindNumber("inp-playHandGroupShiftPreUpWaitMS", "val-playHandGroupShiftPreUpWaitMS", "playHandGroupShift.preUpWaitMS", { integer: true });
     bindNumber("inp-playHandGroupShiftPostUpWaitMS", "val-playHandGroupShiftPostUpWaitMS", "playHandGroupShift.postUpWaitMS", { integer: true });
 
-    // === 【出牌】出牌堆的位移（节奏 + 间距；运动由弹性绳） ===
+    // === 【出牌】出牌堆的位移（间距 + 落定后停留；触发间隔见 multiCardInterval） ===
     bindSectionExpand("inp-expandPlayPileDisplacement", "val-expandPlayPileDisplacement", "cardVisuals.expandedSections.playPileDisplacement", "sect-playPileDisplacement-params");
     bindToggle("inp-playPileDisplacementEnabled", "val-playPileDisplacementEnabled", "playPileDisplacement.enabled");
     bindNumber("inp-playPileDisplacementCardSpacing", "val-playPileDisplacementCardSpacing", "playPileDisplacement.cardSpacing", { integer: true });
-    bindNumber("inp-playPileDisplacementFirstIntervalMS", "val-playPileDisplacementFirstIntervalMS", "playPileDisplacement.firstIntervalMS", { integer: true });
-    bindNumber("inp-playPileDisplacementIntervalReductionMS", "val-playPileDisplacementIntervalReductionMS", "playPileDisplacement.intervalReductionMS", { integer: true });
     bindNumber("inp-playPileDisplacementLastIntervalMS", "val-playPileDisplacementLastIntervalMS", "playPileDisplacement.lastIntervalMS", { integer: true });
 
-    // === 【出牌】出牌堆上移效果（抬升高度 peak≈v×t/2 + 节奏 + 阴影） ===
+    // === 【出牌】出牌堆上移效果（上移距离 + 停留 + 阴影；触发间隔见 multiCardInterval） ===
     bindSectionExpand("inp-expandPlayPileLiftEffect", "val-expandPlayPileLiftEffect", "cardVisuals.expandedSections.playPileLiftEffect", "sect-playPileLiftEffect-params");
     bindToggle("inp-playPileLiftEffectEnabled", "val-playPileLiftEffectEnabled", "playPileLiftEffect.enabled");
-    bindNumber("inp-playPileLiftEffectStartSpeed", "val-playPileLiftEffectStartSpeed", "playPileLiftEffect.startSpeed", { integer: true });
-    bindNumber("inp-playPileLiftEffectDecelerateTime", "val-playPileLiftEffectDecelerateTime", "playPileLiftEffect.decelerateTime", { digits: 2 });
-    bindNumber("inp-playPileLiftEffectInterval", "val-playPileLiftEffectInterval", "playPileLiftEffect.interval", { integer: true });
+    bindNumber("inp-playPileLiftEffectDistancePx", "val-playPileLiftEffectDistancePx", "playPileLiftEffect.distancePx", { integer: true });
     bindNumber("inp-playPileLiftEffectStayDuration", "val-playPileLiftEffectStayDuration", "playPileLiftEffect.stayDuration", { integer: true });
     bindColor("inp-playPileLiftEffectShadowColor", "val-playPileLiftEffectShadowColor", "playPileLiftEffect.shadowColor");
     bindNumber("inp-playPileLiftEffectShadowAlpha", "val-playPileLiftEffectShadowAlpha", "playPileLiftEffect.shadowAlpha", { digits: 2 });

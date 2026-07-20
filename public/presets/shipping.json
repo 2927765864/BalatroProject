@@ -145,12 +145,15 @@
         "substeps": 2
       }
     },
+    "multiCardInterval": {
+      "intervalMS": 120
+    },
     "drawCard": {
-      "lastCardAdvanceMS": 80,
-      "nextCardAdvanceMS": 0,
-      "speedRatio": 1.4,
+      "lastCardAdvanceMS": 0,
+      "speedRatio": 1,
       "useInitialRotation": true,
       "initialRotationDeg": -60,
+      "nextCardAdvanceMS": 0,
       "initMaxRotation": true
     },
     "drawFlip": {
@@ -161,9 +164,9 @@
       "secondHalfJitter": 0.15
     },
     "discard": {
-      "intervalMS": 270,
-      "speedRatio": 1.8,
-      "lastCardWaitMS": 400
+      "speedRatio": 1,
+      "lastCardWaitMS": 400,
+      "intervalMS": 270
     },
     "discardFlip": {
       "enabled": true,
@@ -206,18 +209,16 @@
     "playPileDisplacement": {
       "enabled": true,
       "cardSpacing": 117,
+      "lastIntervalMS": 170,
       "firstIntervalMS": 180,
       "intervalReductionMS": 10,
-      "lastIntervalMS": 170,
       "riseDurationMS": 60,
       "springDurationMS": 50,
       "overshootPx": 28
     },
     "playPileLiftEffect": {
       "enabled": true,
-      "startSpeed": 600,
-      "decelerateTime": 0.1,
-      "interval": 200,
+      "distancePx": 30,
       "stayDuration": 400,
       "shadowColor": 0,
       "shadowAlpha": 0.35,
@@ -225,6 +226,7 @@
       "shadowLightY": 800,
       "shadowDistanceRatio": 0.0642,
       "shadowScaleRatio": 0.95,
+      "interval": 200,
       "overshoot": 15,
       "springStiffness": 10.5,
       "dropOvershoot": 16,
@@ -240,7 +242,7 @@
       "angularFreq": 36,
       "dampingRatio": 0.25,
       "impulseScale": -0.15,
-      "impulseScaleVel": 18,
+      "impulseScaleVel": 20,
       "impulseRotDeg": 0,
       "impulseRotVelDeg": -140,
       "settleEpsScale": 0.004,
@@ -486,7 +488,7 @@
     "cardVisuals": {
       "expandedSections": {
         "shadow": false,
-        "dragShadow": true,
+        "dragShadow": false,
         "blindChipShadow": false,
         "breathing": false,
         "idleTilt": false,
@@ -498,6 +500,7 @@
         "selectMove": false,
         "cardOps": false,
         "cardMoveRotation": false,
+        "multiCardInterval": false,
         "drawCard": false,
         "drawFlip": false,
         "discard": false,
@@ -505,8 +508,8 @@
         "handSort": false,
         "playHandGroupShift": false,
         "playPileDisplacement": false,
-        "playPileLiftEffect": true,
-        "playPileSettleEffect": false,
+        "playPileLiftEffect": false,
+        "playPileSettleEffect": true,
         "playPileSettleText": false,
         "playPileSettleBgBlock": false,
         "jokerEffects": false,
@@ -978,7 +981,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "44/52"
+              "text": "45/52"
             }
           },
           {
@@ -2013,7 +2016,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "15419"
+              "text": "45989"
             }
           },
           {

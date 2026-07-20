@@ -139,12 +139,10 @@ export class PlayPipeline {
         landingPromises.push(landPromise);
 
         // 前一张牌与后一张牌的发车间隔（若设为0则所有牌一起启动），不需要等当前牌完全 landing 才 sleep。
-        // 第一张牌发出后，间隔 interval 时间再启动下一张。
-        // 每次发车间隔递减 intervalReductionMS，直到最后一对牌。发车间隔最小为 0。
-        // 卡牌逻辑 ms 参数：受 gameSpeed 缩放。
+        // 统一触发间隔：multiCardInterval.intervalMS（受 gameSpeed 缩放）。
         const interval = Math.max(
           0,
-          scaleTimeMS(dispCfg.firstIntervalMS) - i * scaleTimeMS(dispCfg.intervalReductionMS),
+          scaleTimeMS(CONFIG.multiCardInterval?.intervalMS ?? 0),
         );
 
         if (i < total - 1) {
@@ -225,7 +223,8 @@ export class PlayPipeline {
       const scoringViews = selected.filter((v) => scoringCards.some((sc) => sc.id === v.data.id));
       if (scoringViews.length > 0) {
         const liftPromises: Promise<void>[] = [];
-        const liftIntervalMS = scaleTimeMS(liftEffectCfg.interval);
+        // 上移触发间隔：与多牌统一间隔共用 multiCardInterval.intervalMS
+        const liftIntervalMS = scaleTimeMS(CONFIG.multiCardInterval?.intervalMS ?? 0);
         for (let i = 0; i < scoringViews.length; i++) {
           const card = scoringViews[i]!;
           const delay = i * liftIntervalMS;
@@ -370,7 +369,8 @@ export class PlayPipeline {
       const scoringViews = selected.filter((v) => scoringCards.some((sc) => sc.id === v.data.id));
       if (scoringViews.length > 0) {
         const dropPromises: Promise<void>[] = [];
-        const dropIntervalMS = scaleTimeMS(liftEffectCfg.interval);
+        // 下移触发间隔：与多牌统一间隔共用 multiCardInterval.intervalMS
+        const dropIntervalMS = scaleTimeMS(CONFIG.multiCardInterval?.intervalMS ?? 0);
         for (let i = 0; i < scoringViews.length; i++) {
           const card = scoringViews[i]!;
           const delay = i * dropIntervalMS;
@@ -404,21 +404,20 @@ export class PlayPipeline {
       await this.deps.animateScoreTransfer(finalResult);
     }
 
-    // 5b: 从左到右逐张丢弃到弃牌堆。每张错开「弃牌时间间隔」。
+    // 5b: 从左到右逐张丢弃到弃牌堆。每张错开「多牌统一间隔」。
     // 出牌结束的丢弃飞行时长沿用 playPile.discardFlyDurationMS，
-    // 但相邻两张牌的错开间隔与手牌弃牌共用「弃牌/出牌结束」专区的 discard.intervalMS，
+    // 相邻两张牌的错开间隔与抓牌/出牌/上移下移共用 multiCardInterval.intervalMS，
     // 翻面（压成一条线）共用「弃牌/出牌结束」翻面参数（discardFlip），
     // 整体节奏受弃牌动画速度比例 discard.speedRatio 调制。
     //
     // 居中复位：每丢出一张牌，剩余的出牌堆牌立刻用「出牌堆的位移」逻辑（swapMove）
-    // 重新排布、保持整体居中。沿用位移专区前四个参数：
-    //   enabled / cardSpacing / riseDurationMS / springDurationMS。
+    // 重新排布、保持整体居中。沿用位移专区：enabled / cardSpacing 等。
     const discardCfg = CONFIG.discard;
     const speedRatio = Math.max(0.01, discardCfg?.speedRatio ?? 1.0);
     const flyDurationMS = Math.max(1, cfg.discardFlyDurationMS / speedRatio);
     const intervalMS = Math.max(
       0,
-      scaleTimeMS(discardCfg?.intervalMS ?? cfg.discardIntervalMS) / speedRatio,
+      scaleTimeMS(CONFIG.multiCardInterval?.intervalMS ?? 0) / speedRatio,
     );
     // 随机旋转范围（度→弧度），与手牌弃牌共用 discardFlip.randomRotationDeg。
     const randRotDeg = Math.max(0, CONFIG.discardFlip?.randomRotationDeg ?? 0);

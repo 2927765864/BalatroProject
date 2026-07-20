@@ -1006,6 +1006,29 @@
             </div>
 
             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>多牌统一间隔时间</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
+                <span>展开详情</span>
+                <span id="val-expandMultiCardInterval" style="color: var(--accent);">开</span>
+                <input id="inp-expandMultiCardInterval" type="checkbox" checked style="margin:0;" />
+              </label>
+            </div>
+
+            <div id="sect-multiCardInterval-params">
+              <div class="panel-row" style="opacity:0.8;font-size:11px;line-height:1.5;color:#aac;padding:6px 10px;">
+                相邻两张牌「发车/触发」的统一错开间隔。作用于：①出牌手牌→出牌堆；②出牌堆上移/下移；③出牌结束→弃牌堆；④主动弃牌→弃牌堆；⑤抓牌→手牌堆。仅统一触发间隔；各阶段进入/结束后停留时间仍在各自专区调节。受游戏倍速缩放；弃牌/抓牌另可叠各自速度比例。
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>多牌触发间隔 (ms，相邻两张错开)</span>
+                  <span id="val-multiCardIntervalMS">150</span>
+                </div>
+                <input id="inp-multiCardIntervalMS" type="number" step="10" min="0" max="2000" />
+              </div>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
               <span>【抓牌】抓牌相关参数</span>
               <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:normal;color:#cbe88b;cursor:pointer;">
                 <span>展开详情</span>
@@ -1015,20 +1038,16 @@
             </div>
 
             <div id="sect-drawCard-params">
+              <div class="panel-row" style="opacity:0.75;font-size:11px;padding:6px 10px;line-height:1.4;">
+                触发间隔见上方「多牌统一间隔时间」。此处仅保留抓牌专属的末张提前量、速度比例与初始旋转。
+              </div>
+
               <div class="panel-row">
                 <div class="panel-row-header">
                   <span>最后一张牌提前的时间 (抽牌数>=4, ms)</span>
                   <span id="val-lastCardAdvanceMS">150</span>
                 </div>
                 <input id="inp-lastCardAdvanceMS" type="number" step="10" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>下一张牌的提前时间 (ms)</span>
-                  <span id="val-nextCardAdvanceMS">0</span>
-                </div>
-                <input id="inp-nextCardAdvanceMS" type="number" step="10" min="0" max="2000" />
               </div>
 
               <div class="panel-row">
@@ -1067,15 +1086,7 @@
 
             <div id="sect-discard-params">
               <div class="panel-row" style="opacity:0.8;font-size:11px;line-height:1.5;color:#aac;padding:6px 10px;">
-                同时作用于两类弃牌：①点击弃牌键后选中牌从左到右依次飞向弃牌堆；②出牌堆所有牌结算并下移后，从左到右依次丢弃到弃牌堆。（弃牌堆位于屏幕大正右方、出屏一点、垂直居中。）
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>弃牌时间间隔 (ms，相邻两张错开)</span>
-                  <span id="val-discardIntervalMS">80</span>
-                </div>
-                <input id="inp-discardIntervalMS" type="number" step="10" min="0" max="2000" />
+                同时作用于两类弃牌：①点击弃牌键后选中牌从左到右依次飞向弃牌堆；②出牌堆所有牌结算并下移后，从左到右依次丢弃到弃牌堆。（弃牌堆位于屏幕大正右方、出屏一点、垂直居中。）触发间隔见「多牌统一间隔时间」。
               </div>
 
               <div class="panel-row">
@@ -1200,6 +1211,10 @@
             </div>
 
             <div id="sect-playPileDisplacement-params">
+              <div class="panel-row" style="opacity:0.75;font-size:11px;padding:6px 10px;line-height:1.4;">
+                多牌发车触发间隔见「多牌统一间隔时间」。此处仅保留间距与落定后停留。
+              </div>
+
               <div class="panel-row">
                 <div class="panel-row-header">
                   <span>启用出牌堆位移</span>
@@ -1216,28 +1231,9 @@
                 <input id="inp-playPileDisplacementCardSpacing" type="number" step="5" min="0" max="300" />
               </div>
 
-              
-              
-              
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>第一张牌的间隔时间 (ms)</span>
-                  <span id="val-playPileDisplacementFirstIntervalMS">400</span>
-                </div>
-                <input id="inp-playPileDisplacementFirstIntervalMS" type="number" step="10" min="0" max="5000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>每张牌减少的间隔时间 (ms)</span>
-                  <span id="val-playPileDisplacementIntervalReductionMS">80</span>
-                </div>
-                <input id="inp-playPileDisplacementIntervalReductionMS" type="number" step="5" min="0" max="2000" />
-              </div>
-
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>最后一张牌的间隔时间 (ms)</span>
+                  <span>落定后停留时间 (ms，进入上移前)</span>
                   <span id="val-playPileDisplacementLastIntervalMS">160</span>
                 </div>
                 <input id="inp-playPileDisplacementLastIntervalMS" type="number" step="10" min="0" max="5000" />
@@ -1264,30 +1260,16 @@
                 <input id="inp-playPileLiftEffectEnabled" type="checkbox" />
               </div>
 
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>抬升高度系数：初速度 (px/s，peak≈v×t/2)</span>
-                  <span id="val-playPileLiftEffectStartSpeed">400</span>
-                </div>
-                <input id="inp-playPileLiftEffectStartSpeed" type="number" step="10" min="0" max="2000" />
+              <div class="panel-row" style="opacity:0.75;font-size:11px;padding:6px 10px;line-height:1.4;">
+                上移/下移触发间隔见「多牌统一间隔时间」。此处仅保留抬升距离与上移后停留。
               </div>
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>抬升高度系数：减速时间 (s)</span>
-                  <span id="val-playPileLiftEffectDecelerateTime">0.35</span>
+                  <span>上移距离 (px，运动由弹性绳决定)</span>
+                  <span id="val-playPileLiftEffectDistancePx">70</span>
                 </div>
-                <input id="inp-playPileLiftEffectDecelerateTime" type="number" step="0.01" min="0.01" max="1" />
-              </div>
-
-              
-              
-              <div class="panel-row">
-                <div class="panel-row-header">
-                  <span>抬牌时间间隔 (ms)</span>
-                  <span id="val-playPileLiftEffectInterval">150</span>
-                </div>
-                <input id="inp-playPileLiftEffectInterval" type="number" step="10" min="0" max="2000" />
+                <input id="inp-playPileLiftEffectDistancePx" type="number" step="1" min="0" max="400" />
               </div>
 
               <div class="panel-row">
