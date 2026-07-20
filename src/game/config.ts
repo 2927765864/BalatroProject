@@ -792,6 +792,12 @@ export interface RuntimeConfig {
     substeps: number;
     stayDurationMS: number;
     fadeDurationMS: number;
+    /**
+     * 单字弹出/消失缩放锚点 X（相对字宽 0=左缘 0.5=中心 1=右缘）。
+     * 仅影响 scale 枢轴，不改变排版视觉位置。
+     */
+    shrinkAnchorX: number;
+    /** 单字弹出/消失缩放锚点 Y（相对字高 0=顶 0.5=中 1=底）。 */
     shrinkAnchorY: number;
     shadowEnabled: boolean;
     shadowColor: number;
@@ -801,8 +807,11 @@ export interface RuntimeConfig {
     shadowBlur: number;
     bgBlockEnabled: boolean;
     bgBlockColor: number;
-    bgBlockInitAngleDeg: number;
-    bgBlockEndAngleDeg: number;
+    /**
+     * 背景方块出现后恒定自转角速度（度/秒，可正可负）。
+     * 初始角每次 spawn 在 [0, 360) 均匀随机，不再使用固定初角/终角。
+     */
+    bgBlockAngularSpeedDeg: number;
     bgBlockDurationMS: number;
     /** 蓝色方块透明度变化曲线（横轴=时间进度 0→1，纵轴=透明度从 1→0 的进度映射）。 */
     bgBlockFadeCurve: BezierCurveConfig;
@@ -841,6 +850,9 @@ export interface RuntimeConfig {
     substeps: number;
     stayDurationMS: number;
     fadeDurationMS: number;
+    /** 同 playPileSettleTextEffect.shrinkAnchorX */
+    shrinkAnchorX: number;
+    /** 同 playPileSettleTextEffect.shrinkAnchorY */
     shrinkAnchorY: number;
     shadowEnabled: boolean;
     shadowColor: number;
@@ -850,8 +862,8 @@ export interface RuntimeConfig {
     shadowBlur: number;
     bgBlockEnabled: boolean;
     bgBlockColor: number;
-    bgBlockInitAngleDeg: number;
-    bgBlockEndAngleDeg: number;
+    /** 同 playPileSettleTextEffect.bgBlockAngularSpeedDeg */
+    bgBlockAngularSpeedDeg: number;
     bgBlockDurationMS: number;
     bgBlockFadeCurve: BezierCurveConfig;
     bgBlockScaleCurve: BezierCurveConfig;
@@ -1596,6 +1608,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     substeps: 2,
     stayDurationMS: 500,
     fadeDurationMS: 300,
+    shrinkAnchorX: 0,
     shrinkAnchorY: 0.2,
     shadowEnabled: true,
     shadowColor: 0x000000,
@@ -1605,8 +1618,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     shadowBlur: 2,
     bgBlockEnabled: true,
     bgBlockColor: 0x00a2ff,
-    bgBlockInitAngleDeg: -15,
-    bgBlockEndAngleDeg: 15,
+    bgBlockAngularSpeedDeg: 60,
     bgBlockDurationMS: 600,
     bgBlockFadeCurve: Object.freeze({
       enabled: true,
@@ -1649,6 +1661,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     substeps: 2,
     stayDurationMS: 500,
     fadeDurationMS: 300,
+    shrinkAnchorX: 0,
     shrinkAnchorY: 0.2,
     shadowEnabled: true,
     shadowColor: 0x000000,
@@ -1658,8 +1671,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     shadowBlur: 2,
     bgBlockEnabled: true,
     bgBlockColor: 0xff3333, // 红色背景小方块（对应倍率红）
-    bgBlockInitAngleDeg: -15,
-    bgBlockEndAngleDeg: 15,
+    bgBlockAngularSpeedDeg: 60,
     bgBlockDurationMS: 600,
     bgBlockFadeCurve: Object.freeze({
       enabled: true,

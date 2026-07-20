@@ -117,6 +117,11 @@ export class ShadowComponent extends UIComponent {
   private unsubscribeHierarchy: (() => void) | null = null;
   /** rAF 合并：同一帧内多次 scheduleRebuild 只重烤一次。0 表示当前没有排队。 */
   private rafHandle = 0;
+  /**
+   * 业务侧临时强制隐藏（例如按钮按下「压入」效果）。
+   * 为 true 时 applyVisuals 仍更新位姿/染色，但 sprite.visible=false。
+   */
+  private forceHidden = false;
 
   // ---- 生命周期 -------------------------------------------------
 
@@ -354,7 +359,30 @@ export class ShadowComponent extends UIComponent {
 
     sprite.tint = hexToNumber(this.data.color);
     sprite.alpha = clamp(this.data.alpha, 0, 1);
-    sprite.visible = true;
+    sprite.visible = !this.forceHidden;
+  }
+
+  /**
+   * 临时强制隐藏/显示剪影（不改序列化数据）。
+   * 用于按钮按下时模拟「压入」：阴影消失。
+   */
+  setForceHidden(hidden: boolean): void {
+    if (this.forceHidden === hidden) return;
+    this.forceHidden = hidden;
+    if (this.sprite) {
+      // 有纹理时才显示；无纹理保持隐藏，等下次 rebuild。
+      this.sprite.visible = !hidden && this.texture !== null;
+    }
+  }
+
+  /** 阴影方向角（度，0=右，90=下）。 */
+  get angle(): number {
+    return this.data.angle;
+  }
+
+  /** 阴影偏移距离（像素）。 */
+  get distance(): number {
+    return this.data.distance;
   }
 
   // ---- 序列化 ----------------------------------------------------

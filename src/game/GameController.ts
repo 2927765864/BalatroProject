@@ -414,10 +414,28 @@ export class GameController {
     // 顶部小丑槽：前 5 张图集（与手牌视效管线共享参数）。
     this.initJokers();
 
+    // 右键按下：有选中则立刻全部取消（见 clearAllSelection）；无选中则空操作。
+    // 用 canvas 原生 pointerdown（button===2）保证「按下瞬间」触发，而不是 pointerup/contextmenu。
+    // 同时屏蔽浏览器默认右键菜单，避免挡住游戏画面。
+    const canvas = this.app.pixi.canvas;
+    canvas.addEventListener("pointerdown", this.onCanvasPointerDown);
+    canvas.addEventListener("contextmenu", this.onCanvasContextMenu);
+
     // 首抽 8 张
     this.drawToFull();
     this.updateButtons();
   }
+
+  /** 右键按下瞬间：取消全部选中（无选中则不做事）。 */
+  private readonly onCanvasPointerDown = (e: PointerEvent): void => {
+    if (e.button !== 2) return;
+    this.clearAllSelection();
+  };
+
+  /** 阻止画布上的浏览器右键菜单。 */
+  private readonly onCanvasContextMenu = (e: Event): void => {
+    e.preventDefault();
+  };
 
   // --- 小丑牌 -------------------------------------------------
 
@@ -1214,6 +1232,75 @@ export class GameController {
       });
     }
 
+    this.evaluateAndUpdate();
+  }
+
+  /**
+   * 取消所有选中卡牌（手牌 + 小丑）。
+   *
+   * 行为约定（与需求对齐）：
+   *   - 无任何选中 → 直接 return，不改 store / 不计分 / 不播动画；
+   *   - 有选中 → 全部落回未选中姿态，同步 store 与 HUD；
+   *   - 出牌流程锁 isPlaying 期间不响应（与 toggleSelection 一致）。
+   *
+   * 触发点：画布右键 pointerdown（按下瞬间，非抬起）。
+   */
+  private clearAllSelection(): void {
+    if (this.isPlaying) return;
+
+    const state = this.store.getState();
+    const handSelected = state.selected;
+    const jokerSelected = this.jokers.filter((v) => v.selected);
+    if (handSelected.length === 0 && jokerSelected.length === 0) return;
+
+    const cv = GameConfig.cardVisuals;
+    const useSelectFx = cv.selectMoveEnabled !== false;
+
+    for (const view of handSelected) {
+      view.selected = false;
+      if (useSelectFx) {
+        this.tween.killOf(view);
+        view.isSelectAnimating = true;
+      }
+    }
+    for (const view of jokerSelected) {
+      view.selected = false;
+      if (useSelectFx) {
+        this.tween.killOf(view);
+        view.isSelectAnimating = true;
+      }
+    }
+
+    if (handSelected.length > 0) {
+      this.store.setState({ selected: [] });
+      this.bus.emit("card:selectionChanged", { selected: [] });
+      // 与 toggleSelection 相同：force 让其它牌立刻对齐新基线；本牌靠 isSelectAnimating 豁免。
+      this.layoutHand({ force: true });
+    }
+    if (jokerSelected.length > 0) {
+      this.layoutJokers({ force: true });
+    }
+
+    if (useSelectFx) {
+      const falling = [...handSelected, ...jokerSelected];
+      for (const view of falling) {
+        const target = {
+          x: view.layoutX,
+          y: view.layoutY,
+          rotation: view.layoutRotation,
+        };
+        CardFx.selectMove(this.tween, view, target, "fall", {
+          startSpeed: 0,
+          overshoot: 0,
+          stiffness: 0,
+          onSettle: () => {
+            view.isSelectAnimating = false;
+          },
+        });
+      }
+    }
+
+    // 无手牌选中变化时 evaluate 仍安全（会保持/刷新空预览），并统一 updateButtons。
     this.evaluateAndUpdate();
   }
 

@@ -49,6 +49,12 @@ export type SettleTextSpringConfig = {
   substeps: number;
   stayDurationMS: number;
   fadeDurationMS: number;
+  /**
+   * 单字 scale 缩放/消失锚点相对比例（Pixi Text.anchor）。
+   * X/Y：0=左/上，0.5=中心，1=右/下；可超出 [0,1] 做偏心枢轴。
+   * 排版仍按左缘推进 currentX，会用 anchor 补偿 x/y，保证静止时视觉位置不变。
+   */
+  shrinkAnchorX: number;
   shrinkAnchorY: number;
   shadowEnabled: boolean;
   shadowColor: number;
@@ -58,8 +64,8 @@ export type SettleTextSpringConfig = {
   shadowBlur: number;
   bgBlockEnabled: boolean;
   bgBlockColor: number;
-  bgBlockInitAngleDeg: number;
-  bgBlockEndAngleDeg: number;
+  /** 出现后恒定自转角速度（度/秒）；初始角每次 spawn 在 [0, 360) 均匀随机。 */
+  bgBlockAngularSpeedDeg: number;
   bgBlockDurationMS: number;
   bgBlockFadeCurve: BezierCurveConfig;
   bgBlockScaleCurve: BezierCurveConfig;
@@ -165,13 +171,15 @@ export const TextFx = {
     const totalWidth =
       widths.reduce((sum, w) => sum + w, 0) + (chars.length - 1) * letterSpacing;
 
+    const ax = cfg.shrinkAnchorX;
+    const ay = cfg.shrinkAnchorY;
     let currentX = -totalWidth / 2;
     charTexts.forEach((t, idx) => {
       const w = widths[idx]!;
-      // 左缘锚点 + 上偏 shrinkAnchorY：弹出时左侧固定、向右展开
-      t.anchor.set(0, cfg.shrinkAnchorY);
-      t.x = currentX;
-      t.y = (cfg.shrinkAnchorY - 0.5) * t.height;
+      // 缩放枢轴 = (ax, ay)；用位置补偿使静止时视觉排版仍以左缘 currentX / 垂直中线为准
+      t.anchor.set(ax, ay);
+      t.x = currentX + ax * w;
+      t.y = (ay - 0.5) * t.height;
       t.scale.set(0);
       container.addChild(t);
       currentX += w + letterSpacing;
@@ -209,7 +217,7 @@ export const TextFx = {
     let bgSpawned = false;
     let fadeStarted = false;
     let bgContainer: Container | null = null;
-    // 背景方块相对跟随点的“本地旋转偏移”（动画过程中再叠加 tween 目标角）
+    // 背景方块跟随卡牌视觉角；自转本地角 = 随机初值 + 恒定角速度 × 时间
     let bgBaseFollowRot = 0;
 
     const sleep = (ms: number) =>
@@ -221,9 +229,7 @@ export const TextFx = {
       container.position.set(pose.x, pose.y);
       container.rotation = pose.rotation;
       if (bgContainer && !bgContainer.destroyed) {
-        // 方块中心跟数字同一视觉锚点；自转角 = 卡牌角 + 方块自身 tween 角差
-        // 方块 spawn 时已设 init 角；onUpdate 里会写绝对 rotation，这里只同步位置
-        // 若方块旋转仍由独立 tween 写绝对角，则只跟位置，避免覆盖旋转动画。
+        // 方块中心跟数字同一视觉锚点；rotation 由方块 tween onUpdate 写（跟随角 + 自转）
         bgContainer.position.set(pose.x, pose.y);
       }
     };
@@ -239,9 +245,10 @@ export const TextFx = {
       bgContainer = new Container();
       bgContainer.position.set(pose.x, pose.y);
       bgBaseFollowRot = pose.rotation;
-      // 方块自转：相对跟随角的本地 init→end（与旧语义一致，再叠卡牌角）
-      const initLocal = (cfg.bgBlockInitAngleDeg * Math.PI) / 180;
-      const endLocal = (cfg.bgBlockEndAngleDeg * Math.PI) / 180;
+      // 初始本地角均匀随机；之后以恒定角速度自转（叠在卡牌视觉角上）
+      const initLocal = Math.random() * Math.PI * 2;
+      const speedRad =
+        ((cfg.bgBlockAngularSpeedDeg || 0) * Math.PI) / 180;
       bgContainer.rotation = pose.rotation + initLocal;
       bgContainer.alpha = 1.0;
       bgContainer.scale.set(cfg.bgBlockScaleCurve.startScale);
@@ -275,11 +282,9 @@ export const TextFx = {
               ? bgBaseFollowRot
               : card.getVisualFollowPoseInParent(cfg.offsetY).rotation;
             bgBaseFollowRot = followRot;
-            // 旋转缓动：cubicOut 等价进度（叠在卡牌视觉角上）
-            const easeT = 1 - Math.pow(1 - progressDummy.t, 3);
-            const easedLocal =
-              initLocal + (endLocal - initLocal) * easeT;
-            bgRef.rotation = followRot + easedLocal;
+            // 恒定角速度：elapsed 与 duration 同一时间基（已含 gameSpeed 缩放）
+            const elapsedSec = (progressDummy.t * duration) / 1000;
+            bgRef.rotation = followRot + initLocal + speedRad * elapsedSec;
 
             const currentScale = sampleCurve(
               cfg.bgBlockScaleCurve,

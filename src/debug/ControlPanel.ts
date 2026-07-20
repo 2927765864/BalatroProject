@@ -1646,6 +1646,7 @@ export function setupControlPanel(
     bindNumber("inp-jokerSettleTextEffectSubsteps", "val-jokerSettleTextEffectSubsteps", "jokerSettleTextEffect.substeps", { integer: true });
     bindNumber("inp-jokerSettleTextEffectStayDurationMS", "val-jokerSettleTextEffectStayDurationMS", "jokerSettleTextEffect.stayDurationMS", { integer: true });
     bindNumber("inp-jokerSettleTextEffectFadeDurationMS", "val-jokerSettleTextEffectFadeDurationMS", "jokerSettleTextEffect.fadeDurationMS", { integer: true });
+    bindNumber("inp-jokerSettleTextEffectShrinkAnchorX", "val-jokerSettleTextEffectShrinkAnchorX", "jokerSettleTextEffect.shrinkAnchorX", { digits: 2 });
     bindNumber("inp-jokerSettleTextEffectShrinkAnchorY", "val-jokerSettleTextEffectShrinkAnchorY", "jokerSettleTextEffect.shrinkAnchorY", { digits: 2 });
     bindToggle("inp-jokerSettleTextEffectShadowEnabled", "val-jokerSettleTextEffectShadowEnabled", "jokerSettleTextEffect.shadowEnabled");
     bindColor("inp-jokerSettleTextEffectShadowColor", "val-jokerSettleTextEffectShadowColor", "jokerSettleTextEffect.shadowColor");
@@ -1655,8 +1656,7 @@ export function setupControlPanel(
     bindNumber("inp-jokerSettleTextEffectShadowBlur", "val-jokerSettleTextEffectShadowBlur", "jokerSettleTextEffect.shadowBlur", { digits: 1 });
     bindToggle("inp-jokerSettleTextEffectBgBlockEnabled", "val-jokerSettleTextEffectBgBlockEnabled", "jokerSettleTextEffect.bgBlockEnabled");
     bindColor("inp-jokerSettleTextEffectBgBlockColor", "val-jokerSettleTextEffectBgBlockColor", "jokerSettleTextEffect.bgBlockColor");
-    bindNumber("inp-jokerSettleTextEffectBgBlockInitAngleDeg", "val-jokerSettleTextEffectBgBlockInitAngleDeg", "jokerSettleTextEffect.bgBlockInitAngleDeg", { digits: 1 });
-    bindNumber("inp-jokerSettleTextEffectBgBlockEndAngleDeg", "val-jokerSettleTextEffectBgBlockEndAngleDeg", "jokerSettleTextEffect.bgBlockEndAngleDeg", { digits: 1 });
+    bindNumber("inp-jokerSettleTextEffectBgBlockAngularSpeedDeg", "val-jokerSettleTextEffectBgBlockAngularSpeedDeg", "jokerSettleTextEffect.bgBlockAngularSpeedDeg", { digits: 1 });
     bindNumber("inp-jokerSettleTextEffectBgBlockDurationMS", "val-jokerSettleTextEffectBgBlockDurationMS", "jokerSettleTextEffect.bgBlockDurationMS", { integer: true });
 
     const jokerBgBlockScaleCurveMount = document.getElementById("mount-jokerBgBlockScaleCurve");
@@ -1714,6 +1714,7 @@ export function setupControlPanel(
 
     bindNumber("inp-playPileSettleTextEffectStayDurationMS", "val-playPileSettleTextEffectStayDurationMS", "playPileSettleTextEffect.stayDurationMS", { integer: true });
     bindNumber("inp-playPileSettleTextEffectFadeDurationMS", "val-playPileSettleTextEffectFadeDurationMS", "playPileSettleTextEffect.fadeDurationMS", { integer: true });
+    bindNumber("inp-playPileSettleTextEffectShrinkAnchorX", "val-playPileSettleTextEffectShrinkAnchorX", "playPileSettleTextEffect.shrinkAnchorX", { digits: 2 });
     bindNumber("inp-playPileSettleTextEffectShrinkAnchorY", "val-playPileSettleTextEffectShrinkAnchorY", "playPileSettleTextEffect.shrinkAnchorY", { digits: 2 });
     
     bindToggle("inp-playPileSettleTextEffectShadowEnabled", "val-playPileSettleTextEffectShadowEnabled", "playPileSettleTextEffect.shadowEnabled");
@@ -1725,8 +1726,7 @@ export function setupControlPanel(
 
     bindToggle("inp-playPileSettleTextEffectBgBlockEnabled", "val-playPileSettleTextEffectBgBlockEnabled", "playPileSettleTextEffect.bgBlockEnabled");
     bindColor("inp-playPileSettleTextEffectBgBlockColor", "val-playPileSettleTextEffectBgBlockColor", "playPileSettleTextEffect.bgBlockColor");
-    bindNumber("inp-playPileSettleTextEffectBgBlockInitAngleDeg", "val-playPileSettleTextEffectBgBlockInitAngleDeg", "playPileSettleTextEffect.bgBlockInitAngleDeg", { digits: 1 });
-    bindNumber("inp-playPileSettleTextEffectBgBlockEndAngleDeg", "val-playPileSettleTextEffectBgBlockEndAngleDeg", "playPileSettleTextEffect.bgBlockEndAngleDeg", { digits: 1 });
+    bindNumber("inp-playPileSettleTextEffectBgBlockAngularSpeedDeg", "val-playPileSettleTextEffectBgBlockAngularSpeedDeg", "playPileSettleTextEffect.bgBlockAngularSpeedDeg", { digits: 1 });
     bindNumber("inp-playPileSettleTextEffectBgBlockDurationMS", "val-playPileSettleTextEffectBgBlockDurationMS", "playPileSettleTextEffect.bgBlockDurationMS", { integer: true });
 
     const bgBlockScaleCurveMount = document.getElementById("mount-bgBlockScaleCurve");

@@ -4,8 +4,8 @@
  * 控制宿主 UINode 的整体透明度（PIXI Container.alpha）。
  * 挂到任意 UI 节点上即可在 Hierarchy Inspector 里拖改，并随 uiNodes 持久化。
  *
- * 注意：宿主自身若在运行时写 alpha（例如 Button 的 hover/disabled 状态），
- * 会与本组件互相覆盖——后者写回后生效。面板类节点无此问题。
+ * 注意：宿主自身若在运行时直接写 Container.alpha，会与本组件互相覆盖。
+ * Button 状态反馈已不再改 alpha（按下位移+隐影，禁用只变灰），可与本组件共存。
  */
 import { UIComponent, type SerializedComponent } from "../UIComponent";
 import { uiHierarchy } from "../UIHierarchy";

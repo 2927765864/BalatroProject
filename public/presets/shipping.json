@@ -291,6 +291,7 @@
       "substeps": 2,
       "stayDurationMS": 550,
       "fadeDurationMS": 350,
+      "shrinkAnchorX": 0.5,
       "shrinkAnchorY": 0.2,
       "shadowEnabled": true,
       "shadowColor": 0,
@@ -300,9 +301,8 @@
       "shadowBlur": 0,
       "bgBlockEnabled": true,
       "bgBlockColor": 41727,
-      "bgBlockInitAngleDeg": 34,
-      "bgBlockEndAngleDeg": 28,
-      "bgBlockDurationMS": 1200,
+      "bgBlockAngularSpeedDeg": 15,
+      "bgBlockDurationMS": 1000,
       "bgBlockFadeCurve": {
         "enabled": true,
         "startScale": 0,
@@ -337,7 +337,9 @@
       "swingMaxAngleDeg": 20,
       "swingFrequency": 3,
       "swingDamping": 4,
-      "swingDurationMS": 350
+      "swingDurationMS": 350,
+      "bgBlockInitAngleDeg": 34,
+      "bgBlockEndAngleDeg": 28
     },
     "jokerSettleTextEffect": {
       "enabled": true,
@@ -362,6 +364,7 @@
       "substeps": 2,
       "stayDurationMS": 550,
       "fadeDurationMS": 350,
+      "shrinkAnchorX": 0.5,
       "shrinkAnchorY": 0.2,
       "shadowEnabled": true,
       "shadowColor": 0,
@@ -371,9 +374,8 @@
       "shadowBlur": 0,
       "bgBlockEnabled": true,
       "bgBlockColor": 16724787,
-      "bgBlockInitAngleDeg": 34,
-      "bgBlockEndAngleDeg": 28,
-      "bgBlockDurationMS": 1200,
+      "bgBlockAngularSpeedDeg": 15,
+      "bgBlockDurationMS": 1000,
       "bgBlockFadeCurve": {
         "enabled": true,
         "startScale": 0,
@@ -407,7 +409,9 @@
       "swingMaxAngleDeg": 20,
       "swingFrequency": 4,
       "swingDamping": 4,
-      "swingDurationMS": 360
+      "swingDurationMS": 360,
+      "bgBlockInitAngleDeg": 34,
+      "bgBlockEndAngleDeg": 28
     },
     "cardMoveRotation": {
       "enabled": true,
@@ -496,7 +500,7 @@
         "idleTilt": false,
         "hoverScale": false,
         "hoverBreathing": false,
-        "mouse3DTilt": false,
+        "mouse3DTilt": true,
         "dragHandCard": false,
         "hoverHit": false,
         "selectMove": false,
@@ -506,18 +510,18 @@
         "drawCard": false,
         "drawFlip": false,
         "discard": false,
-        "discardFlip": true,
+        "discardFlip": false,
         "handSort": false,
         "playHandGroupShift": false,
         "playPileDisplacement": true,
         "playPileLiftEffect": false,
         "playPileSettleEffect": false,
         "playPileSettleText": false,
-        "playPileSettleBgBlock": false,
+        "playPileSettleBgBlock": true,
         "jokerEffects": false,
         "jokerLayout": false,
         "jokerSettleText": false,
-        "jokerSettleBgBlock": false,
+        "jokerSettleBgBlock": true,
         "chipsBounce": false,
         "multBounce": false,
         "evalScoreBounce": false,
@@ -577,8 +581,8 @@
       "mouse3DTiltInvertBL": true,
       "mouse3DTiltInvertBR": true,
       "mouse3DTiltGradientEnabled": true,
-      "mouse3DTiltStrengthLeftMul": 0.4,
-      "mouse3DTiltStrengthRightMul": 1,
+      "mouse3DTiltStrengthLeftMul": 1.2,
+      "mouse3DTiltStrengthRightMul": 1.7,
       "mouse3DTiltSmoothEnabled": false,
       "mouse3DTiltSmoothing": 0.9,
       "clickThresholdMS": 250,
@@ -1020,7 +1024,7 @@
             "data": {
               "color": "#000000",
               "alpha": 0.16,
-              "angle": -334,
+              "angle": -569,
               "distance": 13.5,
               "scaleX": 1,
               "scaleY": 1,
@@ -2134,7 +2138,7 @@
             "type": "breathingText",
             "data": {
               "enabled": true,
-              "stagger": 180,
+              "stagger": 320,
               "cycle": 2550,
               "loopGap": 0,
               "amplitudeMin": 0,
@@ -2173,7 +2177,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "15"
+              "text": "10"
             }
           },
           {
@@ -3000,7 +3004,7 @@
               "cycle": 800,
               "loopGap": 1250,
               "amplitudeMin": 0,
-              "amplitudeMax": -4,
+              "amplitudeMax": -2,
               "curve": {
                 "enabled": true,
                 "startScale": 0,
