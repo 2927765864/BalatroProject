@@ -8,6 +8,7 @@
  *     https://godotshaders.com/shader/crt-with-luminance-preservation/
  *   - Product posture: single-pass web CRT vibe
  *     https://github.com/gingerbeardman/webgl-crt-shader
+ *   - Pure-white scanline attenuation via uWhiteImpact
  *
  * Integration mirrors BalatroBackgroundFilter:
  *   Filter + GlProgram + GpuProgram (WebGPU skips filters without gpuProgram)
@@ -55,8 +56,14 @@ void main(void)
 `;
 
 /**
- * Fragment: Easymode-style cos scanlines + scan_bright mix; optional shadow noise.
+ * Fragment: Easymode-style cos scanlines + scan_bright mix; optional shadow noise;
+ * pure-white attenuation via uWhiteImpact.
  * System uniforms (uInputSize, uTexture) come from Pixi filter pipeline.
+ *
+ * whiteImpact semantics (CONFIG.world.crt.whiteImpact):
+ *   0 = pure white not darkened by scanlines
+ *   1 = white treated like any other pixel (no extra protection)
+ * Near-white uses min(r,g,b)^2 so only very bright neutrals are protected.
  */
 const FILTER_FRAG = `
 in vec2 vTextureCoord;
@@ -70,6 +77,7 @@ uniform float uScanlineCount;
 uniform float uNoiseAmount;
 uniform float uContrast;
 uniform float uNoiseSeed;
+uniform float uWhiteImpact;
 
 const float PI = 3.141592653589793;
 const float SCAN_BEAM = 1.5;
@@ -94,10 +102,16 @@ void main() {
     float bright = (max(col.r, max(col.g, col.b)) + luma) * 0.5;
     float scan_bright = clamp(bright, SCAN_BRIGHT_MIN, SCAN_BRIGHT_MAX);
 
+    // Pure-white mask: only high min-channel (near white) → 1
+    float whiteMask = clamp(min(col.r, min(col.g, col.b)), 0.0, 1.0);
+    whiteMask = whiteMask * whiteMask;
+    // 0 impact → full protect on white; 1 impact → no extra protect
+    float intensityScale = mix(1.0, 1.0 - whiteMask, 1.0 - clamp(uWhiteImpact, 0.0, 1.0));
+
     // Design-resolution line count (R2), not physical pixel rows
     float scan_weight = 1.0
         - pow(cos(vTextureCoord.y * 2.0 * PI * uScanlineCount) * 0.5 + 0.5, SCAN_BEAM)
-            * uIntensity;
+            * uIntensity * intensityScale;
 
     vec3 col2 = col;
     col *= scan_weight;
@@ -124,16 +138,16 @@ struct GlobalFilterUniforms {
   uOutputTexture: vec4<f32>,
 };
 
-// 5 f32 = 20 bytes; pad to 32-byte struct for safe UBO alignment.
+// 6 f32 + 2 pad = 32 bytes for safe UBO alignment.
 struct CrtUniforms {
   uIntensity: f32,
   uScanlineCount: f32,
   uNoiseAmount: f32,
   uContrast: f32,
   uNoiseSeed: f32,
+  uWhiteImpact: f32,
   uPad0: f32,
   uPad1: f32,
-  uPad2: f32,
 };
 
 @group(0) @binding(0) var<uniform> gfu: GlobalFilterUniforms;
@@ -184,6 +198,7 @@ fn mainFragment(
   let uNoiseAmount = crtUniforms.uNoiseAmount;
   let uContrast = crtUniforms.uContrast;
   let uNoiseSeed = crtUniforms.uNoiseSeed;
+  let uWhiteImpact = crtUniforms.uWhiteImpact;
 
   col = (col - 0.5) * uContrast + 0.5;
 
@@ -191,10 +206,14 @@ fn mainFragment(
   let bright = (max(col.r, max(col.g, col.b)) + luma) * 0.5;
   let scan_bright = clamp(bright, 0.35, 0.65);
 
+  var whiteMask = clamp(min(col.r, min(col.g, col.b)), 0.0, 1.0);
+  whiteMask = whiteMask * whiteMask;
+  let intensityScale = mix(1.0, 1.0 - whiteMask, 1.0 - clamp(uWhiteImpact, 0.0, 1.0));
+
   let PI = 3.141592653589793;
   let SCAN_BEAM = 1.5;
   let cosTerm = cos(uv.y * 2.0 * PI * uScanlineCount) * 0.5 + 0.5;
-  let scan_weight = 1.0 - pow(cosTerm, SCAN_BEAM) * uIntensity;
+  let scan_weight = 1.0 - pow(cosTerm, SCAN_BEAM) * uIntensity * intensityScale;
 
   let col2 = col;
   col = col * scan_weight;
@@ -216,6 +235,8 @@ export type CrtUniformValues = {
   noiseAmount: number;
   contrast: number;
   noiseSeed: number;
+  /** 0 = pure white free of scanlines; 1 = no white protection */
+  whiteImpact: number;
 };
 
 export class CrtFilter extends Filter {
@@ -228,10 +249,10 @@ export class CrtFilter extends Filter {
       uNoiseAmount: { value: 0.02, type: "f32" },
       uContrast: { value: 1.05, type: "f32" },
       uNoiseSeed: { value: 0, type: "f32" },
+      uWhiteImpact: { value: 0, type: "f32" },
       // std140 / WGSL pad to match CrtUniforms (8 × f32)
       uPad0: { value: 0, type: "f32" },
       uPad1: { value: 0, type: "f32" },
-      uPad2: { value: 0, type: "f32" },
     });
 
     const glProgram = GlProgram.from({
@@ -271,5 +292,6 @@ export class CrtFilter extends Filter {
     u["uNoiseAmount"] = v.noiseAmount;
     u["uContrast"] = v.contrast;
     u["uNoiseSeed"] = v.noiseSeed;
+    u["uWhiteImpact"] = v.whiteImpact;
   }
 }

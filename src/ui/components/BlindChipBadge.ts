@@ -921,12 +921,15 @@ export class BlindChipBadge extends UINode {
       { x: 0, y: S, key: "bl" },
     ];
     const diag = Math.hypot(S, S);
+    // 与 CardView 共用基础圆球半径（徽章无手牌左右梯度）。
+    const sphereRadius = Math.max(0.05, CONFIG.cardVisuals?.mouse3DTiltSphereRadius ?? 1);
+    const charLen = Math.max(1e-3, diag * sphereRadius);
     const cx = S / 2;
     const cy = S / 2;
 
     for (const corner of corners) {
       const d = Math.hypot(corner.x - mx, corner.y - my);
-      const tt = d / diag;
+      const tt = d / charLen;
       const z = zMax * (1 - 2 * tt);
       const denom = focal + z;
       const k = focal / denom;

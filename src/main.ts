@@ -115,6 +115,10 @@ async function bootstrap(): Promise<void> {
       if (key === "*" || key.startsWith("cardArt.back")) {
         game.refreshDeckArt();
       }
+      // 牌堆叠层几何/颜色：只重画 DeckView。
+      if (key === "*" || key.startsWith("cardArt.deckStack")) {
+        game.refreshDeckArt();
+      }
       // 是否启用贴图：重建所有 CardView + DeckView。
       if (key === "*" || key === "cardArt.useSprites") {
         game.refreshHandArt();

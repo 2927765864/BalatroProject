@@ -1,6 +1,6 @@
 {
   "type": "runtime-control-preset",
-  "version": 13,
+  "version": 14,
   "name": "shipping",
   "config": {
     "gameSpeed": 1,
@@ -35,6 +35,7 @@
         "scanlineCount": 280,
         "noiseAmount": 0.02,
         "contrast": 1.05,
+        "whiteImpact": 0,
         "resolution": 1
       }
     },
@@ -58,7 +59,7 @@
     "cardArt": {
       "useSprites": true,
       "cornerRadius": 7,
-      "faceColor": 16777195,
+      "faceColor": 16776427,
       "outlineColor": 13092807,
       "back": {
         "row": 2,
@@ -66,10 +67,19 @@
       },
       "blindChipAnim": {
         "fps": 8
+      },
+      "deckStack": {
+        "stepX": -1,
+        "stepY": 0.5,
+        "maxLayers": 8,
+        "cardsPerLayer": 4,
+        "edgeFillColor": 15921908,
+        "edgeStrokeColor": 13158608,
+        "countTextGap": 14
       }
     },
     "handLayout": {
-      "cardSpacing": 74,
+      "cardSpacing": 77,
       "arcEnabled": true,
       "arcHeight": 13,
       "fanAnglePerCardDeg": 1.2
@@ -241,8 +251,8 @@
       "intervalReductionMS": 70,
       "lastIntervalMS": 800,
       "mass": 1,
-      "angularFreq": 36,
-      "dampingRatio": 0.25,
+      "angularFreq": 40,
+      "dampingRatio": 0.3,
       "impulseScale": -0.15,
       "impulseScaleVel": 20,
       "impulseRotDeg": 0,
@@ -302,27 +312,27 @@
       "bgBlockEnabled": true,
       "bgBlockColor": 41727,
       "bgBlockAngularSpeedDeg": 15,
-      "bgBlockDurationMS": 1000,
+      "bgBlockDurationMS": 1500,
       "bgBlockFadeCurve": {
         "enabled": true,
         "startScale": 0,
         "endScale": 1,
         "p1": {
-          "x": 0,
+          "x": 0.42,
           "y": 0
         },
         "p2": {
           "x": 1,
-          "y": 0.2725089651639344
+          "y": 1
         }
       },
       "bgBlockScaleCurve": {
         "enabled": true,
         "startScale": 0,
-        "endScale": 0.45,
+        "endScale": 0.8,
         "p1": {
-          "x": 0,
-          "y": 0.7538101946721312
+          "x": 0.12135187224669604,
+          "y": 0.8731109118852459
         },
         "p2": {
           "x": 0.58,
@@ -375,7 +385,7 @@
       "bgBlockEnabled": true,
       "bgBlockColor": 16724787,
       "bgBlockAngularSpeedDeg": 15,
-      "bgBlockDurationMS": 1000,
+      "bgBlockDurationMS": 1500,
       "bgBlockFadeCurve": {
         "enabled": true,
         "startScale": 0,
@@ -513,11 +523,11 @@
         "discardFlip": false,
         "handSort": false,
         "playHandGroupShift": false,
-        "playPileDisplacement": true,
+        "playPileDisplacement": false,
         "playPileLiftEffect": false,
-        "playPileSettleEffect": false,
+        "playPileSettleEffect": true,
         "playPileSettleText": false,
-        "playPileSettleBgBlock": true,
+        "playPileSettleBgBlock": false,
         "jokerEffects": false,
         "jokerLayout": false,
         "jokerSettleText": false,
@@ -526,7 +536,7 @@
         "multBounce": false,
         "evalScoreBounce": false,
         "evalScoreText": false,
-        "textJitter": false,
+        "textJitter": true,
         "mouseOffset": true,
         "cardOvershoot": false,
         "handSwap": false,
@@ -576,13 +586,16 @@
       "hoverBreathingSubsteps": 2,
       "mouse3DTiltEnabled": true,
       "mouse3DTiltStrength": 1,
+      "mouse3DTiltSphereRadius": 1,
       "mouse3DTiltInvertTL": true,
       "mouse3DTiltInvertTR": true,
       "mouse3DTiltInvertBL": true,
       "mouse3DTiltInvertBR": true,
       "mouse3DTiltGradientEnabled": true,
       "mouse3DTiltStrengthLeftMul": 1.2,
-      "mouse3DTiltStrengthRightMul": 1.7,
+      "mouse3DTiltStrengthRightMul": 1.6,
+      "mouse3DTiltSphereRadiusLeftMul": 1.1,
+      "mouse3DTiltSphereRadiusRightMul": 0.8,
       "mouse3DTiltSmoothEnabled": false,
       "mouse3DTiltSmoothing": 0.9,
       "clickThresholdMS": 250,
@@ -748,7 +761,9 @@
     "textJitter": {
       "enabled": true,
       "baseAngleDeg": 0.7,
-      "frequencyHz": 4,
+      "frequencyHzMin": 1,
+      "frequencyHzMax": 4,
+      "frequencyModHz": 0.35,
       "phaseStaggerDeg": 55,
       "digitGrowth": 1.2,
       "minDigits": 2,
@@ -988,19 +1003,6 @@
             "type": "textStyle",
             "data": {
               "text": "44/52"
-            }
-          },
-          {
-            "type": "shadow",
-            "data": {
-              "color": "#000000",
-              "alpha": 0.5,
-              "angle": 45,
-              "distance": 4,
-              "scaleX": 1,
-              "scaleY": 1,
-              "skewX": 0,
-              "skewY": 0
             }
           }
         ]
@@ -2108,7 +2110,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "高牌"
+              "text": "对子"
             }
           },
           {
@@ -2177,7 +2179,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "10"
+              "text": "60"
             }
           },
           {
@@ -2257,7 +2259,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "10"
             }
           },
           {
@@ -2293,7 +2295,7 @@
             "type": "breathingText",
             "data": {
               "enabled": true,
-              "stagger": 180,
+              "stagger": 550,
               "cycle": 2550,
               "loopGap": 0,
               "amplitudeMin": 0,
@@ -2402,7 +2404,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "2"
             }
           },
           {

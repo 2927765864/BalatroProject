@@ -39,6 +39,7 @@
  *     用 rAF 合并同一帧内多次结构变动，避免 N 次重烤。
  */
 import {
+  Container,
   Sprite,
   Texture,
   Rectangle,
@@ -47,6 +48,7 @@ import {
 import { deferDestroyTexture } from "@core/DeferredTextureDestroy";
 import { UIComponent, type SerializedComponent } from "../UIComponent";
 import { uiHierarchy } from "../UIHierarchy";
+import { isUINode } from "../UINode";
 import { attachDragScrub } from "@/debug/dragScrub";
 
 interface ShadowData {
@@ -271,48 +273,80 @@ export class ShadowComponent extends UIComponent {
     const host = this.host;
     const sprite = this.sprite!;
 
-    // host 在自己 local 空间下的内容包围盒。
-    const bounds = host.getLocalBounds();
-    if (bounds.width <= 0 || bounds.height <= 0) {
-      return false;
-    }
+    // 祖先剪影不应包含「只要本体、不要阴影」的子节点（如牌堆 44/52）。
+    // 烤之前临时隐藏，算 bounds / generateTexture 都排除它们，烤完再还原。
+    const hidden = this.hideExcludedShadowCaptureChildren(host);
 
-    // PIXI v8 内部会把 region 的 width/height 做 `| 0`（floor 到整数），
-    // 不修正的话边缘会少一两像素，导致剪影看上去"比本体小一圈"。
-    // 这里把 region 向外扩到整数边界，并把 (x, y) 一起对齐到整数，
-    // 让 sprite 的 position 重新对得齐。
-    const x0 = Math.floor(bounds.x);
-    const y0 = Math.floor(bounds.y);
-    const x1 = Math.ceil(bounds.x + bounds.width);
-    const y1 = Math.ceil(bounds.y + bounds.height);
-    const region = new Rectangle(x0, y0, x1 - x0, y1 - y0);
-
-    this.regionOffsetX = region.x;
-    this.regionOffsetY = region.y;
-    this.regionWidth = region.width;
-    this.regionHeight = region.height;
-
-    let tex: Texture | null = null;
     try {
-      tex = renderer.generateTexture({
-        target: host,
-        frame: region,
-        resolution: renderer.resolution,
-        antialias: true,
-        textureSourceOptions: { autoGarbageCollect: false },
-      });
-      tex.source.autoGarbageCollect = false;
-    } catch (err) {
-      console.warn(`[ShadowComponent] generateTexture 失败：`, err);
-      return false;
-    }
+      // host 在自己 local 空间下的内容包围盒。
+      const bounds = host.getLocalBounds();
+      if (bounds.width <= 0 || bounds.height <= 0) {
+        return false;
+      }
 
-    const oldTex = this.texture;
-    this.texture = tex;
-    sprite.texture = tex;
-    // 旧纹理延迟数帧销毁，等 batch BindGroup 换绑完成后再释放 GPU 资源。
-    if (oldTex && oldTex !== tex) deferDestroyTexture(oldTex);
-    return true;
+      // PIXI v8 内部会把 region 的 width/height 做 `| 0`（floor 到整数），
+      // 不修正的话边缘会少一两像素，导致剪影看上去"比本体小一圈"。
+      // 这里把 region 向外扩到整数边界，并把 (x, y) 一起对齐到整数，
+      // 让 sprite 的 position 重新对得齐。
+      const x0 = Math.floor(bounds.x);
+      const y0 = Math.floor(bounds.y);
+      const x1 = Math.ceil(bounds.x + bounds.width);
+      const y1 = Math.ceil(bounds.y + bounds.height);
+      const region = new Rectangle(x0, y0, x1 - x0, y1 - y0);
+
+      this.regionOffsetX = region.x;
+      this.regionOffsetY = region.y;
+      this.regionWidth = region.width;
+      this.regionHeight = region.height;
+
+      let tex: Texture | null = null;
+      try {
+        tex = renderer.generateTexture({
+          target: host,
+          frame: region,
+          resolution: renderer.resolution,
+          antialias: true,
+          textureSourceOptions: { autoGarbageCollect: false },
+        });
+        tex.source.autoGarbageCollect = false;
+      } catch (err) {
+        console.warn(`[ShadowComponent] generateTexture 失败：`, err);
+        return false;
+      }
+
+      const oldTex = this.texture;
+      this.texture = tex;
+      sprite.texture = tex;
+      // 旧纹理延迟数帧销毁，等 batch BindGroup 换绑完成后再释放 GPU 资源。
+      if (oldTex && oldTex !== tex) deferDestroyTexture(oldTex);
+      return true;
+    } finally {
+      for (const child of hidden) child.visible = true;
+    }
+  }
+
+  /**
+   * 递归隐藏 host 子树中 excludeFromParentShadowCapture 的 UINode。
+   * 返回本次被隐藏的节点，供调用方还原 visible。
+   */
+  private hideExcludedShadowCaptureChildren(root: Container): Container[] {
+    const hidden: Container[] = [];
+    const walk = (node: Container): void => {
+      for (const child of node.children) {
+        if (!(child instanceof Container)) continue;
+        if (isUINode(child) && child.excludeFromParentShadowCapture) {
+          if (child.visible) {
+            child.visible = false;
+            hidden.push(child);
+          }
+          // 整棵子树已隐藏，不必再往下走。
+          continue;
+        }
+        walk(child);
+      }
+    };
+    walk(root);
+    return hidden;
   }
 
   /**

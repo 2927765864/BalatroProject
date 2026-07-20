@@ -430,6 +430,17 @@
 
             <div class="panel-row">
               <div class="panel-row-header">
+                <span>白色受影响 whiteImpact</span>
+                <span id="val-crtWhiteImpact">0</span>
+              </div>
+              <input id="inp-crtWhiteImpact" type="range" min="0" max="1" step="0.01" />
+              <div style="color:rgba(255,255,255,0.5);font-size:11px;margin-top:4px;">
+                0 = 纯白几乎无扫描线；1 = 纯白与普通像素同等受影响
+              </div>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
                 <span>Filter 分辨率 resolution</span>
                 <span id="val-crtResolution">1</span>
               </div>
@@ -500,7 +511,98 @@
               <div id="card-back-picker" class="card-back-picker"></div>
             </div>
 
-            <!-- 2b. 手牌摆放 -->
+            <!-- 2b. 牌堆叠层（右下角 DeckView） -->
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
+              <span>牌堆叠层</span>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>层 X 偏移 (像素，负=左)</span>
+                <span id="val-deckStackStepX">-2.0</span>
+              </div>
+              <input
+                id="inp-deckStackStepX"
+                type="number"
+                min="-12"
+                max="12"
+                step="0.5"
+              />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>层 Y 偏移 (像素，正=下)</span>
+                <span id="val-deckStackStepY">2.0</span>
+              </div>
+              <input
+                id="inp-deckStackStepY"
+                type="number"
+                min="-12"
+                max="12"
+                step="0.5"
+              />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>最大层数</span>
+                <span id="val-deckStackMaxLayers">8</span>
+              </div>
+              <input
+                id="inp-deckStackMaxLayers"
+                type="number"
+                min="0"
+                max="24"
+                step="1"
+              />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>每层对应张数</span>
+                <span id="val-deckStackCardsPerLayer">4</span>
+              </div>
+              <input
+                id="inp-deckStackCardsPerLayer"
+                type="number"
+                min="1"
+                max="52"
+                step="1"
+              />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>纸边填充色</span>
+                <span id="val-deckStackEdgeFill">#f2f2f4</span>
+              </div>
+              <input id="inp-deckStackEdgeFill" type="color" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>纸边描边色</span>
+                <span id="val-deckStackEdgeStroke">#c8c8d0</span>
+              </div>
+              <input id="inp-deckStackEdgeStroke" type="color" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>数量文字间距 (像素)</span>
+                <span id="val-deckStackCountTextGap">8.0</span>
+              </div>
+              <input
+                id="inp-deckStackCountTextGap"
+                type="number"
+                min="0"
+                max="48"
+                step="1"
+              />
+            </div>
+
+            <!-- 2c. 手牌摆放 -->
             <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
               <span>手牌摆放</span>
             </div>
@@ -2646,7 +2748,15 @@
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>启用左右倾斜幅度梯度</span>
+                  <span>圆球半径（边缘曲率）</span>
+                  <span id="val-mouse3DTiltSphereRadius">1.00</span>
+                </div>
+                <input id="inp-mouse3DTiltSphereRadius" type="number" step="0.05" min="0.05" max="5" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>启用左右位置梯度</span>
                   <span id="val-mouse3DTiltGradientEnabled">关</span>
                 </div>
                 <label style="display:flex;align-items:center;gap:6px;">
@@ -2668,6 +2778,22 @@
                   <span id="val-mouse3DTiltStrengthRightMul">1.00</span>
                 </div>
                 <input id="inp-mouse3DTiltStrengthRightMul" type="number" step="0.05" min="0" max="2" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>最左卡牌圆球半径倍率</span>
+                  <span id="val-mouse3DTiltSphereRadiusLeftMul">1.00</span>
+                </div>
+                <input id="inp-mouse3DTiltSphereRadiusLeftMul" type="number" step="0.05" min="0.05" max="5" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>最右卡牌圆球半径倍率</span>
+                  <span id="val-mouse3DTiltSphereRadiusRightMul">1.00</span>
+                </div>
+                <input id="inp-mouse3DTiltSphereRadiusRightMul" type="number" step="0.05" min="0.05" max="5" />
               </div>
 
               <div class="panel-row">
@@ -3074,7 +3200,7 @@
 
             <div id="sect-textJitter-params">
               <div class="panel-row" style="opacity:0.9;font-size:11px;color:#9ab86c;">
-                1 位不抖；2 位用基础摆角；每多 1 位角度 ×增长系数。每字绕可调轴点顺/逆时针正弦摆动（默认中心）；阴影跟角抖，不跟逐字呼吸起伏。
+                1 位不抖；2 位用基础摆角；每多 1 位角度 ×增长系数。每字绕可调轴点顺/逆时针正弦摆动（默认中心）；抖动频率在「下限↔上限」间按调制速率往返；阴影跟角抖，不跟逐字呼吸起伏。
               </div>
               <div class="panel-row">
                 <div class="panel-row-header">
@@ -3092,10 +3218,24 @@
               </div>
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>抖动频率 (Hz)</span>
-                  <span id="val-textJitterFrequencyHz">8.0</span>
+                  <span>频率下限 (Hz)</span>
+                  <span id="val-textJitterFrequencyHzMin">4.0</span>
                 </div>
-                <input id="inp-textJitterFrequencyHz" type="number" step="0.5" min="0" max="30" />
+                <input id="inp-textJitterFrequencyHzMin" type="number" step="0.5" min="0" max="30" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>频率上限 (Hz)</span>
+                  <span id="val-textJitterFrequencyHzMax">12.0</span>
+                </div>
+                <input id="inp-textJitterFrequencyHzMax" type="number" step="0.5" min="0" max="30" />
+              </div>
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>频率调制 (Hz)</span>
+                  <span id="val-textJitterFrequencyModHz">0.35</span>
+                </div>
+                <input id="inp-textJitterFrequencyModHz" type="number" step="0.05" min="0" max="5" />
               </div>
               <div class="panel-row">
                 <div class="panel-row-header">

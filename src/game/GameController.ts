@@ -1635,6 +1635,7 @@ export class GameController {
       noiseAmount: c.noiseAmount,
       contrast: c.contrast,
       noiseSeed: 0,
+      whiteImpact: c.whiteImpact,
     });
     this.app.pixi.stage.filters = [this.crtFilter];
   }

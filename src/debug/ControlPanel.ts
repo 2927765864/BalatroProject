@@ -1097,6 +1097,9 @@ export function setupControlPanel(
     });
     bindSlider("inp-crtNoise", "val-crtNoise", "world.crt.noiseAmount", { digits: 3 });
     bindSlider("inp-crtContrast", "val-crtContrast", "world.crt.contrast", { digits: 2 });
+    bindSlider("inp-crtWhiteImpact", "val-crtWhiteImpact", "world.crt.whiteImpact", {
+      digits: 2,
+    });
     bindSlider("inp-crtResolution", "val-crtResolution", "world.crt.resolution", { digits: 2 });
 
     bindNumber("inp-bgMaxUpdateHz", "val-bgMaxUpdateHz", "world.background.maxUpdateHz", {
@@ -1109,6 +1112,27 @@ export function setupControlPanel(
     bindColor("inp-faceColor", "val-faceColor", "cardArt.faceColor");
     bindColor("inp-outlineColor", "val-outlineColor", "cardArt.outlineColor");
     bindCardBackPicker("card-back-picker", "val-cardBack");
+
+    // === 牌的绘制 / 牌堆叠层（右下角 DeckView） ===
+    bindNumber("inp-deckStackStepX", "val-deckStackStepX", "cardArt.deckStack.stepX", { digits: 1 });
+    bindNumber("inp-deckStackStepY", "val-deckStackStepY", "cardArt.deckStack.stepY", { digits: 1 });
+    bindNumber("inp-deckStackMaxLayers", "val-deckStackMaxLayers", "cardArt.deckStack.maxLayers", {
+      integer: true,
+    });
+    bindNumber(
+      "inp-deckStackCardsPerLayer",
+      "val-deckStackCardsPerLayer",
+      "cardArt.deckStack.cardsPerLayer",
+      { integer: true },
+    );
+    bindColor("inp-deckStackEdgeFill", "val-deckStackEdgeFill", "cardArt.deckStack.edgeFillColor");
+    bindColor("inp-deckStackEdgeStroke", "val-deckStackEdgeStroke", "cardArt.deckStack.edgeStrokeColor");
+    bindNumber(
+      "inp-deckStackCountTextGap",
+      "val-deckStackCountTextGap",
+      "cardArt.deckStack.countTextGap",
+      { digits: 1 },
+    );
 
     // === 牌的绘制 / 手牌摆放 ===
     bindNumber("inp-cardSpacing", "val-cardSpacing", "handLayout.cardSpacing", { digits: 1 });
@@ -1219,9 +1243,12 @@ export function setupControlPanel(
     bindSectionExpand("inp-expandMouse3DTilt", "val-expandMouse3DTilt", "cardVisuals.expandedSections.mouse3DTilt", "sect-mouse3DTilt-params");
     bindToggle("inp-mouse3DTiltEnabled", "val-mouse3DTiltEnabled", "cardVisuals.mouse3DTiltEnabled");
     bindNumber("inp-mouse3DTiltStrength", "val-mouse3DTiltStrength", "cardVisuals.mouse3DTiltStrength", { digits: 1 });
+    bindNumber("inp-mouse3DTiltSphereRadius", "val-mouse3DTiltSphereRadius", "cardVisuals.mouse3DTiltSphereRadius", { digits: 2 });
     bindToggle("inp-mouse3DTiltGradientEnabled", "val-mouse3DTiltGradientEnabled", "cardVisuals.mouse3DTiltGradientEnabled");
     bindNumber("inp-mouse3DTiltStrengthLeftMul", "val-mouse3DTiltStrengthLeftMul", "cardVisuals.mouse3DTiltStrengthLeftMul", { digits: 2 });
     bindNumber("inp-mouse3DTiltStrengthRightMul", "val-mouse3DTiltStrengthRightMul", "cardVisuals.mouse3DTiltStrengthRightMul", { digits: 2 });
+    bindNumber("inp-mouse3DTiltSphereRadiusLeftMul", "val-mouse3DTiltSphereRadiusLeftMul", "cardVisuals.mouse3DTiltSphereRadiusLeftMul", { digits: 2 });
+    bindNumber("inp-mouse3DTiltSphereRadiusRightMul", "val-mouse3DTiltSphereRadiusRightMul", "cardVisuals.mouse3DTiltSphereRadiusRightMul", { digits: 2 });
     bindToggle("inp-mouse3DTiltInvertTL", "val-mouse3DTiltInvertTL", "cardVisuals.mouse3DTiltInvertTL");
     bindToggle("inp-mouse3DTiltInvertTR", "val-mouse3DTiltInvertTR", "cardVisuals.mouse3DTiltInvertTR");
     bindToggle("inp-mouse3DTiltInvertBL", "val-mouse3DTiltInvertBL", "cardVisuals.mouse3DTiltInvertBL");
@@ -1765,7 +1792,9 @@ export function setupControlPanel(
     bindSectionExpand("inp-expandTextJitter", "val-expandTextJitter", "cardVisuals.expandedSections.textJitter", "sect-textJitter-params");
     bindToggle("inp-textJitterEnabled", "val-textJitterEnabled", "textJitter.enabled");
     bindNumber("inp-textJitterBaseAngleDeg", "val-textJitterBaseAngleDeg", "textJitter.baseAngleDeg", { digits: 1 });
-    bindNumber("inp-textJitterFrequencyHz", "val-textJitterFrequencyHz", "textJitter.frequencyHz", { digits: 1 });
+    bindNumber("inp-textJitterFrequencyHzMin", "val-textJitterFrequencyHzMin", "textJitter.frequencyHzMin", { digits: 1 });
+    bindNumber("inp-textJitterFrequencyHzMax", "val-textJitterFrequencyHzMax", "textJitter.frequencyHzMax", { digits: 1 });
+    bindNumber("inp-textJitterFrequencyModHz", "val-textJitterFrequencyModHz", "textJitter.frequencyModHz", { digits: 2 });
     bindNumber("inp-textJitterPhaseStaggerDeg", "val-textJitterPhaseStaggerDeg", "textJitter.phaseStaggerDeg", { digits: 1 });
     bindNumber("inp-textJitterDigitGrowth", "val-textJitterDigitGrowth", "textJitter.digitGrowth", { digits: 2 });
     bindNumber("inp-textJitterMinDigits", "val-textJitterMinDigits", "textJitter.minDigits", { integer: true });

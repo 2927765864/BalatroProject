@@ -2311,6 +2311,9 @@ export class CardView extends Container {
    *   鼠标位置即"按下点"。**离鼠标越近的角向 +z（屏幕里、背景方向）凹陷，
    *   越远的角向 -z（屏幕外）凸起**。
    *
+   *   特征长度 charLen = 对角线 × mouse3DTiltSphereRadius（「牌心下圆球半径」）：
+   *   半径越大，同位置下压时角点 z 差越小（边缘更「平」）；半径越小则更「陡」。
+   *
    *   然后用透视投影 (x', y') = center + (x - center) * focal / (focal + z)
    *   投影到 2D 平面，得到 4 角的视觉位移。
    *
@@ -2356,18 +2359,21 @@ export class CardView extends Container {
     // 计算 4 角"目标"偏移
     if (hoverActive) {
       let strength = visualConf!.mouse3DTiltStrength ?? 2.0;
-      // 左右倾斜幅度梯度：按手牌位置 t = i/(n-1) 在 LeftMul ~ RightMul 间线性插值，
-      // 乘到基础 strength 上。n<=1 时 t=0.5。仅作用于真实鼠标悬停的伪 3D 倾斜。
+      let sphereRadius = visualConf!.mouse3DTiltSphereRadius ?? 1.0;
+      // 左右梯度：按手牌位置 t = i/(n-1) 对 strength / sphereRadius 分别 lerp 倍率。
+      // n<=1 时 t=0.5。仅作用于真实鼠标悬停的伪 3D 倾斜。
       if (visualConf!.mouse3DTiltGradientEnabled) {
         const n = this.handCount;
         const t = n > 1 ? this.handIndex / (n - 1) : 0.5;
-        const leftMul = visualConf!.mouse3DTiltStrengthLeftMul ?? 0.3;
-        const rightMul = visualConf!.mouse3DTiltStrengthRightMul ?? 1.0;
         const tClamped = Math.min(1, Math.max(0, t));
-        const mul = leftMul + (rightMul - leftMul) * tClamped;
-        strength *= mul;
+        const sLeft = visualConf!.mouse3DTiltStrengthLeftMul ?? 0.3;
+        const sRight = visualConf!.mouse3DTiltStrengthRightMul ?? 1.0;
+        strength *= sLeft + (sRight - sLeft) * tClamped;
+        const rLeft = visualConf!.mouse3DTiltSphereRadiusLeftMul ?? 1.0;
+        const rRight = visualConf!.mouse3DTiltSphereRadiusRightMul ?? 1.0;
+        sphereRadius *= rLeft + (rRight - rLeft) * tClamped;
       }
-      this.computeTiltTargetFromMouse(this.mouseLocalX!, this.mouseLocalY!, strength);
+      this.computeTiltTargetFromMouse(this.mouseLocalX!, this.mouseLocalY!, strength, sphereRadius);
     } else if (idleActive) {
       // 用时间驱动一个"虚拟鼠标"在卡牌中心附近做缓慢的椭圆轨迹运动，
       // 复用与 mouse3DTilt 完全相同的投影公式，得到呼吸般的伪 3D 倾斜。
@@ -2381,7 +2387,8 @@ export class CardView extends Container {
       const vmx = cx + Math.sin(t) * rx;
       const vmy = cy + Math.cos(t * 0.85) * ry;
       const strength = visualConf!.idleTiltStrength ?? 0.6;
-      this.computeTiltTargetFromMouse(vmx, vmy, strength);
+      // idle 不走左右梯度，仅用基础圆球半径。
+      this.computeTiltTargetFromMouse(vmx, vmy, strength, visualConf!.mouse3DTiltSphereRadius ?? 1.0);
     } else {
       this.targetCornerOffset.tlX = 0; this.targetCornerOffset.tlY = 0;
       this.targetCornerOffset.trX = 0; this.targetCornerOffset.trY = 0;
@@ -2413,13 +2420,19 @@ export class CardView extends Container {
   }
 
   /**
-   * 共用的角点投影计算：给定卡牌本地坐标系中的一个"鼠标位置" (mx, my) 和强度，
+   * 共用的角点投影计算：给定卡牌本地坐标系中的一个"鼠标位置" (mx, my)、强度与圆球半径，
    * 用与 mouse3DTilt 完全相同的透视投影模型，写入 this.targetCornerOffset。
    *
+   * sphereRadius 已由调用方按手牌位置梯度（若启用）算好；本函数只做几何投影。
    * 由 updateMouse3DTilt（真实鼠标）和常态伪3D倾斜呼吸（虚拟鼠标）共同使用，
    * 这样能确保两种倾斜的视觉模型 100% 一致。
    */
-  private computeTiltTargetFromMouse(mx: number, my: number, strength: number): void {
+  private computeTiltTargetFromMouse(
+    mx: number,
+    my: number,
+    strength: number,
+    sphereRadius: number = 1,
+  ): void {
     const W = CardSkin.width;
     const H = CardSkin.height;
 
@@ -2436,12 +2449,15 @@ export class CardView extends Container {
     ];
 
     const diag = Math.hypot(W, H);
+    // 「圆球半径」相对倍率：1 = 以对角线为特征长度（历史行为）；越大边缘倾斜越弱。
+    const r = Math.max(0.05, sphereRadius);
+    const charLen = Math.max(1e-3, diag * r);
     const cx = W / 2;
     const cy = H / 2;
 
     for (const c of corners) {
       const d = Math.hypot(c.x - mx, c.y - my);
-      const t = d / diag;
+      const t = d / charLen;
       const z = zMax * (1 - 2 * t);
       const denom = focal + z;
       const k = focal / denom;

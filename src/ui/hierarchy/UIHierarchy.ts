@@ -334,12 +334,21 @@ class UIHierarchyImpl {
 
     const savedComps = saved.components ?? [];
     for (const sc of savedComps) {
+      // 节点主动屏蔽的组件类型（如牌堆数量文字的 shadow）不要从存档复活。
+      if (node.isComponentBlocked(sc.type)) continue;
       if (!node.getComponent(sc.type)) {
         const comp = componentRegistry.create(sc.type);
         if (comp) node.addComponent(comp);
       }
     }
+    // 若存档里曾有现已屏蔽的组件，确保运行时也不残留。
+    for (const sc of savedComps) {
+      if (node.isComponentBlocked(sc.type) && node.getComponent(sc.type)) {
+        node.removeComponent(sc.type);
+      }
+    }
     for (const comp of node.listComponents()) {
+      if (node.isComponentBlocked(comp.type)) continue;
       const sc = savedComps.find((s) => s.type === comp.type);
       if (sc) {
         try {

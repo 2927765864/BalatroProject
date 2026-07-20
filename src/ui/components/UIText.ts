@@ -66,8 +66,12 @@ export class UIText extends UINode {
     this.addComponent(this.textStyle);
 
     // 默认给所有界面文字加硬剪影阴影（与 Panel/Button 等容器阴影同组件）。
+    // shadow:false 时：不挂载，并 block，防止 shipping/localStorage hydrate 再挂回来。
     if (opts.shadow === false) {
       this.shadow = null;
+      this.blockComponentType("shadow");
+      // 同时避免被父节点 ShadowComponent 烤进剪影（数字出现「假阴影」）。
+      this.excludeFromParentShadowCapture = true;
     } else {
       this.shadow = new ShadowComponent();
       this.addComponent(this.shadow);

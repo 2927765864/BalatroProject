@@ -49,6 +49,16 @@ export class UINode extends Container {
   private registered = false;
   /** 处于 resort 过程中：避免 setChildIndex 触发的 childAdded/Removed 递归。 */
   private resorting = false;
+  /**
+   * 禁止挂到本节点的组件类型（例如牌堆数量文字禁止 shadow）。
+   * hydrate / applyConfigToNode / 手工 addComponent 都会遵守。
+   */
+  private readonly blockedComponentTypes = new Set<string>();
+  /**
+   * 为 true 时，祖先节点 ShadowComponent 烤剪影时会临时隐藏本节点，
+   * 避免子文字被并进父阴影（例如牌堆数量 44/52）。
+   */
+  excludeFromParentShadowCapture = false;
 
   constructor(opts: UINodeOptions) {
     super();
@@ -138,7 +148,33 @@ export class UINode extends Container {
     return this.components;
   }
 
+  /** 是否禁止挂载某类组件（含存档 hydrate 回放）。 */
+  isComponentBlocked(type: string): boolean {
+    return this.blockedComponentTypes.has(type);
+  }
+
+  /**
+   * 永久禁止某类组件：若已挂载则尝试移除。
+   * 典型：UIText({ shadow: false }) → blockComponentType("shadow")，
+   * 防止 shipping/localStorage 里的 shadow 配置在 hydrate 时又挂回来。
+   */
+  blockComponentType(type: string): void {
+    this.blockedComponentTypes.add(type);
+    if (this.getComponent(type)) {
+      this.removeComponent(type);
+    }
+  }
+
   addComponent<T extends UIComponent>(component: T): T {
+    if (this.blockedComponentTypes.has(component.type)) {
+      console.warn(
+        `[UINode:${this.nodeId}] 组件类型已被屏蔽，忽略：${component.type}`,
+      );
+      // 没有已有实例时返回传入对象但不 attach，调用方不应依赖返回值做生命周期。
+      const existing = this.getComponent<T>(component.type);
+      if (existing) return existing;
+      return component;
+    }
     const existing = this.getComponent<T>(component.type);
     if (existing) {
       console.warn(

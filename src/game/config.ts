@@ -31,8 +31,9 @@
  * v11：盲注区拆出深蓝内容卡（contentCard），外底改为近黑；节点父子变更。
  * v12：盲注徽章改为圆心位姿 + 手牌级拖拽交互；去掉 badge.background/border/label 子节点。
  * v13：卡牌层高于 UI；盲注徽章伪3D/阴影；badgeHome 锚点节点。
+ * v14：牌堆数量文字无硬剪影；屏蔽 hydrate 把 shadow 加回 countText。
  */
-export const CONFIG_VERSION = 13;
+export const CONFIG_VERSION = 14;
 
 /**
  * 单个 UI 节点的可持久化数据。
@@ -122,8 +123,21 @@ export interface TextJitterConfig {
    * 实际 θ ∈ [-A, +A]。
    */
   baseAngleDeg: number;
-  /** 角频率（Hz），越大越「快」 */
-  frequencyHz: number;
+  /**
+   * 抖动角频率下限（Hz）。与 frequencyHzMax 组成瞬时频率的两端。
+   * 瞬时频率按正弦 LFO 在 [min, max] 间往返（见 frequencyModHz）。
+   */
+  frequencyHzMin: number;
+  /**
+   * 抖动角频率上限（Hz）。越大越「快」。
+   * 若 min==max 则退化为固定频率。
+   */
+  frequencyHzMax: number;
+  /**
+   * 频率调制速率（Hz）：完整「慢→快→慢」一周期的次数。
+   * 0 = 固定用 (min+max)/2，不做往返。
+   */
+  frequencyModHz: number;
   /** 相邻字相位差（度），避免整串同步 */
   phaseStaggerDeg: number;
   /** 位数增长底数，默认 1.2 */
@@ -185,6 +199,12 @@ export interface CrtConfig {
   noiseAmount: number;
   /** 扫描前对比度，1=不变 → uContrast */
   contrast: number;
+  /**
+   * 纯白区域受扫描线影响程度 0–1 → uWhiteImpact。
+   * 0 = 纯白几乎无扫描线暗纹；1 = 与普通像素同等受影响。
+   * 近白用 min(r,g,b)² 做遮罩，只保护很亮的中性色。
+   */
+  whiteImpact: number;
   /**
    * Filter.resolution，1=全分辨率。
    * 移动端可 0.5–0.75（对齐 BackgroundView low 档）。
@@ -412,6 +432,27 @@ export interface RuntimeConfig {
     blindChipAnim: {
       /** 播放帧率（帧/秒）。0 = 停在当前帧。 */
       fps: number;
+    };
+    /**
+     * 右下角剩余牌堆叠层（DeckView）。
+     * 底层相对顶牌偏移 (stepX, stepY)；原版 Balatro 为左下（stepX 为负、stepY 为正）。
+     * 改值后需要 refreshDeckArt。
+     */
+    deckStack: {
+      /** 每一可见层相对上一层的 X 偏移（像素，负=向左）。 */
+      stepX: number;
+      /** 每一可见层相对上一层的 Y 偏移（像素，正=向下）。 */
+      stepY: number;
+      /** 最多绘制的纸边层数（不含顶面）。 */
+      maxLayers: number;
+      /** 大约每多少张剩余牌多露一层边。 */
+      cardsPerLayer: number;
+      /** 叠层纸边填充色（PixiJS 数字色）。 */
+      edgeFillColor: number;
+      /** 叠层纸边描边色（PixiJS 数字色）。 */
+      edgeStrokeColor: number;
+      /** 数量文字相对「顶牌底 + 向下伸出的叠层」的额外间距（像素）。 */
+      countTextGap: number;
     };
   };
   /**
@@ -1166,15 +1207,28 @@ export interface RuntimeConfig {
     // 3. 卡牌鼠标悬停伪3D倾斜效果
     mouse3DTiltEnabled: boolean;
     mouse3DTiltStrength: number;
+    /**
+     * 伪 3D 倾斜的「支撑圆球」相对半径（脑中建模：牌心底下有球，鼠标处下压）。
+     * 实现上作为角点 z 深度随「到鼠标距离」衰减的特征长度倍率：
+     *   charLen = 卡牌对角线 × mouse3DTiltSphereRadius，
+     *   t = dist(角, 鼠标) / charLen，z = zMax * (1 - 2t)。
+     * - 半径越大：边缘触碰时角点 z 差越小 → 倾斜越「平」；
+     * - 半径越小：边缘触碰时角点 z 差越大 → 倾斜越「陡」。
+     * 1.0 = 历史默认（以对角线为特征长度）；建议范围约 0.3~3。
+     * 与 strength 正交：strength 控整体深度幅度，本参数控「随触碰位置的几何曲率」。
+     * 与 idleTilt 共用同一投影函数，故呼吸倾斜也受此影响。
+     */
+    mouse3DTiltSphereRadius: number;
     mouse3DTiltInvertTL: boolean;
     mouse3DTiltInvertTR: boolean;
     mouse3DTiltInvertBL: boolean;
     mouse3DTiltInvertBR: boolean;
     /**
-     * 是否启用"从左到右倾斜幅度梯度"。
-     * - true：根据卡牌在手牌中的位置（最左=0，最右=1）对 mouse3DTiltStrength 做线性插值；
-     *   最终强度 = mouse3DTiltStrength × lerp(mouse3DTiltStrengthLeftMul, mouse3DTiltStrengthRightMul, t)。
-     * - false：所有卡牌共用同一个 mouse3DTiltStrength。
+     * 是否启用"从左到右"手牌位置梯度。
+     * - true：根据卡牌在手牌中的位置（最左=0，最右=1）对 strength / sphereRadius 分别做线性插值；
+     *   最终强度 = mouse3DTiltStrength × lerp(StrengthLeftMul, StrengthRightMul, t)；
+     *   最终圆球半径 = mouse3DTiltSphereRadius × lerp(SphereRadiusLeftMul, SphereRadiusRightMul, t)。
+     * - false：所有卡牌共用同一套 strength / sphereRadius。
      * 仅作用于真实鼠标悬停的伪 3D 倾斜，不影响 idleTilt 呼吸晃动。
      */
     mouse3DTiltGradientEnabled: boolean;
@@ -1188,6 +1242,16 @@ export interface RuntimeConfig {
      * 仅当 mouse3DTiltGradientEnabled=true 时生效。
      */
     mouse3DTiltStrengthRightMul: number;
+    /**
+     * 最左端卡牌的圆球半径倍率。范围建议 0.05~3。
+     * 仅当 mouse3DTiltGradientEnabled=true 时生效；1 表示沿用基础 mouse3DTiltSphereRadius。
+     */
+    mouse3DTiltSphereRadiusLeftMul: number;
+    /**
+     * 最右端卡牌的圆球半径倍率。范围建议 0.05~3。
+     * 仅当 mouse3DTiltGradientEnabled=true 时生效；1 表示沿用基础 mouse3DTiltSphereRadius。
+     */
+    mouse3DTiltSphereRadiusRightMul: number;
     /**
      * 是否启用倾斜角度过渡平滑。
      * - true（默认）：从当前角度按 mouse3DTiltSmoothing 速率逐帧逼近目标角度（与 idle tilt 共用）。
@@ -1397,6 +1461,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
       scanlineCount: 720,
       noiseAmount: 0.02,
       contrast: 1.05,
+      whiteImpact: 0,
       resolution: 1,
     }),
   }),
@@ -1430,6 +1495,16 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     blindChipAnim: Object.freeze({
       // 约半秒转一圈（21 帧 / 12fps ≈ 1.75s/圈），可在参数面板「盲注硬币动画」调节。
       fps: 12,
+    }),
+    deckStack: Object.freeze({
+      // 左下方向叠层，对齐原版 Balatro 右下角牌堆纸边。
+      stepX: -2,
+      stepY: 2,
+      maxLayers: 8,
+      cardsPerLayer: 4,
+      edgeFillColor: 0xf2f2f4,
+      edgeStrokeColor: 0xc8c8d0,
+      countTextGap: 8,
     }),
   }),
   handLayout: Object.freeze({
@@ -1847,6 +1922,7 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
 
     mouse3DTiltEnabled: true,
     mouse3DTiltStrength: 2.0,
+    mouse3DTiltSphereRadius: 1.0,
     mouse3DTiltInvertTL: true,
     mouse3DTiltInvertTR: true,
     mouse3DTiltInvertBL: true,
@@ -1854,6 +1930,8 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     mouse3DTiltGradientEnabled: false,
     mouse3DTiltStrengthLeftMul: 0.3,
     mouse3DTiltStrengthRightMul: 1.0,
+    mouse3DTiltSphereRadiusLeftMul: 1.0,
+    mouse3DTiltSphereRadiusRightMul: 1.0,
     mouse3DTiltSmoothEnabled: true,
     mouse3DTiltSmoothing: 0.15,
 
@@ -1903,7 +1981,10 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
   textJitter: Object.freeze({
     enabled: true,
     baseAngleDeg: 5,
-    frequencyHz: 8,
+    // 瞬时频率在 4–12 Hz 间往返，约 0.35 Hz 完成一整圈慢→快→慢。
+    frequencyHzMin: 4,
+    frequencyHzMax: 12,
+    frequencyModHz: 0.35,
     phaseStaggerDeg: 55,
     digitGrowth: 1.2,
     minDigits: 2,
@@ -2016,12 +2097,14 @@ export function applyCrtPreset(
     crt.scanlineCount = 720;
     crt.noiseAmount = 0.02;
     crt.contrast = 1.05;
+    crt.whiteImpact = 0;
     crt.resolution = 1;
   } else {
     crt.intensity = 0.55;
     crt.scanlineCount = 540;
     crt.noiseAmount = 0.04;
     crt.contrast = 1.12;
+    crt.whiteImpact = 0;
     crt.resolution = 1;
   }
 }
@@ -2042,6 +2125,7 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
       ...src.cardArt,
       back: { ...src.cardArt.back },
       blindChipAnim: { ...src.cardArt.blindChipAnim },
+      deckStack: { ...src.cardArt.deckStack },
     },
     handLayout: { ...src.handLayout },
     playfield: { ...src.playfield },
@@ -2241,6 +2325,10 @@ export function applyConfig(source: unknown): void {
       blindChipAnim: {
         ...merged.cardArt.blindChipAnim,
         ...(incoming.cardArt.blindChipAnim ?? {}),
+      },
+      deckStack: {
+        ...merged.cardArt.deckStack,
+        ...(incoming.cardArt.deckStack ?? {}),
       },
     };
   }
@@ -2489,10 +2577,25 @@ export function applyConfig(source: unknown): void {
     };
   }
   if (incoming.textJitter) {
+    const raw = incoming.textJitter as TextJitterConfig & {
+      /** 旧版单频字段；迁移为 min=max=该值，保留视觉等价。 */
+      frequencyHz?: number;
+    };
+    const { frequencyHz: legacyHz, ...rest } = raw;
     merged.textJitter = {
       ...merged.textJitter,
-      ...incoming.textJitter,
+      ...rest,
     };
+    // 旧存档只有 frequencyHz：两端同值 → 固定频率，无 LFO。
+    if (
+      typeof legacyHz === "number" &&
+      Number.isFinite(legacyHz) &&
+      raw.frequencyHzMin === undefined &&
+      raw.frequencyHzMax === undefined
+    ) {
+      merged.textJitter.frequencyHzMin = legacyHz;
+      merged.textJitter.frequencyHzMax = legacyHz;
+    }
   }
   if (incoming.joker) {
     merged.joker = {
@@ -2593,6 +2696,10 @@ export function applyShippingDefaults(source: unknown): void {
       blindChipAnim: {
         ...activeDefaultConfig.cardArt.blindChipAnim,
         ...(incoming.cardArt.blindChipAnim ?? {}),
+      },
+      deckStack: {
+        ...activeDefaultConfig.cardArt.deckStack,
+        ...(incoming.cardArt.deckStack ?? {}),
       },
     };
   }
@@ -2841,10 +2948,23 @@ export function applyShippingDefaults(source: unknown): void {
     };
   }
   if (incoming.textJitter) {
+    const raw = incoming.textJitter as TextJitterConfig & {
+      frequencyHz?: number;
+    };
+    const { frequencyHz: legacyHz, ...rest } = raw;
     activeDefaultConfig.textJitter = {
       ...activeDefaultConfig.textJitter,
-      ...incoming.textJitter,
+      ...rest,
     };
+    if (
+      typeof legacyHz === "number" &&
+      Number.isFinite(legacyHz) &&
+      raw.frequencyHzMin === undefined &&
+      raw.frequencyHzMax === undefined
+    ) {
+      activeDefaultConfig.textJitter.frequencyHzMin = legacyHz;
+      activeDefaultConfig.textJitter.frequencyHzMax = legacyHz;
+    }
   }
   if (incoming.joker) {
     activeDefaultConfig.joker = {

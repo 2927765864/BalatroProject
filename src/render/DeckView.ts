@@ -16,6 +16,9 @@ import { getPixelOutlineTexture } from "./PixelOutlineTexture";
  *   - CONFIG.cardArt.useSprites && AssetManager 就绪 → 使用 Enhancers 切出来的背面贴图。
  *   - 否则回退到原本的 Graphics 像素装饰画法，避免黑屏。
  *
+ * 叠层方向对齐原版 Balatro：底层牌相对顶牌向左下偏移（-x, +y），
+ * 露出左侧与底侧的纸边厚度，而不是左上台阶。
+ *
  * 牌背是会被运行时切换的（ControlPanel 里能选行列）。所以 refresh() 会被外部调用，
  * 它把整层 children 清空再重画一遍——成本可以忽略，因为一帧只有一个 DeckView。
  */
@@ -32,10 +35,12 @@ export class DeckView extends UINode {
   })();
   private readonly countText: UIText;
   private readonly totalCount: number;
+  private currentCount: number;
 
   constructor(totalCount = 52) {
     super({ id: "hud.deckView", displayName: "牌堆" });
     this.totalCount = totalCount;
+    this.currentCount = totalCount;
 
     this.addChild(this.cardLayer);
     this.drawStack();
@@ -50,24 +55,55 @@ export class DeckView extends UINode {
         fill: 0xffffff,
         fontWeight: "900",
       },
+      // 数量角标不要硬剪影，避免和牌堆阴影糊在一起。
+      shadow: false,
     });
     this.countText.setAnchor(0.5, 0);
-    this.countText.position.set(CardSkin.width / 2, CardSkin.height + 8);
     this.addChild(this.countText);
+    this.layoutCountText();
   }
 
-  /** 牌数变化时由 GameController 调用。 */
+  /** 牌数变化时由 GameController 调用；会按剩余张数重画叠层厚度。 */
   setCount(current: number): void {
-    this.countText.setText(`${current}/${this.totalCount}`);
+    const next = Math.max(0, current);
+    const layersBefore = this.layerCountFor(this.currentCount);
+    this.currentCount = next;
+    this.countText.setText(`${next}/${this.totalCount}`);
+    if (this.layerCountFor(next) !== layersBefore) {
+      this.refresh();
+    } else {
+      this.layoutCountText();
+    }
   }
 
   /** 外部切换牌背后调用：清掉旧层重画一摞。 */
   refresh(): void {
     this.cardLayer.removeChildren().forEach((c) => c.destroy());
     this.drawStack();
+    this.layoutCountText();
+  }
+
+  /** 数量文字在顶牌下方，并避开向下伸出的叠层纸边。 */
+  private layoutCountText(): void {
+    const stack = CONFIG.cardArt.deckStack;
+    const layers = this.layerCountFor(this.currentCount);
+    // 仅当 stepY > 0 时叠层向下伸出，才需要把文字再往下让。
+    const stackDrop = Math.max(0, layers * stack.stepY);
+    this.countText.position.set(
+      CardSkin.width / 2,
+      CardSkin.height + stackDrop + stack.countTextGap,
+    );
   }
 
   // ---- 内部 ----
+
+  private layerCountFor(count: number): number {
+    if (count <= 0) return 0;
+    const stack = CONFIG.cardArt.deckStack;
+    const per = Math.max(1, stack.cardsPerLayer);
+    const max = Math.max(0, Math.floor(stack.maxLayers));
+    return Math.min(max, Math.max(1, Math.ceil(count / per)));
+  }
 
   private drawStack(): void {
     const useSprite = CONFIG.cardArt.useSprites && assets.isReady;
@@ -78,10 +114,32 @@ export class DeckView extends UINode {
     }
   }
 
+  /**
+   * 绘制底层「纸边」叠层（不含顶面牌背）。
+   * 参数见 CONFIG.cardArt.deckStack（参数面板「牌的绘制 → 牌堆叠层」）。
+   */
+  private drawStackEdges(g: Graphics, layers: number, cw: number, ch: number, cornerRadius: number): void {
+    const stack = CONFIG.cardArt.deckStack;
+    const sx = stack.stepX;
+    const sy = stack.stepY;
+    // 由远到近：最底层先画
+    for (let i = layers; i >= 1; i -= 1) {
+      g.roundRect(i * sx, i * sy, cw, ch, cornerRadius);
+      g.fill({ color: stack.edgeFillColor });
+      g.stroke({ width: 1, color: stack.edgeStrokeColor });
+    }
+  }
+
   private drawSpriteStack(): void {
     const cw = CardSkin.width;
     const ch = CardSkin.height;
     const cornerRadius = CONFIG.cardArt.cornerRadius;
+    const layers = this.layerCountFor(this.currentCount);
+
+    if (this.currentCount <= 0) {
+      return;
+    }
+
     const { row, col } = CONFIG.cardArt.back;
     const tex = assets.getBack(row, col);
     if (!tex) {
@@ -89,13 +147,9 @@ export class DeckView extends UINode {
       return;
     }
 
-    // 底部叠层（程序化阴影），让"一摞牌"的层次感不靠多次绘制 sprite 完成。
+    // 底部叠层：左下方向的纸边厚度
     const g = new Graphics();
-    for (let i = 4; i >= 1; i -= 1) {
-      g.roundRect(-i * 1.5, -i * 1.5, cw, ch, cornerRadius);
-      g.fill({ color: 0xdddddd });
-      g.stroke({ width: 1, color: 0x888888 });
-    }
+    this.drawStackEdges(g, layers, cw, ch, cornerRadius);
     this.cardLayer.addChild(g);
 
     // 顶面：让白底/贴图/描边三者外缘对齐，与 CardView 精灵分支保持一致
@@ -141,14 +195,14 @@ export class DeckView extends UINode {
     const cw = CardSkin.width;
     const ch = CardSkin.height;
     const cornerRadius = CONFIG.cardArt.cornerRadius;
+    const layers = this.layerCountFor(this.currentCount);
+
+    if (this.currentCount <= 0) {
+      return;
+    }
 
     const g = new Graphics();
-
-    for (let i = 4; i >= 1; i -= 1) {
-      g.roundRect(-i * 1.5, -i * 1.5, cw, ch, cornerRadius);
-      g.fill({ color: 0xdddddd });
-      g.stroke({ width: 1, color: 0x888888 });
-    }
+    this.drawStackEdges(g, layers, cw, ch, cornerRadius);
 
     g.roundRect(0, 0, cw, ch, cornerRadius);
     g.fill({ color: 0xffffff });

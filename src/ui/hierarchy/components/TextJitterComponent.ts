@@ -9,6 +9,10 @@
  *   n == minDigits → baseAngleDeg
  *   n > minDigits → baseAngleDeg * digitGrowth^(n - minDigits)
  *
+ * 频率 LFO（非固定 Hz）：
+ *   瞬时频率 f(t) 在 frequencyHzMin ↔ frequencyHzMax 间按 frequencyModHz 正弦往返。
+ *   载波相位用 ∫ 2π f(s) ds 解析积分，避免直接 sin(ω(t)·t) 在变频时跳相。
+ *
  * 轴点：pivotX / pivotY（0–1 归一化，默认 0.5/0.5 = 字心）。
  * 通过 CharFrame.pivotX/Y 交给 CharLayer 做位置补偿，不改 display anchor，
  * 故 Bounce 的 scale 仍绕中心，仅抖动旋转绕所选轴点。
@@ -122,16 +126,33 @@ export class TextJitterComponent extends UIComponent implements CharEffect {
     acc.pivotY = pivotY;
 
     const scale = digitAmplitudeScale(count, cfg.digitGrowth, cfg.minDigits);
-    if (scale <= 0 || cfg.baseAngleDeg === 0 || cfg.frequencyHz <= 0) return;
+    const fLo = Math.min(cfg.frequencyHzMin, cfg.frequencyHzMax);
+    const fHi = Math.max(cfg.frequencyHzMin, cfg.frequencyHzMax);
+    if (scale <= 0 || cfg.baseAngleDeg === 0 || fHi <= 0) return;
 
     const A = ((cfg.baseAngleDeg * Math.PI) / 180) * scale;
     const speedRatio = Math.max(0.01, cfg.speedRatio);
     const t = ((now - this.startTime) / 1000) * speedRatio;
     const phi =
       this.phaseSeed + i * ((cfg.phaseStaggerDeg * Math.PI) / 180);
-    const omega = 2 * Math.PI * cfg.frequencyHz;
 
-    acc.rotation += A * Math.sin(omega * t + phi);
+    // f(t) = fMid + fAmp · sin(2π fMod t)
+    // ∫₀ᵗ f = fMid·t − (fAmp/(2π fMod))·(cos(2π fMod t) − 1)   (fMod>0)
+    // 载波相位 θ = 2π ∫ f
+    const fMid = (fLo + fHi) * 0.5;
+    const fAmp = (fHi - fLo) * 0.5;
+    const fMod = Math.max(0, cfg.frequencyModHz);
+    let carrierPhase: number;
+    if (fAmp <= 1e-9 || fMod <= 1e-9) {
+      carrierPhase = 2 * Math.PI * fMid * t;
+    } else {
+      const twoPiMod = 2 * Math.PI * fMod;
+      carrierPhase =
+        2 * Math.PI * fMid * t -
+        (fAmp / fMod) * (Math.cos(twoPiMod * t) - 1);
+    }
+
+    acc.rotation += A * Math.sin(carrierPhase + phi);
   }
 
   // ---- CONFIG ---------------------------------------------------
@@ -144,7 +165,9 @@ export class TextJitterComponent extends UIComponent implements CharEffect {
   private readConfig(): {
     enabled: boolean;
     baseAngleDeg: number;
-    frequencyHz: number;
+    frequencyHzMin: number;
+    frequencyHzMax: number;
+    frequencyModHz: number;
     phaseStaggerDeg: number;
     digitGrowth: number;
     minDigits: number;
@@ -160,7 +183,9 @@ export class TextJitterComponent extends UIComponent implements CharEffect {
     return raw as {
       enabled: boolean;
       baseAngleDeg: number;
-      frequencyHz: number;
+      frequencyHzMin: number;
+      frequencyHzMax: number;
+      frequencyModHz: number;
       phaseStaggerDeg: number;
       digitGrowth: number;
       minDigits: number;

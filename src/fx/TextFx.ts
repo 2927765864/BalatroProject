@@ -204,8 +204,6 @@ export const TextFx = {
         delayAcc += stepDelay;
       }
     }
-    const lastCharStartDelay = startDelays[chars.length - 1] ?? 0;
-
     const scaleSprings = chars.map(() => new SpringDamper1D());
     const scaleStarted = chars.map(() => false);
     const scaleSettled = chars.map(() => false);
@@ -376,6 +374,8 @@ export const TextFx = {
                 1 + cfg.impulseScale,
                 cfg.impulseScaleVel
               );
+              // 与首字同一帧弹出背景方块（数字“出现一瞬间”）
+              if (i === 0) spawnBgBlock();
             }
             if (scaleStarted[i] && !scaleSettled[i]) {
               const s = scaleSprings[i]!;
@@ -398,17 +398,11 @@ export const TextFx = {
             }
           }
 
-          // 2) 背景方块：全部单字 scale 收敛后弹出
+          // 2) 无字兜底（正常 "+N" 不会走到）：仍按 firstCharDelay 弹出方块
           if (
             !bgSpawned &&
-            scaleSettled.every(Boolean) &&
-            scaleStarted.every(Boolean)
-          ) {
-            spawnBgBlock();
-          }
-          if (
-            !bgSpawned &&
-            wallElapsedMS >= lastCharStartDelay + cfg.maxDurationMS * 0.5
+            chars.length === 0 &&
+            wallElapsedMS >= (startDelays[0] ?? cfg.firstCharDelayMS)
           ) {
             spawnBgBlock();
           }
