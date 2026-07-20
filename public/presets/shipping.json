@@ -146,7 +146,7 @@
       }
     },
     "multiCardInterval": {
-      "intervalMS": 120
+      "intervalMS": 125
     },
     "drawCard": {
       "lastCardAdvanceMS": 0,
@@ -170,8 +170,10 @@
     },
     "discardFlip": {
       "enabled": true,
-      "flipAngleDeg": 90,
+      "flipAngleDeg": 180,
       "flipAngleJitterDeg": 15,
+      "flipRateMinDegPerSec": 600,
+      "flipRateMaxDegPerSec": 1200,
       "randomRotationDeg": 180
     },
     "handSort": {
@@ -209,7 +211,7 @@
     "playPileDisplacement": {
       "enabled": true,
       "cardSpacing": 117,
-      "lastIntervalMS": 170,
+      "lastIntervalMS": 300,
       "firstIntervalMS": 180,
       "intervalReductionMS": 10,
       "riseDurationMS": 60,
@@ -504,12 +506,12 @@
         "drawCard": false,
         "drawFlip": false,
         "discard": false,
-        "discardFlip": false,
+        "discardFlip": true,
         "handSort": false,
         "playHandGroupShift": false,
-        "playPileDisplacement": false,
+        "playPileDisplacement": true,
         "playPileLiftEffect": false,
-        "playPileSettleEffect": true,
+        "playPileSettleEffect": false,
         "playPileSettleText": false,
         "playPileSettleBgBlock": false,
         "jokerEffects": false,
@@ -981,7 +983,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "45/52"
+              "text": "44/52"
             }
           },
           {
@@ -1001,7 +1003,7 @@
       },
       "hud.deckView": {
         "parentId": null,
-        "siblingIndex": 1,
+        "siblingIndex": 0,
         "components": [
           {
             "type": "transform",
@@ -1030,7 +1032,7 @@
       },
       "hud": {
         "parentId": null,
-        "siblingIndex": 3,
+        "siblingIndex": 2,
         "components": [
           {
             "type": "transform",
@@ -1206,7 +1208,7 @@
       },
       "hud.jokerBar": {
         "parentId": null,
-        "siblingIndex": 2,
+        "siblingIndex": 1,
         "components": [
           {
             "type": "transform",
@@ -2016,7 +2018,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "45989"
+              "text": "0"
             }
           },
           {
@@ -2171,7 +2173,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "15"
             }
           },
           {

@@ -318,12 +318,13 @@ export class CardView extends Container {
   private flipShowingBack = false; // 当前 mesh 是否正贴着背面纹理
   private flipScaleX = 1.0;        // 当前帧翻面通道输出的水平缩放（|cos(angle)|），作用到 displayWrapper.scale.x
 
-  // ── 弃牌/出牌结束翻面动画（正面朝上 → 飞行途中翻约 90° → 压成一条线）──
+  // ── 弃牌/出牌结束翻面动画（正面朝上 → 绕竖中轴翻约 90° → 压成一条线）──
   // 与抓牌翻面共用 flipScaleX 输出通道（同一时刻不会同时存在），但角度只从 0 单向翻到
   // 目标角（约 90°，带随机抖动），全程正面朝上、不切贴图。active=false 时完全静默。
+  // 时长由角速度区间随机得出，与弹性绳位移 settle 时间解耦。
   private discardFlipActive = false;
   private discardFlipElapsedMS = 0;  // 自弃牌翻面开始累计的时长
-  private discardFlipDurationMS = 0; // 翻面总时长（= 飞行时长）
+  private discardFlipDurationMS = 0; // 本张牌翻面总时长（由随机速率推算）
   private discardFlipTargetAngle = Math.PI / 2; // 目标累计角（弧度，约 π/2 带抖动）
 
   // 弃牌飞行期标志：飞向弃牌堆的整个过程为 true。期间禁用「速度→旋转」联动
@@ -673,6 +674,7 @@ export class CardView extends Container {
     // 美术参数变化会重建 mesh：翻面通道里指向旧贴图的状态必须清掉，避免引用已销毁纹理。
     this.flipActive = false;
     this.flipShowingBack = false;
+    this.discardFlipActive = false;
     this.flipScaleX = 1.0;
     this.removeChildren().forEach((child) => {
       child.destroy({ children: true });
@@ -924,6 +926,9 @@ export class CardView extends Container {
    * 开关关闭、或缺少 renderer/背面贴图时直接放弃翻面（卡牌正面朝上，无动画），不影响发牌。
    */
   public startDrawFlip(flightDurationMS: number): void {
+    // 与弃牌翻面互斥：抓牌瞬间清掉可能残留的弃牌压线
+    if (this.discardFlipActive) this.cancelDiscardFlip();
+
     const cfg = CONFIG.drawFlip;
     if (!cfg?.enabled) {
       this.cancelDrawFlip();
@@ -1020,37 +1025,79 @@ export class CardView extends Container {
   }
 
   /**
-   * 启动「弃牌/出牌结束」翻面：牌正面朝上，飞出后沿竖中轴线翻面，
-   * 在飞行时长内累计翻到约 90°（flipAngleDeg ± flipAngleJitterDeg），最终大概压成一条线。
+   * 启动「弃牌/出牌结束」翻面：牌正面朝上，以卡牌中心竖直线为轴（绕本地 Y）翻面，
+   * 按随机角速度累计到目标角（flipAngleDeg ± flipAngleJitterDeg，0~180°）。
    *
-   * 全程不切贴图（角度 ≤ 90°，背面不会露出）。开关关闭时直接放弃（保持满幅正面），不影响飞出。
+   * 实现：displayWrapper.pivot 在几何中心；flipScaleX = |cos(θ)| 作用在 scale.x，
+   * 等价于绕牌面竖中轴的 2D 透视压扁（与抓牌翻面同一通道）。
+   *   - θ ≤ 90°：正面贴图，90° 时压成一条线；
+   *   - θ > 90°：越过临界点切到背面贴图，180° 时满幅背面。
    *
-   * @param flightDurationMS 卡牌飞向弃牌堆的飞行时长（翻面与之同步）。
+   * 开关关闭时直接放弃（保持满幅正面），不影响飞出。
+   * 翻面时钟与弹性绳飞行时长解耦：速率取自 discardFlip.flipRate* 区间。
+   *
+   * @param _flightDurationMS 历史参数（曾与 tween 飞行同步）；现已忽略，保留签名以免调用方改动。
    */
-  public startDiscardFlip(flightDurationMS: number): void {
+  public startDiscardFlip(_flightDurationMS?: number): void {
+    void _flightDurationMS;
+    // 与抓牌翻面互斥：弃牌瞬间清掉可能残留的抓牌通道
+    if (this.flipActive) this.cancelDrawFlip();
+
     const cfg = CONFIG.discardFlip;
     if (!cfg?.enabled) {
       this.cancelDiscardFlip();
       return;
     }
 
-    const rand = (jitter: number) => (Math.random() * 2 - 1) * Math.max(0, jitter);
-    const angleDeg = Math.max(
+    const randSigned = (jitter: number) => (Math.random() * 2 - 1) * Math.max(0, jitter);
+    let angleDeg = Math.max(
       0,
-      Math.min(90, (cfg.flipAngleDeg ?? 90) + rand(cfg.flipAngleJitterDeg ?? 0))
+      Math.min(180, (cfg.flipAngleDeg ?? 90) + randSigned(cfg.flipAngleJitterDeg ?? 0))
     );
+
+    // 超过 90° 需要背面贴图；拿不到则封顶到 90°（仍可压成一条线，避免镜像正面）。
+    if (angleDeg > 90) {
+      const backTex = this.getCardBackTexture();
+      if (!backTex || !this.tiltMesh) {
+        angleDeg = 90;
+      }
+    }
+
+    // 角速度区间随机（度/秒）→ 本张牌翻面时长；min/max 顺序容错
+    let rateMin = Math.max(1, cfg.flipRateMinDegPerSec ?? 300);
+    let rateMax = Math.max(1, cfg.flipRateMaxDegPerSec ?? 600);
+    if (rateMax < rateMin) {
+      const tmp = rateMin;
+      rateMin = rateMax;
+      rateMax = tmp;
+    }
+    const rateDegPerSec = rateMin + Math.random() * (rateMax - rateMin);
+    // 时长 = 角 / 速率；角为 0 时给极短时长避免除零，并保持满幅
+    const durationMS =
+      angleDeg <= 1e-6 ? 1 : Math.max(1, (angleDeg / rateDegPerSec) * 1000);
+
+    // 从正面起翻（确保 mesh 贴图正确，避免复用残留背面）
+    this.flipShowingBack = false;
+    if (this.tiltMesh && this.cardTexture) {
+      this.tiltMesh.texture = this.cardTexture;
+    }
 
     this.discardFlipActive = true;
     this.discardFlipElapsedMS = 0;
-    this.discardFlipDurationMS = Math.max(1, flightDurationMS);
+    this.discardFlipDurationMS = durationMS;
     this.discardFlipTargetAngle = (angleDeg * Math.PI) / 180;
     this.flipScaleX = 1.0;
   }
 
-  /** 中止弃牌翻面并恢复满幅显示（防御/退化路径）。 */
+  /** 中止弃牌翻面并恢复满幅正面显示（防御/退化路径）。 */
   private cancelDiscardFlip(): void {
     this.discardFlipActive = false;
-    if (!this.flipActive) this.flipScaleX = 1.0;
+    if (this.flipActive) return;
+    this.flipScaleX = 1.0;
+    if (this.flipShowingBack && this.tiltMesh && this.cardTexture) {
+      this.tiltMesh.texture = this.cardTexture;
+      this.flipShowingBack = false;
+    }
   }
 
   /**
@@ -1071,8 +1118,9 @@ export class CardView extends Container {
 
   /**
    * 推进弃牌翻面动画。每帧在 applyVisuals 之前调用。
-   * angle 从 0 线性翻到 targetAngle（约 π/2），水平缩放 flipScaleX = |cos(angle)|，
-   * 到目标角时大概压成一条线后保持（牌此时已飞出屏外，被回收）。
+   * angle 从 0 线性翻到 targetAngle（最多 π）：
+   *   flipScaleX = |cos(angle)| 绕中心竖轴压扁；
+   *   越过 π/2 时正面→背面贴图；到达目标后保持最终姿态（压线或满幅背面）。
    */
   private updateDiscardFlip(dtMS: number): void {
     if (!this.discardFlipActive) return;
@@ -1080,10 +1128,21 @@ export class CardView extends Container {
     this.discardFlipElapsedMS += dtMS;
     const t = Math.min(1, this.discardFlipElapsedMS / this.discardFlipDurationMS);
     const angle = t * this.discardFlipTargetAngle;
+
+    // 越过 90° 临界点：切到背面（与抓牌翻面方向相反：抓牌是背→正）。
+    if (!this.flipShowingBack && angle >= Math.PI / 2) {
+      const backTex = this.getCardBackTexture();
+      if (this.tiltMesh && backTex) {
+        this.tiltMesh.texture = backTex;
+        this.flipShowingBack = true;
+      }
+    }
+
+    // 绕中心竖轴：scale.x = |cos θ|，pivot 在 (W/2,H/2)
     this.flipScaleX = Math.abs(Math.cos(angle));
 
     if (t >= 1) {
-      // 到达目标角后保持压线状态（不归一），牌已飞出屏外随即被数据层回收。
+      // 保持最终角度姿态（90° 压线 / 180° 满幅背面），直至视图复用时 cancel。
       this.discardFlipActive = false;
     }
   }
@@ -2470,7 +2529,8 @@ export class CardView extends Container {
       this.displayWrapper.rotation = totalRot;
       // 最终缩放 = hover/常态 currentScale × 拖拽缩放乘数 × 结算缩放乘数（独立通道、可与 hover 复合）
       const finalScale = this.currentScale * this.dragScaleMul * this.scoringScaleMul;
-      // 抓牌翻面：仅在 X 轴叠加 flipScaleX（= |cos(flipAngle)|），实现绕竖中轴线的翻面压缩。
+      // 抓牌/弃牌翻面：仅在 X 轴叠加 flipScaleX（= |cos(flipAngle)|）。
+      // displayWrapper.pivot 在 (W/2,H/2)，故 scale.x 压缩等价于绕卡牌中心竖直线翻转。
       // 通道静默时 flipScaleX 恒为 1，对常态缩放无任何影响。
       this.displayWrapper.scale.set(finalScale * this.flipScaleX, finalScale);
     }

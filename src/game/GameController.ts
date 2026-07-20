@@ -1639,8 +1639,8 @@ export class GameController {
         v.zIndex = -0.1 - i * 0.001;
         const randomRotation = this.computeDiscardRandomRotation();
 
-        // 翻面节奏参考时长仅驱动 flip 通道；位移完全由弹性绳 setMoveTarget 完成。
-        v.startDiscardFlip(flyDurationMS);
+        // 翻面：速率/角度由 discardFlip 专区独立随机；位移完全由弹性绳 setMoveTarget 完成。
+        v.startDiscardFlip();
         v.beginDiscardFly();
         // 随机基角写入 moveTargetRotation；绳相对倾角在飞行中叠加，settle 后回落到基角。
         // 不 await 单张，按 intervalMS 错开发车；全部 waitSettled 后再 endDiscardFly。

@@ -1997,7 +1997,7 @@
 
             <div id="sect-discardFlip-params">
               <div class="panel-row" style="opacity:0.8;font-size:11px;line-height:1.5;color:#aac;padding:6px 10px;">
-                同时控制两类丢弃：① 手牌弃牌；② 出牌结算结束后卡牌从出牌堆丢弃到弃牌堆。牌开始弃牌时正面朝上，飞出后立刻沿竖中轴线翻面，目标弃牌堆（屏幕大正右方、出屏一点）。飞行途中翻约 90°——最终大概压成一条线。"约 90°" = 翻面角度 ± 随机抖动量。
+                同时控制两类丢弃：① 手牌弃牌；② 出牌结算结束后卡牌从出牌堆丢弃到弃牌堆。以卡牌中心竖直线为轴翻转（绕牌本地 Y），正面起翻。0°=正面、90°=压成一条线、180°=满幅背面（越过 90° 时切背面贴图）。目标角 = clamp(角度±抖动, 0~180)；角速度在 [下限, 上限] 度/秒内每张牌独立随机（与弹性绳飞行时长解耦）。下方「随机旋转」是 Z 轴姿态散乱，与翻面通道独立。
               </div>
 
               <div class="panel-row">
@@ -2010,10 +2010,10 @@
 
               <div class="panel-row">
                 <div class="panel-row-header">
-                  <span>飞行结束累计翻面角度 (度，约90°压成一条线)</span>
+                  <span>累计翻面角度 (度：90压线 / 180背面)</span>
                   <span id="val-discardFlipAngleDeg">90</span>
                 </div>
-                <input id="inp-discardFlipAngleDeg" type="number" step="1" min="0" max="90" />
+                <input id="inp-discardFlipAngleDeg" type="number" step="1" min="0" max="180" />
               </div>
 
               <div class="panel-row">
@@ -2021,7 +2021,23 @@
                   <span>翻面角度随机抖动量 (±度)</span>
                   <span id="val-discardFlipAngleJitterDeg">15</span>
                 </div>
-                <input id="inp-discardFlipAngleJitterDeg" type="number" step="1" min="0" max="90" />
+                <input id="inp-discardFlipAngleJitterDeg" type="number" step="1" min="0" max="180" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>翻转角速度下限 (度/秒，每张随机)</span>
+                  <span id="val-discardFlipRateMinDegPerSec">300</span>
+                </div>
+                <input id="inp-discardFlipRateMinDegPerSec" type="number" step="10" min="1" max="2000" />
+              </div>
+
+              <div class="panel-row">
+                <div class="panel-row-header">
+                  <span>翻转角速度上限 (度/秒，每张随机)</span>
+                  <span id="val-discardFlipRateMaxDegPerSec">600</span>
+                </div>
+                <input id="inp-discardFlipRateMaxDegPerSec" type="number" step="10" min="1" max="2000" />
               </div>
 
               <div class="panel-row">

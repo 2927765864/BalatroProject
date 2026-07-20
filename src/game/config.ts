@@ -619,27 +619,41 @@ export interface RuntimeConfig {
    *   1) 手牌弃牌（点击弃牌键后选中牌飞向弃牌堆）；
    *   2) 出牌结算结束后，卡牌从出牌堆丢弃到弃牌堆。
    *
-   * 翻面逻辑：牌开始弃牌时正面朝上，飞出后立刻沿竖中轴线（绕 Y 轴）翻面，
-   * 目标是弃牌堆（屏幕大正右方、出屏一点）。飞行途中翻约 90°——最终大概压成一条线。
-   * "约 90°" = flipAngleDeg ± flipAngleJitterDeg 的随机抖动量。
+   * 翻面逻辑：以卡牌几何中心的竖直线为轴（绕牌本地 Y，用 displayWrapper.scale.x =
+   * |cos(θ)| 模拟），正面朝上起翻。
+   *   - 约 90°：压成一条线；
+   *   - 越过 90°：切换背面贴图，继续翻到最多 180°（满幅背面）。
+   * 目标角 = clamp(flipAngleDeg ± flipAngleJitterDeg, 0~180)；
+   * 翻转角速度在 [flipRateMinDegPerSec, flipRateMaxDegPerSec] 内每张牌独立随机。
+   * 时长与弹性绳位移解耦（绳 settle 不再充当翻面时钟）。
    */
   discardFlip: {
     /** 总开关：关闭则弃牌/丢弃时正面朝上、无翻面压线效果。 */
     enabled: boolean;
     /**
-     * 飞行结束时累计翻面角度的基准值（度）。约 90° 时卡面恰好压成一条线。
-     * 取值 0~90：0=不翻面（满幅正面），90=完全压成一条线。
+     * 累计翻面角度的基准值（度）。
+     * 取值 0~180：0=不翻面（满幅正面），90=压成一条线，180=完全翻到背面。
+     * 超过 90° 时会在临界点切换背面贴图；若背面纹理不可用则自动封顶到 90°。
      */
     flipAngleDeg: number;
     /**
      * 翻面角度的随机抖动量（±度）。每张牌从
-     * [flipAngleDeg - jitter, flipAngleDeg + jitter] 中随机取值。
-     * 这就是你要求的"大概"压成一条线的抖动来源。
+     * [flipAngleDeg - jitter, flipAngleDeg + jitter] 中随机取值，再 clamp 到 0~180。
      */
     flipAngleJitterDeg: number;
     /**
+     * 翻面角速度下限（度/秒）。每张牌在 [min, max] 内均匀随机取速率；
+     * 实际时长 = 目标角(度) / 速率 * 1000 ms。min/max 会自动校正顺序。
+     */
+    flipRateMinDegPerSec: number;
+    /**
+     * 翻面角速度上限（度/秒）。与 min 组成随机区间；应 > 0。
+     */
+    flipRateMaxDegPerSec: number;
+    /**
      * 飞出后施加的随机旋转角度范围（±度）。牌飞出瞬间从 [-deg, +deg] 取一个随机角，
      * 在飞行途中旋转到该角度，让丢入弃牌堆的牌呈现散乱姿态。0 = 不旋转。
+     * （这是牌面 Z 轴姿态散乱，与绕竖中轴的翻面通道独立。）
      */
     randomRotationDeg: number;
   };
@@ -1506,6 +1520,9 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     enabled: true,
     flipAngleDeg: 90,
     flipAngleJitterDeg: 15,
+    // 约 90° 在 150~300ms 内翻完，适配弹性绳高速飞出时仍在屏内可见
+    flipRateMinDegPerSec: 300,
+    flipRateMaxDegPerSec: 600,
     randomRotationDeg: 20,
   }),
   handSort: Object.freeze({

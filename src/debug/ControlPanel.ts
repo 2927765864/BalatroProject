@@ -1288,6 +1288,8 @@ export function setupControlPanel(
     bindToggle("inp-discardFlipEnabled", "val-discardFlipEnabled", "discardFlip.enabled");
     bindNumber("inp-discardFlipAngleDeg", "val-discardFlipAngleDeg", "discardFlip.flipAngleDeg", { integer: true });
     bindNumber("inp-discardFlipAngleJitterDeg", "val-discardFlipAngleJitterDeg", "discardFlip.flipAngleJitterDeg", { integer: true });
+    bindNumber("inp-discardFlipRateMinDegPerSec", "val-discardFlipRateMinDegPerSec", "discardFlip.flipRateMinDegPerSec", { integer: true });
+    bindNumber("inp-discardFlipRateMaxDegPerSec", "val-discardFlipRateMaxDegPerSec", "discardFlip.flipRateMaxDegPerSec", { integer: true });
     bindNumber("inp-discardFlipRandomRotationDeg", "val-discardFlipRandomRotationDeg", "discardFlip.randomRotationDeg", { integer: true });
 
     // === 卡牌换位【理牌】（点数/花色按钮）=== 位移由弹性绳；enabled 控制是否动画

@@ -88,7 +88,8 @@ export const CardFx = {
 
   /**
    * 飞向弃牌堆：终点在世界正右方外、垂直居中。
-   * durationMS 仅用于 startDiscardFlip 节奏参考，位移由绳驱动。
+   * durationMS 历史参数（旧 tween 飞行时长），位移现由绳驱动，已忽略。
+   * 翻面节奏见 CardView.startDiscardFlip + CONFIG.discardFlip。
    */
   flyToDiscardPile(
     tm: TweenManager,

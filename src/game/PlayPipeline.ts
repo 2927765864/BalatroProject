@@ -439,9 +439,9 @@ export class PlayPipeline {
       // 飞出瞬间：图层置于手牌之下、但仍在阴影层之上。
       //   手牌 zIndex = 0..n-1（≥0），阴影层 zIndex = -1；取 (-1, 0) 区间的值即可。
       view.zIndex = -0.1 - i * 0.001;
-      // 正面朝上 → 飞行途中沿竖中轴线翻约 90° → 压成一条线。
+      // 正面朝上 → 绕竖中轴按随机速率翻约 90° → 压成一条线（discardFlip 专区）。
       // 位移：仅 setMoveTarget 弃牌堆点，路径/速率/过冲由弹性绳处理。
-      view.startDiscardFlip(flyDurationMS);
+      view.startDiscardFlip();
       view.beginDiscardFly();
       // 不 await 单张，按 interval 错开发车；随机基角经 flyToDiscard → setMoveTarget 写入。
       discardFlyPromises.push(
