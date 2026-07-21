@@ -27,6 +27,10 @@ import {
   cloneConfig,
   resetConfigToDefaults,
   saveCurrentConfig,
+  type CmosShakeEffectPreset,
+  type CmosShakePresetMode,
+  normalizeCmosShakeEffectPreset,
+  normalizeCmosShakeMode,
   type RuntimeConfig,
 } from "@game/config";
 import { assets } from "@core/AssetManager";
@@ -1017,6 +1021,42 @@ export function setupControlPanel(
     bindNumber("inp-playfieldDeckX", "val-playfieldDeckX", "playfield.deckX", { integer: true });
     bindNumber("inp-playfieldDeckY", "val-playfieldDeckY", "playfield.deckY", { integer: true });
 
+    // === 画面跟随（与 CMOS 共用 shakeRoot）===
+    bindToggle("inp-screenFollowEnabled", "val-screenFollowEnabled", "screenFollow.enabled");
+    bindNumber("inp-screenFollowIntensity", "val-screenFollowIntensity", "screenFollow.intensity", {
+      digits: 2,
+    });
+    bindNumber("inp-screenFollowMaxOffsetX", "val-screenFollowMaxOffsetX", "screenFollow.maxOffsetX", {
+      digits: 1,
+    });
+    bindNumber("inp-screenFollowMaxOffsetY", "val-screenFollowMaxOffsetY", "screenFollow.maxOffsetY", {
+      digits: 1,
+    });
+    bindNumber("inp-screenFollowSmoothing", "val-screenFollowSmoothing", "screenFollow.smoothing", {
+      digits: 1,
+    });
+    bindToggle("inp-screenFollowInvertX", "val-screenFollowInvertX", "screenFollow.invertX");
+    bindToggle("inp-screenFollowInvertY", "val-screenFollowInvertY", "screenFollow.invertY");
+    bindNumber("inp-screenFollowDeadzone", "val-screenFollowDeadzone", "screenFollow.deadzone", {
+      digits: 2,
+    });
+
+    // === 画面呼吸晃动（与跟随 / CMOS 独立叠加）===
+    bindToggle("inp-screenBreathEnabled", "val-screenBreathEnabled", "screenBreath.enabled");
+    bindNumber("inp-screenBreathIntensity", "val-screenBreathIntensity", "screenBreath.intensity", {
+      digits: 2,
+    });
+    bindNumber("inp-screenBreathAmpX", "val-screenBreathAmpX", "screenBreath.ampX", { digits: 1 });
+    bindNumber("inp-screenBreathFreqX", "val-screenBreathFreqX", "screenBreath.freqX", { digits: 2 });
+    bindNumber("inp-screenBreathPhaseX", "val-screenBreathPhaseX", "screenBreath.phaseXDeg", {
+      digits: 0,
+    });
+    bindNumber("inp-screenBreathAmpY", "val-screenBreathAmpY", "screenBreath.ampY", { digits: 1 });
+    bindNumber("inp-screenBreathFreqY", "val-screenBreathFreqY", "screenBreath.freqY", { digits: 2 });
+    bindNumber("inp-screenBreathPhaseY", "val-screenBreathPhaseY", "screenBreath.phaseYDeg", {
+      digits: 0,
+    });
+
     // === 背景 paint-mix ===
     bindToggle("inp-bgEnabled", "val-bgEnabled", "world.background.enabled");
     bindCycleButton("btn-bgQuality", "val-bgQuality", "world.background.quality", [
@@ -1371,6 +1411,470 @@ export function setupControlPanel(
     bindNumber("inp-playPileSettleEffectSettleVelRotDeg", "val-playPileSettleEffectSettleVelRotDeg", "playPileSettleEffect.settleVelRotDeg", { digits: 1 });
     bindNumber("inp-playPileSettleEffectMaxDtSec", "val-playPileSettleEffectMaxDtSec", "playPileSettleEffect.maxDtSec", { digits: 4 });
     bindNumber("inp-playPileSettleEffectSubsteps", "val-playPileSettleEffectSubsteps", "playPileSettleEffect.substeps", { integer: true });
+
+    // === CMOS 屏幕震动（docs/cmos-screen-shake-plan.md） ===
+    bindToggle("inp-cmosShakeEnabled", "val-cmosShakeEnabled", "cmosShake.enabled");
+    bindNumber("inp-cmosShakeIntensity", "val-cmosShakeIntensity", "cmosShake.intensity", { digits: 2 });
+    bindToggle("inp-cmosShakeUseGameSpeed", "val-cmosShakeUseGameSpeed", "cmosShake.useGameSpeed");
+    bindNumber("inp-cmosAngularFreq", "val-cmosAngularFreq", "cmosShake.angularFreq", { digits: 1 });
+    bindNumber("inp-cmosDampingRatio", "val-cmosDampingRatio", "cmosShake.dampingRatio", { digits: 2 });
+    bindNumber("inp-cmosRotAngularFreq", "val-cmosRotAngularFreq", "cmosShake.rotAngularFreq", { digits: 1 });
+    bindNumber("inp-cmosRotDampingRatio", "val-cmosRotDampingRatio", "cmosShake.rotDampingRatio", { digits: 2 });
+    bindNumber("inp-cmosMaxOffsetX", "val-cmosMaxOffsetX", "cmosShake.maxOffsetX", { digits: 1 });
+    bindNumber("inp-cmosMaxOffsetY", "val-cmosMaxOffsetY", "cmosShake.maxOffsetY", { digits: 1 });
+    bindNumber("inp-cmosMaxAngleDeg", "val-cmosMaxAngleDeg", "cmosShake.maxAngleDeg", { digits: 2 });
+    bindNumber("inp-cmosStrengthToVelocity", "val-cmosStrengthToVelocity", "cmosShake.strengthToVelocity", {
+      integer: true,
+    });
+    bindNumber("inp-cmosSpinToVelocity", "val-cmosSpinToVelocity", "cmosShake.spinToVelocity", { digits: 1 });
+    bindNumber("inp-cmosMaxSpeedXY", "val-cmosMaxSpeedXY", "cmosShake.maxSpeedXY", { integer: true });
+    bindNumber("inp-cmosMaxSpeedRot", "val-cmosMaxSpeedRot", "cmosShake.maxSpeedRot", { integer: true });
+    bindNumber("inp-cmosMinImpulseIntervalMS", "val-cmosMinImpulseIntervalMS", "cmosShake.minImpulseIntervalMS", {
+      integer: true,
+    });
+    bindNumber("inp-cmosMaxDtSec", "val-cmosMaxDtSec", "cmosShake.maxDtSec", { digits: 3 });
+    bindNumber("inp-cmosSubsteps", "val-cmosSubsteps", "cmosShake.substeps", { integer: true });
+    bindNumber("inp-cmosMass", "val-cmosMass", "cmosShake.mass", { digits: 2 });
+    bindNumber("inp-cmosRotMass", "val-cmosRotMass", "cmosShake.rotMass", { digits: 2 });
+    bindNumber("inp-cmosDebugDirAngle", "val-cmosDebugDirAngle", "cmosShake.debugImpulse.dirAngleDeg", {
+      digits: 0,
+    });
+    bindNumber("inp-cmosDebugDirRadius", "val-cmosDebugDirRadius", "cmosShake.debugImpulse.dirRadius", {
+      digits: 2,
+    });
+    bindToggle("inp-cmosDebugDirRandom", "val-cmosDebugDirRandom", "cmosShake.debugImpulse.dirRandom");
+    // valueId 置 null：区间标签由下方 sync 写成 "min ~ max"
+    bindNumber("inp-cmosDebugDirAngleMin", null, "cmosShake.debugImpulse.dirAngleMin", { digits: 0 });
+    bindNumber("inp-cmosDebugDirAngleMax", null, "cmosShake.debugImpulse.dirAngleMax", { digits: 0 });
+    // 角度区间标签显示 min ~ max；随机关时隐藏区间行
+    {
+      const syncDebugDirRandomUi = (): void => {
+        const on = !!CONFIG.cmosShake.debugImpulse.dirRandom;
+        const row = document.getElementById("row-cmosDebugDirAngleRange");
+        if (row) row.style.display = on ? "" : "none";
+        const d = CONFIG.cmosShake.debugImpulse;
+        const la = document.getElementById("val-cmosDebugDirAngleRange");
+        if (la) {
+          la.textContent = `${formatNumber(d.dirAngleMin ?? 0, 0)} ~ ${formatNumber(d.dirAngleMax ?? 360, 0)}`;
+        }
+      };
+      syncDebugDirRandomUi();
+      syncers.push(syncDebugDirRandomUi);
+      document.getElementById("inp-cmosDebugDirRandom")?.addEventListener("change", syncDebugDirRandomUi);
+      for (const id of ["inp-cmosDebugDirAngleMin", "inp-cmosDebugDirAngleMax"]) {
+        document.getElementById(id)?.addEventListener("input", syncDebugDirRandomUi);
+      }
+    }
+    bindNumber("inp-cmosDebugStrength", "val-cmosDebugStrength", "cmosShake.debugImpulse.strength", { digits: 2 });
+    bindNumber("inp-cmosDebugSpin", "val-cmosDebugSpin", "cmosShake.debugImpulse.spin", { digits: 2 });
+
+    const bindCmosAction = (btnId: string, actionKey: string) => {
+      const btn = document.getElementById(btnId) as HTMLButtonElement | null;
+      if (!btn) return;
+      if (alreadyBound(btn, actionKey)) return;
+      btn.addEventListener("click", () => {
+        onChange(actionKey, null, CONFIG);
+      });
+    };
+    bindCmosAction("btn-cmosShake-burstScore", "action:cmosShake:burstScore");
+    bindCmosAction("btn-cmosShake-custom", "action:cmosShake:custom");
+    bindCmosAction("btn-cmosShake-reset", "action:cmosShake:reset");
+
+    // --- CMOS 震动效果预设 CRUD（CONFIG.cmosShake.presets，随配置存档）---
+    {
+      const select = document.getElementById("sel-cmos-effect-preset") as HTMLSelectElement | null;
+      const idInput = document.getElementById("inp-cmosEffectId") as HTMLInputElement | null;
+      const labelInput = document.getElementById("inp-cmosEffectLabel") as HTMLInputElement | null;
+      const modeSelect = document.getElementById("sel-cmosEffectMode") as HTMLSelectElement | null;
+      const strengthInput = document.getElementById("inp-cmosEffectStrength") as HTMLInputElement | null;
+      const spinInput = document.getElementById("inp-cmosEffectSpin") as HTMLInputElement | null;
+      const dirAngleInput = document.getElementById("inp-cmosEffectDirAngle") as HTMLInputElement | null;
+      const dirRadiusInput = document.getElementById(
+        "inp-cmosEffectDirRadius",
+      ) as HTMLInputElement | null;
+      const dirRandomInput = document.getElementById("inp-cmosEffectDirRandom") as HTMLInputElement | null;
+      const dirAngleMinInput = document.getElementById(
+        "inp-cmosEffectDirAngleMin",
+      ) as HTMLInputElement | null;
+      const dirAngleMaxInput = document.getElementById(
+        "inp-cmosEffectDirAngleMax",
+      ) as HTMLInputElement | null;
+      const posKickInput = document.getElementById("inp-cmosEffectPosKick") as HTMLInputElement | null;
+      const angleKickInput = document.getElementById("inp-cmosEffectAngleKick") as HTMLInputElement | null;
+      const countInput = document.getElementById("inp-cmosEffectCount") as HTMLInputElement | null;
+      const intervalInput = document.getElementById("inp-cmosEffectIntervalMS") as HTMLInputElement | null;
+      const alternateInput = document.getElementById("inp-cmosEffectAlternate") as HTMLInputElement | null;
+      const falloffInput = document.getElementById("inp-cmosEffectFalloff") as HTMLInputElement | null;
+      const durationInput = document.getElementById("inp-cmosEffectDurationMS") as HTMLInputElement | null;
+      const freqInput = document.getElementById("inp-cmosEffectFreqHz") as HTMLInputElement | null;
+      const ampInput = document.getElementById("inp-cmosEffectAmp") as HTMLInputElement | null;
+      const ampRotInput = document.getElementById("inp-cmosEffectAmpRotDeg") as HTMLInputElement | null;
+      const decayInput = document.getElementById("inp-cmosEffectDecay") as HTMLInputElement | null;
+      const phaseInput = document.getElementById("inp-cmosEffectPhaseDeg") as HTMLInputElement | null;
+
+      const strengthVal = document.getElementById("val-cmosEffectStrength");
+      const spinVal = document.getElementById("val-cmosEffectSpin");
+      const dirAngleVal = document.getElementById("val-cmosEffectDirAngle");
+      const dirRadiusVal = document.getElementById("val-cmosEffectDirRadius");
+      const dirRandomVal = document.getElementById("val-cmosEffectDirRandom");
+      const dirAngleRangeVal = document.getElementById("val-cmosEffectDirAngleRange");
+      const posKickVal = document.getElementById("val-cmosEffectPosKick");
+      const angleKickVal = document.getElementById("val-cmosEffectAngleKick");
+      const countVal = document.getElementById("val-cmosEffectCount");
+      const intervalVal = document.getElementById("val-cmosEffectIntervalMS");
+      const alternateVal = document.getElementById("val-cmosEffectAlternate");
+      const falloffVal = document.getElementById("val-cmosEffectFalloff");
+      const durationVal = document.getElementById("val-cmosEffectDurationMS");
+      const freqVal = document.getElementById("val-cmosEffectFreqHz");
+      const ampVal = document.getElementById("val-cmosEffectAmp");
+      const ampRotVal = document.getElementById("val-cmosEffectAmpRotDeg");
+      const decayVal = document.getElementById("val-cmosEffectDecay");
+      const phaseVal = document.getElementById("val-cmosEffectPhaseDeg");
+      const quickHost = document.getElementById("cmos-effect-quick-btns");
+
+      const CMOS_ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+      const ensurePresetsMutable = (): Record<string, CmosShakeEffectPreset> => {
+        const cur = CONFIG.cmosShake.presets;
+        if (!cur || typeof cur !== "object") {
+          CONFIG.cmosShake.presets = {};
+        }
+        return CONFIG.cmosShake.presets;
+      };
+
+      const readEditor = (): CmosShakeEffectPreset & { id: string } => {
+        const id = (idInput?.value ?? "").trim();
+        const label = (labelInput?.value ?? "").trim() || id;
+        const num = (el: HTMLInputElement | null, fallback: number) => {
+          const v = el ? Number(el.value) : NaN;
+          return Number.isFinite(v) ? v : fallback;
+        };
+        const mode = normalizeCmosShakeMode(modeSelect?.value ?? "impulse");
+        const partial: Partial<CmosShakeEffectPreset> = {
+          label,
+          mode,
+          strength: num(strengthInput, 0.3),
+          spin: num(spinInput, 0),
+          dirAngleDeg: num(dirAngleInput, 90),
+          dirRadius: num(dirRadiusInput, 1),
+          dirRandom: !!dirRandomInput?.checked,
+          dirAngleMin: num(dirAngleMinInput, 0),
+          dirAngleMax: num(dirAngleMaxInput, 360),
+          posKick: num(posKickInput, 0),
+          angleKickDeg: num(angleKickInput, 0),
+          count: num(countInput, 1),
+          intervalMS: num(intervalInput, 50),
+          alternate: !!alternateInput?.checked,
+          falloff: num(falloffInput, 1),
+          durationMS: num(durationInput, 300),
+          freqHz: num(freqInput, 12),
+          amp: num(ampInput, 0),
+          ampRotDeg: num(ampRotInput, 0),
+          decay: num(decayInput, 4),
+          phaseDeg: num(phaseInput, 0),
+        };
+        const normalized = normalizeCmosShakeEffectPreset(id || "draft", partial);
+        return { id, ...normalized };
+      };
+
+      const writeEditor = (id: string, p: CmosShakeEffectPreset): void => {
+        const n = normalizeCmosShakeEffectPreset(id, p);
+        if (idInput) idInput.value = id;
+        if (labelInput) labelInput.value = n.label ?? id;
+        if (modeSelect) modeSelect.value = n.mode;
+        if (strengthInput) strengthInput.value = formatNumber(n.strength, 2);
+        if (spinInput) spinInput.value = formatNumber(n.spin, 3);
+        if (dirAngleInput) dirAngleInput.value = formatNumber(n.dirAngleDeg, 0);
+        if (dirRadiusInput) dirRadiusInput.value = formatNumber(n.dirRadius, 2);
+        if (dirRandomInput) dirRandomInput.checked = !!n.dirRandom;
+        if (dirAngleMinInput) dirAngleMinInput.value = formatNumber(n.dirAngleMin, 0);
+        if (dirAngleMaxInput) dirAngleMaxInput.value = formatNumber(n.dirAngleMax, 0);
+        if (posKickInput) posKickInput.value = formatNumber(n.posKick, 2);
+        if (angleKickInput) angleKickInput.value = formatNumber(n.angleKickDeg, 2);
+        if (countInput) countInput.value = String(n.count);
+        if (intervalInput) intervalInput.value = formatNumber(n.intervalMS, 0);
+        if (alternateInput) alternateInput.checked = !!n.alternate;
+        if (falloffInput) falloffInput.value = formatNumber(n.falloff, 2);
+        if (durationInput) durationInput.value = formatNumber(n.durationMS, 0);
+        if (freqInput) freqInput.value = formatNumber(n.freqHz, 1);
+        if (ampInput) ampInput.value = formatNumber(n.amp, 2);
+        if (ampRotInput) ampRotInput.value = formatNumber(n.ampRotDeg, 2);
+        if (decayInput) decayInput.value = formatNumber(n.decay, 2);
+        if (phaseInput) phaseInput.value = formatNumber(n.phaseDeg, 0);
+
+        if (strengthVal) strengthVal.textContent = formatNumber(n.strength, 2);
+        if (spinVal) spinVal.textContent = formatNumber(n.spin, 3);
+        if (dirAngleVal) dirAngleVal.textContent = formatNumber(n.dirAngleDeg, 0);
+        if (dirRadiusVal) dirRadiusVal.textContent = formatNumber(n.dirRadius, 2);
+        if (dirRandomVal) dirRandomVal.textContent = n.dirRandom ? "开" : "关";
+        if (dirAngleRangeVal) {
+          dirAngleRangeVal.textContent = `${formatNumber(n.dirAngleMin, 0)} ~ ${formatNumber(n.dirAngleMax, 0)}`;
+        }
+        const rowAngle = document.getElementById("row-cmosEffectDirAngleRange");
+        if (rowAngle) rowAngle.style.display = n.dirRandom ? "" : "none";
+        if (posKickVal) posKickVal.textContent = formatNumber(n.posKick, 2);
+        if (angleKickVal) angleKickVal.textContent = formatNumber(n.angleKickDeg, 2);
+        if (countVal) countVal.textContent = String(n.count);
+        if (intervalVal) intervalVal.textContent = formatNumber(n.intervalMS, 0);
+        if (alternateVal) alternateVal.textContent = n.alternate ? "开" : "关";
+        if (falloffVal) falloffVal.textContent = formatNumber(n.falloff, 2);
+        if (durationVal) durationVal.textContent = formatNumber(n.durationMS, 0);
+        if (freqVal) freqVal.textContent = formatNumber(n.freqHz, 1);
+        if (ampVal) ampVal.textContent = formatNumber(n.amp, 2);
+        if (ampRotVal) ampRotVal.textContent = formatNumber(n.ampRotDeg, 2);
+        if (decayVal) decayVal.textContent = formatNumber(n.decay, 2);
+        if (phaseVal) phaseVal.textContent = formatNumber(n.phaseDeg, 0);
+      };
+
+      const refreshQuickButtons = (): void => {
+        if (!quickHost) return;
+        const presets = ensurePresetsMutable();
+        const ids = Object.keys(presets).sort((a, b) => a.localeCompare(b));
+        quickHost.innerHTML = "";
+        for (const id of ids) {
+          const p = presets[id]!;
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "panel-btn";
+          btn.textContent = p.label && p.label !== id ? `${id}（${p.label}）` : id;
+          const mode = p.mode ?? "impulse";
+          btn.title = `play("${id}") mode=${mode} strength=${p.strength} spin=${p.spin}`;
+          btn.addEventListener("click", () => {
+            onChange(`action:cmosShake:play:${id}`, null, CONFIG);
+          });
+          quickHost.appendChild(btn);
+        }
+      };
+
+      const refreshSelect = (preferId?: string): void => {
+        if (!select) return;
+        const presets = ensurePresetsMutable();
+        const ids = Object.keys(presets).sort((a, b) => a.localeCompare(b));
+        const keep =
+          preferId && presets[preferId]
+            ? preferId
+            : select.value && presets[select.value]
+              ? select.value
+              : (ids[0] ?? "");
+        select.innerHTML = "";
+        if (ids.length === 0) {
+          const opt = document.createElement("option");
+          opt.value = "";
+          opt.textContent = "-- 无预设 --";
+          select.appendChild(opt);
+          select.value = "";
+          refreshQuickButtons();
+          return;
+        }
+        for (const id of ids) {
+          const p = presets[id]!;
+          const opt = document.createElement("option");
+          opt.value = id;
+          const modeTag = p.mode && p.mode !== "impulse" ? ` [${p.mode}]` : "";
+          opt.textContent =
+            p.label && p.label !== id
+              ? `${id} — ${p.label}${modeTag}`
+              : `${id}${modeTag}`;
+          select.appendChild(opt);
+        }
+        select.value = keep;
+        const cur = presets[keep];
+        if (cur) writeEditor(keep, cur);
+        refreshQuickButtons();
+      };
+
+      const syncFromConfig = (): void => {
+        const prefer = (idInput?.value ?? "").trim() || select?.value || undefined;
+        refreshSelect(prefer);
+      };
+      syncFromConfig();
+      if (select && !alreadyBound(select, "cmosShake.presets.ui")) {
+        syncers.push(syncFromConfig);
+
+        select.addEventListener("change", () => {
+          const id = select.value;
+          const p = CONFIG.cmosShake.presets[id];
+          if (p) writeEditor(id, p);
+        });
+
+        const bindValLabel = (
+          input: HTMLInputElement | null,
+          labelEl: HTMLElement | null,
+          digits: number,
+        ) => {
+          if (!input) return;
+          // 与 bindNumber 一致：左右拖动调参（此前 CRUD 手写绑定漏了 attachDragScrub）
+          attachDragScrub(input, { digits });
+          input.addEventListener("input", () => {
+            const v = Number(input.value);
+            if (labelEl && Number.isFinite(v)) {
+              labelEl.textContent = formatNumber(v, digits);
+            }
+          });
+        };
+        bindValLabel(strengthInput, strengthVal, 2);
+        bindValLabel(spinInput, spinVal, 3);
+        bindValLabel(dirAngleInput, dirAngleVal, 0);
+        bindValLabel(dirRadiusInput, dirRadiusVal, 2);
+        bindValLabel(posKickInput, posKickVal, 2);
+        bindValLabel(angleKickInput, angleKickVal, 2);
+        bindValLabel(countInput, countVal, 0);
+        bindValLabel(intervalInput, intervalVal, 0);
+        bindValLabel(falloffInput, falloffVal, 2);
+        bindValLabel(durationInput, durationVal, 0);
+        bindValLabel(freqInput, freqVal, 1);
+        bindValLabel(ampInput, ampVal, 2);
+        bindValLabel(ampRotInput, ampRotVal, 2);
+        bindValLabel(decayInput, decayVal, 2);
+        bindValLabel(phaseInput, phaseVal, 0);
+
+        const syncEffectDirRangeLabels = (): void => {
+          const amin = Number(dirAngleMinInput?.value);
+          const amax = Number(dirAngleMaxInput?.value);
+          if (dirAngleRangeVal && Number.isFinite(amin) && Number.isFinite(amax)) {
+            dirAngleRangeVal.textContent = `${formatNumber(amin, 0)} ~ ${formatNumber(amax, 0)}`;
+          }
+        };
+        const syncEffectDirRandomUi = (): void => {
+          const on = !!dirRandomInput?.checked;
+          if (dirRandomVal) dirRandomVal.textContent = on ? "开" : "关";
+          const row = document.getElementById("row-cmosEffectDirAngleRange");
+          if (row) row.style.display = on ? "" : "none";
+          syncEffectDirRangeLabels();
+        };
+        for (const el of [dirAngleMinInput, dirAngleMaxInput]) {
+          if (!el) continue;
+          attachDragScrub(el, { digits: 0 });
+          el.addEventListener("input", syncEffectDirRangeLabels);
+        }
+        dirRandomInput?.addEventListener("change", syncEffectDirRandomUi);
+        syncEffectDirRandomUi();
+
+        alternateInput?.addEventListener("change", () => {
+          if (alternateVal) {
+            alternateVal.textContent = alternateInput.checked ? "开" : "关";
+          }
+        });
+
+        document.getElementById("btn-cmosEffect-new")?.addEventListener("click", () => {
+          const editor = readEditor();
+          let id = editor.id;
+          if (!id || !CMOS_ID_RE.test(id)) {
+            id = window.prompt(
+              "新建震动效果 id（字母/数字/下划线，字母开头）\n例如 deal、settle、swayAngle",
+              id || "customShake",
+            )?.trim() ?? "";
+          }
+          if (!id) return;
+          if (!CMOS_ID_RE.test(id)) {
+            flashMessage("id 格式无效：需字母开头，仅含字母数字下划线");
+            return;
+          }
+          const presets = ensurePresetsMutable();
+          if (presets[id] && !window.confirm(`预设「${id}」已存在，覆盖？`)) return;
+          const { id: _drop, ...fields } = editor;
+          void _drop;
+          const next = normalizeCmosShakeEffectPreset(id, {
+            ...fields,
+            label: editor.label || id,
+          });
+          presets[id] = next;
+          writeEditor(id, next);
+          refreshSelect(id);
+          notify("cmosShake.presets", presets);
+          flashMessage(`已新建震动预设 ${id}（mode=${next.mode}）`);
+        });
+
+        document.getElementById("btn-cmosEffect-save")?.addEventListener("click", () => {
+          const editor = readEditor();
+          const oldId = select?.value ?? "";
+          const newId = editor.id;
+          if (!newId || !CMOS_ID_RE.test(newId)) {
+            flashMessage("请填写合法 id（字母开头，字母数字下划线）");
+            return;
+          }
+          const presets = ensurePresetsMutable();
+          if (oldId && oldId !== newId) {
+            if (presets[newId] && !window.confirm(`目标 id「${newId}」已存在，覆盖并删除旧 id「${oldId}」？`)) {
+              return;
+            }
+            delete presets[oldId];
+          } else if (!presets[newId] && !window.confirm(`预设「${newId}」不存在，是否新建？`)) {
+            return;
+          }
+          const { id: _drop, ...fields } = editor;
+          void _drop;
+          const next = normalizeCmosShakeEffectPreset(newId, {
+            ...fields,
+            label: editor.label || newId,
+          });
+          presets[newId] = next;
+          refreshSelect(newId);
+          notify("cmosShake.presets", presets);
+          flashMessage(`已保存震动预设 ${newId}（记得点顶部「保存配置」写入存档）`);
+        });
+
+        document.getElementById("btn-cmosEffect-delete")?.addEventListener("click", () => {
+          const id = select?.value || (idInput?.value ?? "").trim();
+          if (!id) {
+            flashMessage("没有可删除的预设");
+            return;
+          }
+          const presets = ensurePresetsMutable();
+          if (!presets[id]) {
+            flashMessage(`预设「${id}」不存在`);
+            return;
+          }
+          if (!window.confirm(`删除震动预设「${id}」？业务里 play("${id}") 将不再有效。`)) return;
+          delete presets[id];
+          refreshSelect();
+          notify("cmosShake.presets", presets);
+          flashMessage(`已删除 ${id}`);
+        });
+
+        document.getElementById("btn-cmosEffect-test")?.addEventListener("click", () => {
+          const editor = readEditor();
+          const { id: editId, ...fields } = editor;
+          const draft = normalizeCmosShakeEffectPreset(editId || "draft", fields);
+          // 试射始终用当前编辑器字段；若 id 已存在则临时覆盖再 play，不强制先保存
+          if (editId && CMOS_ID_RE.test(editId) && CONFIG.cmosShake.presets[editId]) {
+            const backup = { ...CONFIG.cmosShake.presets[editId]! };
+            CONFIG.cmosShake.presets[editId] = draft;
+            onChange(`action:cmosShake:play:${editId}`, null, CONFIG);
+            CONFIG.cmosShake.presets[editId] = backup;
+            flashMessage(`试射 ${editId}（${draft.mode}）`);
+            return;
+          }
+          // 无已存 id：临时注册 __panelDraft 再 play
+          const tempId = "__panelDraft";
+          const presets = ensurePresetsMutable();
+          const had = presets[tempId];
+          presets[tempId] = { ...draft, label: draft.label || "草稿试射" };
+          onChange(`action:cmosShake:play:${tempId}`, null, CONFIG);
+          if (had) presets[tempId] = had;
+          else delete presets[tempId];
+          flashMessage(`试射草稿（mode=${draft.mode}，未保存）`);
+        });
+
+        document.getElementById("btn-cmosEffect-fromDebug")?.addEventListener("click", () => {
+          const d = CONFIG.cmosShake.debugImpulse;
+          if (strengthInput) strengthInput.value = formatNumber(d.strength, 2);
+          if (spinInput) spinInput.value = formatNumber(d.spin, 3);
+          if (dirAngleInput) dirAngleInput.value = formatNumber(d.dirAngleDeg, 0);
+          if (dirRadiusInput) dirRadiusInput.value = formatNumber(d.dirRadius, 2);
+          if (dirRandomInput) dirRandomInput.checked = !!d.dirRandom;
+          if (dirAngleMinInput) dirAngleMinInput.value = formatNumber(d.dirAngleMin ?? 0, 0);
+          if (dirAngleMaxInput) dirAngleMaxInput.value = formatNumber(d.dirAngleMax ?? 360, 0);
+          if (modeSelect) modeSelect.value = "impulse" satisfies CmosShakePresetMode;
+          if (strengthVal) strengthVal.textContent = formatNumber(d.strength, 2);
+          if (spinVal) spinVal.textContent = formatNumber(d.spin, 3);
+          if (dirAngleVal) dirAngleVal.textContent = formatNumber(d.dirAngleDeg, 0);
+          if (dirRadiusVal) dirRadiusVal.textContent = formatNumber(d.dirRadius, 2);
+          syncEffectDirRandomUi();
+          flashMessage("已从自定义冲量填入编辑器（mode=impulse；需点保存写入预设）");
+        });
+      }
+    }
 
     // 弹性绳子牵引卡牌模型（顶级分类；沙盒 ?scene=elastic-rope）
     bindToggle("inp-elasticRopeEnabled", "val-elasticRopeEnabled", "elasticRopeCard.enabled");

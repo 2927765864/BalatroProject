@@ -56,6 +56,11 @@ export interface PlayPipelineDeps {
    * 分数迁移效果。在整堆卡牌下移后、飞往弃牌堆前，将预期分数迁移到回合分上。
    */
   animateScoreTransfer?: (result: ScoreResult) => Promise<void>;
+  /**
+   * CMOS 屏幕震动：按预设 id 播放（CONFIG.cmosShake.presets）。
+   * 出牌堆逐张结算等业务节点调用。
+   */
+  playScreenShake?: (id: string) => void;
 }
 
 export class PlayPipeline {
@@ -274,7 +279,10 @@ export class PlayPipeline {
       if (scoringViews.length > 0) {
         for (let i = 0; i < scoringViews.length; i++) {
           const card = scoringViews[i]!;
-          
+
+          // 每张计分牌结算弹簧启动瞬间：CMOS 震动预设 CardSettle
+          this.deps.playScreenShake?.("CardSettle");
+
           // 执行每张卡牌的弹性震荡动画并等待其结束
           await PlayPileFx.animateCardSettle(this.deps.tween, card, settleEffectCfg, () => {
             const textCfg = CONFIG.playPileSettleTextEffect;
@@ -323,6 +331,9 @@ export class PlayPipeline {
 
       for (let i = 0; i < jokers.length; i++) {
         const joker = jokers[i]!;
+
+        // 每张小丑牌结算弹簧启动瞬间：与手牌计分牌相同，CMOS 震动预设 CardSettle
+        this.deps.playScreenShake?.("CardSettle");
 
         await PlayPileFx.animateCardSettle(this.deps.tween, joker, settleEffectCfg, () => {
           if (textCfg && textCfg.enabled && joker.parent) {

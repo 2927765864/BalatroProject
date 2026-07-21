@@ -72,6 +72,8 @@
 | `game/events.ts`              | `GameEvents` 事件契约                                                |
 | `game/GameController.ts`      | 总控：抽牌、选牌、出牌、弃牌、刷新 UI                                |
 | `motion/ElasticRopeMotion.ts` | 弹性绳子牵引移动核（纯力积分 + 角 springDamper，无 PIXI）；沙盒 `?scene=elastic-rope`；旋转阻尼见 `docs/elastic-rope-rotation-damping-plan.md` |
+| `motion/CmosScreenShake.ts` | CMOS 屏幕震动纯核（三轴 SpringDamper1D + 速度冲量）；规格 `docs/cmos-screen-shake-plan.md` |
+| `fx/ScreenShakeFx.ts` | `shakeRoot` 挂载与每帧写 x/y/rotation；玩法内容挂 `contentRoot` |
 | `scenes/ElasticRopeSandboxScene.ts` | 单卡隔离沙盒：external 位姿 + 调参面板 `elasticRopeCard`       |
 
 ---

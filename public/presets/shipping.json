@@ -1,6 +1,6 @@
 {
   "type": "runtime-control-preset",
-  "version": 14,
+  "version": 15,
   "name": "shipping",
   "config": {
     "gameSpeed": 1,
@@ -55,6 +55,131 @@
     "debug": {
       "panelOpacity": 1,
       "showDebugOverlay": false
+    },
+    "cmosShake": {
+      "enabled": true,
+      "intensity": 1,
+      "useGameSpeed": false,
+      "mass": 1,
+      "angularFreq": 22,
+      "dampingRatio": 0.44,
+      "rotMass": 1,
+      "rotAngularFreq": 22,
+      "rotDampingRatio": 0.72,
+      "maxOffsetX": 14,
+      "maxOffsetY": 14,
+      "maxAngleDeg": 1.2,
+      "strengthToVelocity": 900,
+      "spinToVelocity": 8,
+      "maxSpeedXY": 2400,
+      "maxSpeedRot": 20,
+      "minImpulseIntervalMS": 0,
+      "maxDtSec": 0.05,
+      "substeps": 4,
+      "settlePosPx": 0.15,
+      "settleVelPx": 2,
+      "settleAngleRad": 0.0005,
+      "settleAngVel": 0.01,
+      "presets": {
+        "test00": {
+          "label": "存档测试",
+          "mode": "impulse",
+          "strength": 0.33,
+          "spin": -1,
+          "dirAngleDeg": 90,
+          "dirRadius": 1,
+          "dirRandom": false,
+          "dirAngleMin": 0,
+          "dirAngleMax": 360,
+          "count": 1,
+          "intervalMS": 50,
+          "alternate": false,
+          "falloff": 1,
+          "posKick": 0,
+          "angleKickDeg": 0,
+          "durationMS": 300,
+          "freqHz": 12,
+          "amp": 0,
+          "ampRotDeg": 0,
+          "decay": 4,
+          "phaseDeg": 0
+        },
+        "Sort": {
+          "label": "理牌",
+          "mode": "oscillate",
+          "strength": 0.1,
+          "spin": -0.01,
+          "dirAngleDeg": 45,
+          "dirRadius": 0.28,
+          "dirRandom": true,
+          "dirAngleMin": 0,
+          "dirAngleMax": 360,
+          "count": 1,
+          "intervalMS": 50,
+          "alternate": false,
+          "falloff": 1,
+          "posKick": 0,
+          "angleKickDeg": 0,
+          "durationMS": 450,
+          "freqHz": 5,
+          "amp": 1.5,
+          "ampRotDeg": 0.45,
+          "decay": 3.5,
+          "phaseDeg": 0
+        },
+        "CardSettle": {
+          "label": "卡牌结算",
+          "mode": "oscillate",
+          "strength": 0.1,
+          "spin": -0.03,
+          "dirAngleDeg": 45,
+          "dirRadius": 0.1,
+          "dirRandom": true,
+          "dirAngleMin": 120,
+          "dirAngleMax": 180,
+          "count": 1,
+          "intervalMS": 50,
+          "alternate": false,
+          "falloff": 1,
+          "posKick": 0,
+          "angleKickDeg": 0,
+          "durationMS": 740,
+          "freqHz": 4,
+          "amp": 3,
+          "ampRotDeg": 0.2,
+          "decay": 5,
+          "phaseDeg": 0
+        }
+      },
+      "debugImpulse": {
+        "dirAngleDeg": 90,
+        "dirRadius": 1,
+        "dirRandom": false,
+        "dirAngleMin": 0,
+        "dirAngleMax": 360,
+        "strength": 0.45,
+        "spin": 0.05
+      }
+    },
+    "screenFollow": {
+      "enabled": true,
+      "intensity": 1,
+      "maxOffsetX": 15,
+      "maxOffsetY": 6,
+      "smoothing": 2,
+      "invertX": false,
+      "invertY": false,
+      "deadzone": 0.15
+    },
+    "screenBreath": {
+      "enabled": true,
+      "intensity": 1,
+      "ampX": 2.5,
+      "freqX": 0.07,
+      "phaseXDeg": 0,
+      "ampY": 3.5,
+      "freqY": 0.13,
+      "phaseYDeg": 40
     },
     "cardArt": {
       "useSprites": true,
@@ -763,7 +888,7 @@
       "baseAngleDeg": 0.7,
       "frequencyHzMin": 1,
       "frequencyHzMax": 4,
-      "frequencyModHz": 0.35,
+      "frequencyModHz": 0.8,
       "phaseStaggerDeg": 55,
       "digitGrowth": 1.2,
       "minDigits": 2,
@@ -2024,7 +2149,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "2784"
             }
           },
           {
@@ -2110,7 +2235,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "对子"
+              "text": "高牌"
             }
           },
           {
@@ -2179,7 +2304,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "60"
+              "text": "0"
             }
           },
           {
@@ -2196,14 +2321,20 @@
             }
           },
           {
-            "type": "bounceText",
+            "type": "textJitter",
             "data": {
-              "configKey": "evalScoreBounce"
+              "configKey": "textJitter"
             }
           },
           {
             "type": "charLayer",
             "data": {}
+          },
+          {
+            "type": "bounceText",
+            "data": {
+              "configKey": "evalScoreBounce"
+            }
           }
         ]
       },
@@ -2259,7 +2390,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "10"
+              "text": "0"
             }
           },
           {
@@ -2404,7 +2535,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "2"
+              "text": "0"
             }
           },
           {

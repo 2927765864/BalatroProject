@@ -17,9 +17,11 @@ import { BlindChipBadge } from "@ui/components/BlindChipBadge";
 import { uiHierarchy } from "@ui/hierarchy";
 import { CardFx } from "@fx/CardFx";
 import { CrtFilter } from "@fx/CrtFilter";
+import { ScreenShakeFx } from "@fx/ScreenShakeFx";
 import { CONFIG, GameConfig, scaleTimeMS, setDrawingCards } from "./config";
 import type { GameEvents } from "./events";
 import { PlayPipeline } from "./PlayPipeline";
+import type { CmosShakePresetId } from "@/motion/CmosScreenShake";
 
 /** 理牌模式：按点数 或 按花色。 */
 export type HandSortMode = "rank" | "suit";
@@ -71,6 +73,8 @@ export class GameController {
   private readonly shadowAlphaFilter = new AlphaFilter({ alpha: 0.35 });
   private readonly background: BackgroundView;
   private readonly crtFilter: CrtFilter;
+  /** CMOS 屏幕震动：玩法内容挂在 shakeRoot 下（见 docs/cmos-screen-shake-plan.md） */
+  readonly screenShake: ScreenShakeFx;
   private hud!: HUD;
   private playPipeline!: PlayPipeline;
 
@@ -170,11 +174,14 @@ export class GameController {
     this.crtFilter = new CrtFilter();
     this.syncCrt();
 
+    // shakeRoot：Scaler 只写 worldRoot；震动只写 shakeRoot（pivot=世界中心）。
+    this.screenShake = new ScreenShakeFx(this.app);
+
     // 卡牌层（手牌 / 小丑 / 盲注筹码 + 阴影）：zIndex 高于 UI，低于 Fx/Popup。
     this.cardLayer.label = "CardLayer";
     this.cardLayer.zIndex = Layers.Card;
     this.cardLayer.sortableChildren = true;
-    this.app.worldRoot.addChild(this.cardLayer);
+    this.screenShake.contentRoot.addChild(this.cardLayer);
 
     // 阴影层作为 cardLayer 的子容器，zIndex = -1：在卡牌之下、仍整体高于 UI。
     // AlphaFilter：先把不透明子阴影离屏合成（重叠处仍是单层黑），再统一乘 alpha，
@@ -245,27 +252,27 @@ export class GameController {
       onSortBySuit: () => this.sortHand("suit"),
     });
     this.hud.zIndex = Layers.UI;
-    this.app.worldRoot.addChild(this.hud);
+    this.screenShake.contentRoot.addChild(this.hud);
 
     // HUD 及其后代此时都已注册到 UI Hierarchy。
-    // 调一次 hydrate：把 CONFIG.uiNodes 里存档的父子顺序 / transform / 组件灌回去。
-    uiHierarchy.hydrateFromConfig(this.app.worldRoot);
+    // hydrate 的 null 父节点 = contentRoot（shakeRoot），避免节点逃回 worldRoot。
+    uiHierarchy.hydrateFromConfig(this.screenShake.contentRoot);
 
-    // 牌堆层级修正：把 deckView 从 HUD（UI 层）移到 worldRoot 的 Deck 层（zIndex=10），
+    // 牌堆层级修正：把 deckView 从 HUD（UI 层）移到 contentRoot 的 Deck 层（zIndex=10），
     // 使其位于卡牌层（zIndex=30）之下，这样发牌时"发出的牌"会盖住牌堆，而不是被牌堆遮住。
     // reparent 会保持牌堆的世界坐标不变（HUD 无偏移，视觉位置不变），并登记到 UI 层级系统，
     // 后续 hydrate/persist 行为保持稳定。必须放在 hydrate 之后，否则会被 hydrate 按旧存档移回 HUD。
-    uiHierarchy.reparent(this.hud.deckView, null, this.app.worldRoot);
+    uiHierarchy.reparent(this.hud.deckView, null, this.screenShake.contentRoot);
     this.hud.deckView.zIndex = Layers.Deck;
 
     // 玩法区坐标以 CONFIG.playfield 为 SSOT：hydrate 可能写回 shipping 里的旧 deck 位姿，
     // 这里再覆盖一次，保证手牌基准 / 牌堆与参数面板一致。
     this.hud.applyPlayfield();
 
-    // 小丑槽位暗色底条：shipping 已记 parentId=null；hydrate 后应已在 worldRoot。
+    // 小丑槽位暗色底条：shipping 已记 parentId=null；hydrate 后应已在 contentRoot。
     // 这里再 ensure 一次（兼容旧存档仍挂在 HUD 下的情况），并固定 zIndex 在卡牌之下。
-    if (this.hud.jokerBar.parent !== this.app.worldRoot) {
-      uiHierarchy.reparent(this.hud.jokerBar, null, this.app.worldRoot);
+    if (this.hud.jokerBar.parent !== this.screenShake.contentRoot) {
+      uiHierarchy.reparent(this.hud.jokerBar, null, this.screenShake.contentRoot);
     }
     this.hud.jokerBar.zIndex = Layers.JokerBar;
 
@@ -315,6 +322,8 @@ export class GameController {
           child.updateShadow();
         }
       }
+      // 震动在业务 update 末尾写 shakeRoot（与 tween 同帧）
+      this.screenShake.update(dtMS);
     });
 
     // 准备牌堆
@@ -352,6 +361,7 @@ export class GameController {
         this.layoutHand({ force: true });
       },
       getJokers: () => this.jokers,
+      playScreenShake: (id) => this.screenShake.play(id),
       animateScoreTransfer: async (result) => {
         const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
         
@@ -1065,6 +1075,9 @@ export class GameController {
 
     this.store.setState({ hand: sorted });
 
+    // CMOS 屏幕震动：理牌预设（CONFIG.cmosShake.presets.Sort）
+    this.screenShake.play("Sort");
+
     // 所有最终位置相对当前视觉位置有变化的牌都参与 sortMove。
     // 用当前 view 坐标与即将写入的 layout 目标比距离即可，但此时 layout 尚未算好；
     // 简单起见：全部纳入 sortFor，sortMove 对 dist≈0 的牌会直接置位返回。
@@ -1456,6 +1469,8 @@ export class GameController {
     // 进入"出牌锁"：按钮 disable、toggleSelection 跳过。
     // 注意：hover / 拖拽 / 换位仍然有效（需求要求）。
     this.isPlaying = true;
+    // CMOS 屏幕震动：出牌冲击（docs/cmos-screen-shake-plan.md §4.5）
+    this.screenShake.play("playHand");
     // 出牌瞬间：四按钮立刻隐藏（与 disable 独立）。
     this.setActionButtonsVisible(false);
     // 立刻清空当前选中（HUD 上不再保留高亮）。
@@ -1573,6 +1588,72 @@ export class GameController {
   }
 
   // --- 外部刷新钩子 ------------------------------------------------
+
+  /**
+   * ControlPanel 动作键 `action:cmosShake:*`（docs/cmos-screen-shake-plan.md §8.3）。
+   */
+  handleCmosShakeAction(key: string): void {
+    const fx = this.screenShake;
+    const playPrefix = "action:cmosShake:play:";
+    if (key.startsWith(playPrefix)) {
+      fx.play(key.slice(playPrefix.length));
+      return;
+    }
+    switch (key) {
+      case "action:cmosShake:tap":
+        fx.play("tap");
+        break;
+      case "action:cmosShake:scoreTick":
+        fx.play("scoreTick");
+        break;
+      case "action:cmosShake:playHand":
+        fx.play("playHand");
+        break;
+      case "action:cmosShake:bigHand":
+        fx.play("bigHand");
+        break;
+      case "action:cmosShake:error":
+        fx.play("error");
+        break;
+      case "action:cmosShake:burstScore": {
+        for (let i = 0; i < 5; i += 1) {
+          const delay = i * 50;
+          window.setTimeout(() => fx.play("scoreTick"), delay);
+        }
+        break;
+      }
+      case "action:cmosShake:custom": {
+        const d = CONFIG.cmosShake.debugImpulse;
+        const sample = (a: number, b: number): number => {
+          const lo = Math.min(a, b);
+          const hi = Math.max(a, b);
+          if (!Number.isFinite(lo) || !Number.isFinite(hi)) return 0;
+          if (hi <= lo) return lo;
+          return lo + Math.random() * (hi - lo);
+        };
+        const angleDeg = d.dirRandom
+          ? sample(d.dirAngleMin, d.dirAngleMax)
+          : d.dirAngleDeg;
+        fx.impulse({
+          angleDeg,
+          radius: d.dirRadius,
+          strength: d.strength,
+          spin: d.spin,
+        });
+        break;
+      }
+      case "action:cmosShake:reset":
+        fx.hardReset();
+        break;
+      default:
+        console.warn("[cmosShake] unknown action", key);
+    }
+  }
+
+  /** 供面板/业务直接试射命名效果预设（id 见 CONFIG.cmosShake.presets） */
+  playCmosShake(id: CmosShakePresetId): void {
+    this.screenShake.play(id);
+  }
 
   /**
    * 当前 HUD 模式。仅作只读访问；切换走 switchMode / setMode。

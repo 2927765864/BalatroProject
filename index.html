@@ -203,6 +203,166 @@
               </div>
               <input id="inp-playfieldDeckY" type="number" step="1" min="-200" max="900" />
             </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
+              <span>画面跟随</span>
+            </div>
+            <div class="panel-row" style="color: rgba(255,255,255,0.62); font-size: 11px;">
+              <span>内容层（UI/牌等，与 CMOS 震动同一 shakeRoot）随鼠标位置平滑偏移；背景与 CRT 不动。默认反向偏移（视差感）；最大偏移为鼠标在屏幕边缘时的世界像素位移。</span>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>启用画面跟随</span>
+                <span id="val-screenFollowEnabled">开</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;">
+                <input id="inp-screenFollowEnabled" type="checkbox" />
+                <span style="color:rgba(255,255,255,0.62);">关闭后内容层平滑回中心</span>
+              </label>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>强度 intensity</span>
+                <span id="val-screenFollowIntensity">1</span>
+              </div>
+              <input id="inp-screenFollowIntensity" type="number" step="0.05" min="0" max="1" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>最大 X 偏移 (px)</span>
+                <span id="val-screenFollowMaxOffsetX">18</span>
+              </div>
+              <input id="inp-screenFollowMaxOffsetX" type="number" step="1" min="0" max="80" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>最大 Y 偏移 (px)</span>
+                <span id="val-screenFollowMaxOffsetY">12</span>
+              </div>
+              <input id="inp-screenFollowMaxOffsetY" type="number" step="1" min="0" max="80" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>平滑速度 (1/s)</span>
+                <span id="val-screenFollowSmoothing">8</span>
+              </div>
+              <input id="inp-screenFollowSmoothing" type="number" step="0.5" min="0" max="40" />
+            </div>
+            <div class="panel-row" style="color: rgba(255,255,255,0.62); font-size: 11px;">
+              <span>指数逼近：值越大跟手越快；0 为瞬时到位。约 8 时大致 0.15s 贴近目标。</span>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>反向 X（视差）</span>
+                <span id="val-screenFollowInvertX">开</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;">
+                <input id="inp-screenFollowInvertX" type="checkbox" />
+                <span style="color:rgba(255,255,255,0.62);">开 = 鼠标右移时内容左移</span>
+              </label>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>反向 Y（视差）</span>
+                <span id="val-screenFollowInvertY">开</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;">
+                <input id="inp-screenFollowInvertY" type="checkbox" />
+                <span style="color:rgba(255,255,255,0.62);">开 = 鼠标下移时内容上移</span>
+              </label>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>中心死区</span>
+                <span id="val-screenFollowDeadzone">0.05</span>
+              </div>
+              <input id="inp-screenFollowDeadzone" type="number" step="0.01" min="0" max="0.5" />
+            </div>
+            <div class="panel-row" style="color: rgba(255,255,255,0.62); font-size: 11px;">
+              <span>相对半屏的归一化半径；鼠标在死区内目标偏移为 0，避免静止微抖。</span>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2);">
+              <span>画面呼吸晃动</span>
+            </div>
+            <div class="panel-row" style="color: rgba(255,255,255,0.62); font-size: 11px;">
+              <span>内容层慢速双轴 sin 呼吸：左右与上下可设不同频率/振幅。与 CMOS 震动、画面跟随独立叠加（同一 shakeRoot）；背景与 CRT 不动。频率单位 Hz（周期 = 1/f 秒）。</span>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>启用画面呼吸</span>
+                <span id="val-screenBreathEnabled">开</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;">
+                <input id="inp-screenBreathEnabled" type="checkbox" />
+                <span style="color:rgba(255,255,255,0.62);">关闭时平滑淡出</span>
+              </label>
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>强度 intensity</span>
+                <span id="val-screenBreathIntensity">1</span>
+              </div>
+              <input id="inp-screenBreathIntensity" type="number" step="0.05" min="0" max="1" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>左右振幅 ampX (px)</span>
+                <span id="val-screenBreathAmpX">5</span>
+              </div>
+              <input id="inp-screenBreathAmpX" type="number" step="0.5" min="0" max="40" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>左右频率 freqX (Hz)</span>
+                <span id="val-screenBreathFreqX">0.07</span>
+              </div>
+              <input id="inp-screenBreathFreqX" type="number" step="0.01" min="0" max="2" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>左右相位 (°)</span>
+                <span id="val-screenBreathPhaseX">0</span>
+              </div>
+              <input id="inp-screenBreathPhaseX" type="number" step="5" min="-180" max="360" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>上下振幅 ampY (px)</span>
+                <span id="val-screenBreathAmpY">3.5</span>
+              </div>
+              <input id="inp-screenBreathAmpY" type="number" step="0.5" min="0" max="40" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>上下频率 freqY (Hz)</span>
+                <span id="val-screenBreathFreqY">0.11</span>
+              </div>
+              <input id="inp-screenBreathFreqY" type="number" step="0.01" min="0" max="2" />
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>上下相位 (°)</span>
+                <span id="val-screenBreathPhaseY">40</span>
+              </div>
+              <input id="inp-screenBreathPhaseY" type="number" step="5" min="-180" max="360" />
+            </div>
           </details>
 
           <!-- 1c. 背景 Background（paint-mix shader） -->
@@ -1701,6 +1861,405 @@
             </div>
 
             
+          </details>
+
+          <!-- 4a2. CMOS 屏幕震动（docs/cmos-screen-shake-plan.md） -->
+          <details class="panel-group" open>
+            <summary>CMOS 屏幕震动</summary>
+
+            <div class="panel-row" style="opacity:0.85;font-size:11px;line-height:1.5;color:#aac;padding:6px 10px;">
+              三轴弹簧 + 速度冲量回正。规格：docs/cmos-screen-shake-plan.md。下方按钮即时试射。
+            </div>
+
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>启用</span>
+                <span id="val-cmosShakeEnabled">开</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;">
+                <input id="inp-cmosShakeEnabled" type="checkbox" />
+              </label>
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>全局强度 intensity</span>
+                <span id="val-cmosShakeIntensity">1</span>
+              </div>
+              <input id="inp-cmosShakeIntensity" type="number" step="0.01" min="0" max="1" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>使用 gameSpeed</span>
+                <span id="val-cmosShakeUseGameSpeed">关</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;">
+                <input id="inp-cmosShakeUseGameSpeed" type="checkbox" />
+              </label>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>震动效果预设</span>
+            </div>
+            <div class="panel-row" style="opacity:0.85;font-size:11px;line-height:1.5;color:#aac;padding:6px 10px;">
+              这里存「某次震动」效果（发牌/出牌/摆角/微抖等），不是下方全局动力学。
+              <code>mode</code>：<b>impulse</b> 单次冲量 · <b>pulse</b> 脉冲串（alternate=来回）· <b>oscillate</b> 衰减正弦驱动。
+              业务用稳定 <code>id</code> 调用 <code>play(id)</code>。随「保存配置 / 导出 shipping」持久化。
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>选择预设</span>
+              </div>
+              <select id="sel-cmos-effect-preset" style="width:100%;"></select>
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>标识 id（调用用）</span>
+              </div>
+              <input id="inp-cmosEffectId" type="text" placeholder="例如 deal / settle / swayAngle" spellcheck="false" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>显示名 label</span>
+              </div>
+              <input id="inp-cmosEffectLabel" type="text" placeholder="例如 发牌 / 左右摆角" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>mode</span>
+              </div>
+              <select id="sel-cmosEffectMode" style="width:100%;">
+                <option value="impulse">impulse — 单次冲量</option>
+                <option value="pulse">pulse — 脉冲串 / 来回</option>
+                <option value="oscillate">oscillate — 衰减振荡</option>
+              </select>
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>strength（速度冲量）</span>
+                <span id="val-cmosEffectStrength">0.4</span>
+              </div>
+              <input id="inp-cmosEffectStrength" type="number" step="0.01" min="0" max="3" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>spin（角速度冲量）</span>
+                <span id="val-cmosEffectSpin">0.05</span>
+              </div>
+              <input id="inp-cmosEffectSpin" type="number" step="0.005" min="-1" max="1" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>方向角 °（0=右 90=下 180=左 270=上）</span>
+                <span id="val-cmosEffectDirAngle">90</span>
+              </div>
+              <input id="inp-cmosEffectDirAngle" type="number" step="1" min="0" max="360" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>方向半径（绝对值）</span>
+                <span id="val-cmosEffectDirRadius">1</span>
+              </div>
+              <input id="inp-cmosEffectDirRadius" type="number" step="0.05" min="0" max="10" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>方向角随机</span>
+                <span id="val-cmosEffectDirRandom">关</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;">
+                <input id="inp-cmosEffectDirRandom" type="checkbox" />
+                <span style="opacity:0.75;font-size:11px;">开后每次 play 在角度区间内随机；半径固定</span>
+              </label>
+            </div>
+            <div class="panel-row" id="row-cmosEffectDirAngleRange">
+              <div class="panel-row-header">
+                <span>角度区间 [min, max] °</span>
+                <span id="val-cmosEffectDirAngleRange">0 ~ 360</span>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input id="inp-cmosEffectDirAngleMin" type="number" step="1" min="0" max="360" style="flex:1;" title="angle min" />
+                <span style="opacity:0.6;">~</span>
+                <input id="inp-cmosEffectDirAngleMax" type="number" step="1" min="0" max="360" style="flex:1;" title="angle max" />
+              </div>
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>posKick（位置踢 px）</span>
+                <span id="val-cmosEffectPosKick">0</span>
+              </div>
+              <input id="inp-cmosEffectPosKick" type="number" step="0.1" min="-20" max="20" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>angleKickDeg（角位移踢°）</span>
+                <span id="val-cmosEffectAngleKick">0</span>
+              </div>
+              <input id="inp-cmosEffectAngleKick" type="number" step="0.05" min="-5" max="5" />
+            </div>
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.06); font-weight: bold; color: var(--accent); padding: 6px 10px; font-size: 12px;">
+              pulse 参数
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>count（脉冲次数）</span>
+                <span id="val-cmosEffectCount">1</span>
+              </div>
+              <input id="inp-cmosEffectCount" type="number" step="1" min="1" max="20" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>intervalMS</span>
+                <span id="val-cmosEffectIntervalMS">50</span>
+              </div>
+              <input id="inp-cmosEffectIntervalMS" type="number" step="5" min="0" max="500" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>alternate（每拍翻转方向）</span>
+                <span id="val-cmosEffectAlternate">关</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;">
+                <input id="inp-cmosEffectAlternate" type="checkbox" />
+              </label>
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>falloff（每拍衰减系数）</span>
+                <span id="val-cmosEffectFalloff">1</span>
+              </div>
+              <input id="inp-cmosEffectFalloff" type="number" step="0.05" min="0" max="1.5" />
+            </div>
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.06); font-weight: bold; color: var(--accent); padding: 6px 10px; font-size: 12px;">
+              oscillate 参数
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>durationMS</span>
+                <span id="val-cmosEffectDurationMS">300</span>
+              </div>
+              <input id="inp-cmosEffectDurationMS" type="number" step="10" min="0" max="3000" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>freqHz</span>
+                <span id="val-cmosEffectFreqHz">12</span>
+              </div>
+              <input id="inp-cmosEffectFreqHz" type="number" step="0.5" min="0" max="40" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>amp（平移振幅 px）</span>
+                <span id="val-cmosEffectAmp">0</span>
+              </div>
+              <input id="inp-cmosEffectAmp" type="number" step="0.1" min="0" max="20" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>ampRotDeg（旋转振幅°）</span>
+                <span id="val-cmosEffectAmpRotDeg">0</span>
+              </div>
+              <input id="inp-cmosEffectAmpRotDeg" type="number" step="0.05" min="0" max="5" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>decay（1/s 包络）</span>
+                <span id="val-cmosEffectDecay">4</span>
+              </div>
+              <input id="inp-cmosEffectDecay" type="number" step="0.1" min="0" max="20" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>phaseDeg</span>
+                <span id="val-cmosEffectPhaseDeg">0</span>
+              </div>
+              <input id="inp-cmosEffectPhaseDeg" type="number" step="5" min="-180" max="180" />
+            </div>
+            <div class="panel-row" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;">
+              <button id="btn-cmosEffect-new" type="button" class="panel-btn">新建</button>
+              <button id="btn-cmosEffect-save" type="button" class="panel-btn">保存修改</button>
+              <button id="btn-cmosEffect-delete" type="button" class="panel-btn">删除</button>
+              <button id="btn-cmosEffect-test" type="button" class="panel-btn">试射此预设</button>
+              <button id="btn-cmosEffect-fromDebug" type="button" class="panel-btn">从自定义冲量填入</button>
+            </div>
+            <div class="panel-row" style="opacity:0.85;font-size:11px;line-height:1.4;color:#8a9;padding:4px 10px 8px;">
+              快捷试射（随预设表刷新）：
+            </div>
+            <div id="cmos-effect-quick-btns" class="panel-row" style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 10px 10px;"></div>
+            <div class="panel-row" style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 10px 10px;">
+              <button id="btn-cmosShake-burstScore" type="button" class="panel-btn">连射×5 scoreTick</button>
+              <button id="btn-cmosShake-custom" type="button" class="panel-btn">自定义冲量试射</button>
+              <button id="btn-cmosShake-reset" type="button" class="panel-btn">硬复位</button>
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>自定义冲量（草稿）</span>
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>自定义方向角 °</span>
+                <span id="val-cmosDebugDirAngle">90</span>
+              </div>
+              <input id="inp-cmosDebugDirAngle" type="number" step="1" min="0" max="360" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>自定义方向半径</span>
+                <span id="val-cmosDebugDirRadius">1</span>
+              </div>
+              <input id="inp-cmosDebugDirRadius" type="number" step="0.05" min="0" max="10" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>自定义方向角随机</span>
+                <span id="val-cmosDebugDirRandom">关</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;">
+                <input id="inp-cmosDebugDirRandom" type="checkbox" />
+                <span style="opacity:0.75;font-size:11px;">开后试射时在角度区间内随机；半径固定</span>
+              </label>
+            </div>
+            <div class="panel-row" id="row-cmosDebugDirAngleRange">
+              <div class="panel-row-header">
+                <span>自定义角度区间 °</span>
+                <span id="val-cmosDebugDirAngleRange">0 ~ 360</span>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input id="inp-cmosDebugDirAngleMin" type="number" step="1" min="0" max="360" style="flex:1;" />
+                <span style="opacity:0.6;">~</span>
+                <input id="inp-cmosDebugDirAngleMax" type="number" step="1" min="0" max="360" style="flex:1;" />
+              </div>
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>自定义 strength</span>
+                <span id="val-cmosDebugStrength">0.45</span>
+              </div>
+              <input id="inp-cmosDebugStrength" type="number" step="0.01" min="0" max="2" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>自定义 spin</span>
+                <span id="val-cmosDebugSpin">0.05</span>
+              </div>
+              <input id="inp-cmosDebugSpin" type="number" step="0.01" min="0" max="1" />
+            </div>
+
+            <div class="panel-row" style="background: rgba(145, 197, 58, 0.08); font-weight: bold; color: var(--accent); border-top: 1px solid rgba(145, 197, 58, 0.2); border-bottom: 1px solid rgba(145, 197, 58, 0.2); flex-direction: row; justify-content: space-between; align-items: center; display: flex; padding: 8px 10px;">
+              <span>动力学模型（全局）</span>
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>平移 ωn</span>
+                <span id="val-cmosAngularFreq">18</span>
+              </div>
+              <input id="inp-cmosAngularFreq" type="number" step="0.5" min="4" max="40" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>平移 ζ</span>
+                <span id="val-cmosDampingRatio">0.62</span>
+              </div>
+              <input id="inp-cmosDampingRatio" type="number" step="0.02" min="0.2" max="1.5" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>旋转 ωn</span>
+                <span id="val-cmosRotAngularFreq">22</span>
+              </div>
+              <input id="inp-cmosRotAngularFreq" type="number" step="0.5" min="4" max="40" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>旋转 ζ</span>
+                <span id="val-cmosRotDampingRatio">0.72</span>
+              </div>
+              <input id="inp-cmosRotDampingRatio" type="number" step="0.02" min="0.2" max="1.5" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>maxOffsetX</span>
+                <span id="val-cmosMaxOffsetX">14</span>
+              </div>
+              <input id="inp-cmosMaxOffsetX" type="number" step="1" min="0" max="40" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>maxOffsetY</span>
+                <span id="val-cmosMaxOffsetY">14</span>
+              </div>
+              <input id="inp-cmosMaxOffsetY" type="number" step="1" min="0" max="40" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>maxAngleDeg</span>
+                <span id="val-cmosMaxAngleDeg">1.2</span>
+              </div>
+              <input id="inp-cmosMaxAngleDeg" type="number" step="0.1" min="0" max="5" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>strength→速度</span>
+                <span id="val-cmosStrengthToVelocity">900</span>
+              </div>
+              <input id="inp-cmosStrengthToVelocity" type="number" step="50" min="100" max="3000" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>spin→角速度</span>
+                <span id="val-cmosSpinToVelocity">8</span>
+              </div>
+              <input id="inp-cmosSpinToVelocity" type="number" step="0.5" min="0" max="20" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>maxSpeedXY</span>
+                <span id="val-cmosMaxSpeedXY">2400</span>
+              </div>
+              <input id="inp-cmosMaxSpeedXY" type="number" step="50" min="100" max="10000" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>maxSpeedRot</span>
+                <span id="val-cmosMaxSpeedRot">20</span>
+              </div>
+              <input id="inp-cmosMaxSpeedRot" type="number" step="1" min="1" max="100" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>minImpulseIntervalMS</span>
+                <span id="val-cmosMinImpulseIntervalMS">0</span>
+              </div>
+              <input id="inp-cmosMinImpulseIntervalMS" type="number" step="5" min="0" max="200" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>maxDtSec</span>
+                <span id="val-cmosMaxDtSec">0.05</span>
+              </div>
+              <input id="inp-cmosMaxDtSec" type="number" step="0.005" min="0.01" max="0.1" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>substeps</span>
+                <span id="val-cmosSubsteps">4</span>
+              </div>
+              <input id="inp-cmosSubsteps" type="number" step="1" min="1" max="16" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>mass（高级）</span>
+                <span id="val-cmosMass">1</span>
+              </div>
+              <input id="inp-cmosMass" type="number" step="0.1" min="0.2" max="5" />
+            </div>
+            <div class="panel-row">
+              <div class="panel-row-header">
+                <span>rotMass（高级）</span>
+                <span id="val-cmosRotMass">1</span>
+              </div>
+              <input id="inp-cmosRotMass" type="number" step="0.1" min="0.2" max="5" />
+            </div>
+
           </details>
 
           <!-- 4b. 弹性绳子牵引卡牌模型（隔离沙盒；?scene=elastic-rope） -->

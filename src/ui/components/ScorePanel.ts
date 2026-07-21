@@ -123,6 +123,8 @@ export class ScorePanel extends UINode {
   private readonly handNameBounceComp: BounceTextComponent;
   /** 牌型等级弹弹：弹簧阻尼，与倍率数字 multBounce 同构。 */
   private readonly handLevelBounceComp: BounceTextComponent;
+  /** 预期得分常态抖动：与筹码数字共用 textJitter 参数（位数分级相同）。 */
+  private readonly evalScoreJitterComp: TextJitterComponent;
   private readonly evalScoreBounceComp: BounceTextComponent;
 
   /**
@@ -439,6 +441,9 @@ export class ScorePanel extends UINode {
     this.evalScoreText.visible = false;
     this.evalScoreText.setAnchor(0.5, 0.5);
     this.evalScoreText.position.set(CONTENT_W / 2, 14);
+    // 先挂常态抖动（复用 textJitter），再挂触发式弹弹。
+    this.evalScoreJitterComp = new TextJitterComponent("textJitter");
+    this.evalScoreText.addComponent(this.evalScoreJitterComp);
     this.evalScoreBounceComp = new BounceTextComponent("evalScoreBounce");
     this.evalScoreText.addComponent(this.evalScoreBounceComp);
     chipMultSection.addChild(this.evalScoreText);

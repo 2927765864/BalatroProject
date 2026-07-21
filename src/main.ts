@@ -69,6 +69,12 @@ async function bootstrap(): Promise<void> {
   } else {
     game = new GameController(app);
     game.start();
+    if (import.meta.env.DEV) {
+      const { __cmosScreenShakeSelfTest } = await import("@/motion/CmosScreenShake");
+      const errs = __cmosScreenShakeSelfTest();
+      if (errs.length) console.warn("[cmos-shake selfcheck]", errs);
+      else console.info("[cmos-shake selfcheck] ok");
+    }
   }
 
   document.getElementById("loading")?.remove();
@@ -88,10 +94,15 @@ async function bootstrap(): Promise<void> {
         game.toggleMode();
         return;
       }
+      if (key.startsWith("action:cmosShake:")) {
+        game.handleCmosShakeAction(key);
+        return;
+      }
 
       // preset 整体载入：CONFIG.uiNodes 整张表被换了，需要把 hierarchy 也同步回灌。
+      // null 父节点挂在 shakeRoot（contentRoot），与 GameController.start 一致。
       if (key === "*") {
-        uiHierarchy.hydrateFromConfig(app.worldRoot);
+        uiHierarchy.hydrateFromConfig(game.screenShake.contentRoot);
       }
 
       // 程序化背景 / 清屏色：任何 world.background* 或 backgroundColor 变更都同步。

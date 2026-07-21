@@ -33,7 +33,324 @@
  * v13：卡牌层高于 UI；盲注徽章伪3D/阴影；badgeHome 锚点节点。
  * v14：牌堆数量文字无硬剪影；屏蔽 hydrate 把 shadow 加回 countText。
  */
-export const CONFIG_VERSION = 14;
+export const CONFIG_VERSION = 15;
+
+/**
+ * CMOS 单次震动效果预设（不是动力学模型参数）。
+ * 业务侧用稳定 id 调用 `screenShake.play(id)`；面板可增删改；随 CONFIG 存档。
+ */
+/**
+ * 震动预设模式：
+ * - impulse：单次速度冲量（兼容旧预设）
+ * - pulse：定时脉冲串，可 alternate 实现来回踢
+ * - oscillate：有限时长衰减正弦驱动弹簧目标（左右摆、持续抖）
+ */
+export type CmosShakePresetMode = "impulse" | "pulse" | "oscillate";
+
+/**
+ * 屏幕坐标极角（度）：0° = +X（右），90° = +Y（下），180° = 左，270° = 上。
+ * 结果归一化到 [0, 360)。
+ */
+export function normalizeDirAngleDeg(deg: number): number {
+  if (!Number.isFinite(deg)) return 90;
+  let a = deg % 360;
+  if (a < 0) a += 360;
+  // 360 与 0 同向；保留 0，把 360 收成 0
+  if (a >= 360) a = 0;
+  return a;
+}
+
+/**
+ * 旧档 dirX/dirY → 极坐标。长度≈0 时默认向下 90°、radius=0。
+ */
+export function dirCartToPolar(
+  dirX: number,
+  dirY: number,
+): { dirAngleDeg: number; dirRadius: number } {
+  const x = Number.isFinite(dirX) ? dirX : 0;
+  const y = Number.isFinite(dirY) ? dirY : 0;
+  const r = Math.hypot(x, y);
+  if (r <= 1e-6) {
+    return { dirAngleDeg: 90, dirRadius: 0 };
+  }
+  return {
+    dirAngleDeg: normalizeDirAngleDeg((Math.atan2(y, x) * 180) / Math.PI),
+    dirRadius: r,
+  };
+}
+
+export interface CmosShakeEffectPreset {
+  /** 面板显示名 */
+  label: string;
+  /**
+   * 播放模式。缺省/旧档按 impulse 处理。
+   */
+  mode: CmosShakePresetMode;
+  /** 平移冲量强度（→ strengthToVelocity） */
+  strength: number;
+  /** 旋转冲量强度（→ spinToVelocity） */
+  spin: number;
+  /**
+   * 震动初始方向角（度，0–360）。
+   * 屏幕坐标：0°=+X 右，90°=+Y 下，180°=左，270°=上。
+   */
+  dirAngleDeg: number;
+  /**
+   * 方向半径（绝对值 ≥0）。与角度组成极坐标；≈0 时无有效平移方向（回退默认向下）。
+   * 内部仍归一化为单位方向，强度由 strength / posKick / amp 控制。
+   */
+  dirRadius: number;
+  /**
+   * 为 true 时每次 play 在 [dirAngleMin, dirAngleMax] 均匀随机采样方向角；
+   * 半径固定用 dirRadius。同一次 play 内 pulse 串共用该次采样（alternate 仍翻向）。
+   */
+  dirRandom: boolean;
+  /** dirRandom 时角度区间（度；min/max 顺序无关，采样时会排序） */
+  dirAngleMin: number;
+  dirAngleMax: number;
+  /**
+   * pulse：脉冲次数（≥1）。impulse 忽略；oscillate 忽略。
+   */
+  count: number;
+  /** pulse：相邻脉冲间隔 ms */
+  intervalMS: number;
+  /** pulse：每拍翻转 dir 与 spin 符号（来回移动 / 左右角冲量） */
+  alternate: boolean;
+  /** pulse：每拍 strength/spin 乘此系数（通常 0–1，1=不衰减） */
+  falloff: number;
+  /**
+   * 位置踢：沿 dir 瞬间加位移（世界 px）。与速度冲量可叠加，做出「先位移再回弹」。
+   */
+  posKick: number;
+  /** 角位移踢（度），瞬间加到 rot 位置 */
+  angleKickDeg: number;
+  /** oscillate：驱动持续时长 ms */
+  durationMS: number;
+  /** oscillate：驱动频率 Hz */
+  freqHz: number;
+  /** oscillate：平移振幅 px（沿归一化 dir） */
+  amp: number;
+  /** oscillate：旋转振幅 度 */
+  ampRotDeg: number;
+  /** oscillate：指数包络衰减率（1/s）；0=不衰减 */
+  decay: number;
+  /** oscillate：初相位 度 */
+  phaseDeg: number;
+}
+
+const CMOS_SHAKE_MODES = new Set<CmosShakePresetMode>(["impulse", "pulse", "oscillate"]);
+
+/** 规范化 mode；非法/缺省 → impulse */
+export function normalizeCmosShakeMode(v: unknown): CmosShakePresetMode {
+  if (typeof v === "string" && CMOS_SHAKE_MODES.has(v as CmosShakePresetMode)) {
+    return v as CmosShakePresetMode;
+  }
+  return "impulse";
+}
+
+/** 旧档笛卡尔方向字段（仅迁移用） */
+type LegacyDirFields = {
+  dirX?: number;
+  dirY?: number;
+  dirXMin?: number;
+  dirXMax?: number;
+  dirYMin?: number;
+  dirYMax?: number;
+};
+
+/** 单条预设字段归一化（旧档缺字段用 fallback；兼容旧 dirX/dirY） */
+export function normalizeCmosShakeEffectPreset(
+  id: string,
+  raw: (Partial<CmosShakeEffectPreset> & LegacyDirFields) | CmosShakeEffectPreset | null | undefined,
+  fallback?: (Partial<CmosShakeEffectPreset> & LegacyDirFields) | null,
+): CmosShakeEffectPreset {
+  const f = fallback ?? {};
+  const num = (v: unknown, fb: number): number =>
+    typeof v === "number" && Number.isFinite(v) ? v : fb;
+  const bool = (v: unknown, fb: boolean): boolean =>
+    typeof v === "boolean" ? v : fb;
+  const labelRaw = raw && typeof raw === "object" ? raw.label : undefined;
+  const label =
+    typeof labelRaw === "string" && labelRaw.length > 0
+      ? labelRaw
+      : typeof f.label === "string" && f.label.length > 0
+        ? f.label
+        : id;
+  const src = (raw && typeof raw === "object" ? raw : {}) as Partial<
+    CmosShakeEffectPreset
+  > &
+    LegacyDirFields;
+  const fb = f as Partial<CmosShakeEffectPreset> & LegacyDirFields;
+
+  // 方向：优先新字段；缺省时从旧 dirX/dirY 迁移（即使 fallback 已是新字段）
+  const hasNewAngle =
+    typeof src.dirAngleDeg === "number" && Number.isFinite(src.dirAngleDeg);
+  const hasNewRadius =
+    typeof src.dirRadius === "number" && Number.isFinite(src.dirRadius);
+  const hasLegacyDir =
+    (typeof src.dirX === "number" && Number.isFinite(src.dirX)) ||
+    (typeof src.dirY === "number" && Number.isFinite(src.dirY));
+  const legacyPolar = hasLegacyDir
+    ? dirCartToPolar(num(src.dirX, 0), num(src.dirY, 1))
+    : null;
+  const fbHasLegacy =
+    (typeof fb.dirX === "number" && Number.isFinite(fb.dirX)) ||
+    (typeof fb.dirY === "number" && Number.isFinite(fb.dirY));
+  const fbPolar = fbHasLegacy
+    ? dirCartToPolar(num(fb.dirX, 0), num(fb.dirY, 1))
+    : null;
+
+  const dirAngleDeg = normalizeDirAngleDeg(
+    hasNewAngle
+      ? (src.dirAngleDeg as number)
+      : legacyPolar
+        ? legacyPolar.dirAngleDeg
+        : num(f.dirAngleDeg, fbPolar?.dirAngleDeg ?? 90),
+  );
+  const dirRadius = Math.max(
+    0,
+    hasNewRadius
+      ? (src.dirRadius as number)
+      : legacyPolar
+        ? legacyPolar.dirRadius
+        : num(f.dirRadius, fbPolar?.dirRadius ?? 1),
+  );
+
+  // 角度区间允许 360 表示「满周终点」（不强制收成 0）
+  const clampAngleRange = (v: number): number => {
+    if (!Number.isFinite(v)) return 0;
+    if (v === 360) return 360;
+    return normalizeDirAngleDeg(v);
+  };
+
+  return {
+    label,
+    mode: normalizeCmosShakeMode(src.mode ?? f.mode),
+    strength: num(src.strength, num(f.strength, 0.3)),
+    spin: num(src.spin, num(f.spin, 0)),
+    dirAngleDeg,
+    dirRadius,
+    dirRandom: bool(src.dirRandom, f.dirRandom === true),
+    dirAngleMin: clampAngleRange(num(src.dirAngleMin, num(f.dirAngleMin, 0))),
+    dirAngleMax: clampAngleRange(num(src.dirAngleMax, num(f.dirAngleMax, 360))),
+    count: Math.max(1, Math.floor(num(src.count, num(f.count, 1)))),
+    intervalMS: Math.max(0, num(src.intervalMS, num(f.intervalMS, 50))),
+    alternate: bool(src.alternate, f.alternate === true),
+    falloff: Math.max(0, num(src.falloff, num(f.falloff, 1))),
+    posKick: num(src.posKick, num(f.posKick, 0)),
+    angleKickDeg: num(src.angleKickDeg, num(f.angleKickDeg, 0)),
+    durationMS: Math.max(0, num(src.durationMS, num(f.durationMS, 300))),
+    freqHz: Math.max(0, num(src.freqHz, num(f.freqHz, 12))),
+    amp: num(src.amp, num(f.amp, 0)),
+    ampRotDeg: num(src.ampRotDeg, num(f.ampRotDeg, 0)),
+    decay: Math.max(0, num(src.decay, num(f.decay, 4))),
+    phaseDeg: num(src.phaseDeg, num(f.phaseDeg, 0)),
+  };
+}
+
+/** 深拷贝震动效果预设表 */
+export function cloneCmosShakePresets(
+  src: Record<string, CmosShakeEffectPreset>,
+): Record<string, CmosShakeEffectPreset> {
+  const out: Record<string, CmosShakeEffectPreset> = {};
+  for (const [id, p] of Object.entries(src ?? {})) {
+    if (!p || typeof p !== "object") continue;
+    out[id] = normalizeCmosShakeEffectPreset(id, p);
+  }
+  return out;
+}
+
+export type CmosDebugImpulse = {
+  dirAngleDeg: number;
+  dirRadius: number;
+  dirRandom: boolean;
+  dirAngleMin: number;
+  dirAngleMax: number;
+  strength: number;
+  spin: number;
+};
+
+/** 自定义冲量草稿归一化（兼容旧 dirX/dirY） */
+export function normalizeCmosDebugImpulse(
+  raw: (Partial<CmosDebugImpulse> & LegacyDirFields) | null | undefined,
+  fallback?: CmosDebugImpulse | null,
+): CmosDebugImpulse {
+  const f: CmosDebugImpulse = fallback ?? {
+    dirAngleDeg: 90,
+    dirRadius: 1,
+    dirRandom: false,
+    dirAngleMin: 0,
+    dirAngleMax: 360,
+    strength: 0.45,
+    spin: 0.05,
+  };
+  const src = raw && typeof raw === "object" ? raw : {};
+  const num = (v: unknown, fb: number): number =>
+    typeof v === "number" && Number.isFinite(v) ? v : fb;
+  const bool = (v: unknown, fb: boolean): boolean =>
+    typeof v === "boolean" ? v : fb;
+
+  const hasNewAngle =
+    typeof src.dirAngleDeg === "number" && Number.isFinite(src.dirAngleDeg);
+  const hasNewRadius =
+    typeof src.dirRadius === "number" && Number.isFinite(src.dirRadius);
+  const hasLegacy =
+    (typeof src.dirX === "number" && Number.isFinite(src.dirX)) ||
+    (typeof src.dirY === "number" && Number.isFinite(src.dirY));
+  const polar =
+    !hasNewAngle && !hasNewRadius && hasLegacy
+      ? dirCartToPolar(num(src.dirX, 0), num(src.dirY, 1))
+      : null;
+
+  const clampAngleRange = (v: number): number => {
+    if (!Number.isFinite(v)) return 0;
+    if (v === 360) return 360;
+    return normalizeDirAngleDeg(v);
+  };
+
+  return {
+    dirAngleDeg: normalizeDirAngleDeg(
+      hasNewAngle
+        ? (src.dirAngleDeg as number)
+        : (polar?.dirAngleDeg ?? f.dirAngleDeg),
+    ),
+    dirRadius: Math.max(
+      0,
+      hasNewRadius ? (src.dirRadius as number) : (polar?.dirRadius ?? f.dirRadius),
+    ),
+    dirRandom: bool(src.dirRandom, f.dirRandom),
+    dirAngleMin: clampAngleRange(num(src.dirAngleMin, f.dirAngleMin)),
+    dirAngleMax: clampAngleRange(num(src.dirAngleMax, f.dirAngleMax)),
+    strength: num(src.strength, f.strength),
+    spin: num(src.spin, f.spin),
+  };
+}
+
+/**
+ * 合并震动预设表。
+ * 若 incoming 提供了 presets 对象且至少有一个 key：以 incoming 的 key 集合为准
+ * （支持删除预设后随存档持久化）；逐字段用 base 同 id 兜底。
+ * 若 incoming 缺失或为空对象：保留 base（兼容旧档缺字段）。
+ */
+export function mergeCmosShakePresets(
+  base: Record<string, CmosShakeEffectPreset>,
+  incoming?: Record<string, Partial<CmosShakeEffectPreset> | CmosShakeEffectPreset> | null,
+): Record<string, CmosShakeEffectPreset> {
+  if (!incoming || typeof incoming !== "object") {
+    return cloneCmosShakePresets(base);
+  }
+  const keys = Object.keys(incoming);
+  if (keys.length === 0) {
+    return cloneCmosShakePresets(base);
+  }
+  const out: Record<string, CmosShakeEffectPreset> = {};
+  for (const id of keys) {
+    const raw = incoming[id];
+    if (!raw || typeof raw !== "object") continue;
+    out[id] = normalizeCmosShakeEffectPreset(id, raw, base[id]);
+  }
+  return out;
+}
 
 /**
  * 单个 UI 节点的可持久化数据。
@@ -403,6 +720,95 @@ export interface RuntimeConfig {
     panelOpacity: number;
     /** 在 HUD 上显示一些调试文字（保留扩展位） */
     showDebugOverlay: boolean;
+  };
+  /**
+   * CMOS 屏幕震动（三轴弹簧 + 速度冲量）。
+   * 规格：docs/cmos-screen-shake-plan.md
+   */
+  cmosShake: {
+    enabled: boolean;
+    intensity: number;
+    useGameSpeed: boolean;
+    mass: number;
+    angularFreq: number;
+    dampingRatio: number;
+    rotMass: number;
+    rotAngularFreq: number;
+    rotDampingRatio: number;
+    maxOffsetX: number;
+    maxOffsetY: number;
+    maxAngleDeg: number;
+    strengthToVelocity: number;
+    spinToVelocity: number;
+    maxSpeedXY: number;
+    maxSpeedRot: number;
+    minImpulseIntervalMS: number;
+    maxDtSec: number;
+    substeps: number;
+    settlePosPx: number;
+    settleVelPx: number;
+    settleAngleRad: number;
+    settleAngVel: number;
+    /**
+     * 命名震动效果表：key = 稳定调用 id（如 playHand / deal / settle）。
+     * 只存单次冲量参数，不改动力学模型；可在面板增删改，随 CONFIG 存档。
+     */
+    presets: Record<string, CmosShakeEffectPreset>;
+    /** 面板自定义冲量试射（不进 shipping 语义，可本地保存） */
+    debugImpulse: CmosDebugImpulse;
+  };
+  /**
+   * 画面跟随（鼠标位置驱动的内容层偏移）。
+   * 与 CMOS 共用 shakeRoot：只移动玩法内容（UI/牌等），不移动背景与 CRT。
+   */
+  screenFollow: {
+    /** 总开关 */
+    enabled: boolean;
+    /** 全局强度 [0,1]，乘在 maxOffset 上 */
+    intensity: number;
+    /** 鼠标在屏幕边缘时内容最大 X 偏移（世界像素） */
+    maxOffsetX: number;
+    /** 鼠标在屏幕边缘时内容最大 Y 偏移（世界像素） */
+    maxOffsetY: number;
+    /**
+     * 平滑速度（1/s）：指数逼近目标，值越大跟手越快。
+     * 每帧：offset += (target - offset) * (1 - exp(-smoothing * dtSec))
+     */
+    smoothing: number;
+    /**
+     * true：内容向鼠标反方向偏移（视差/“探头看”感）；
+     * false：内容随鼠标同向偏移。
+     */
+    invertX: boolean;
+    invertY: boolean;
+    /**
+     * 中心死区半径（归一化 0–1，相对半屏）。
+     * 鼠标落在死区内时目标偏移为 0，避免静止时微抖。
+     */
+    deadzone: number;
+  };
+  /**
+   * 画面呼吸晃动（慢速双轴 sin 驱动）。
+   * 与 CMOS 震动、画面跟随共用 shakeRoot，三者偏移叠加；背景 / CRT 不动。
+   * 左右 / 上下使用独立频率与振幅。
+   */
+  screenBreath: {
+    /** 总开关 */
+    enabled: boolean;
+    /** 全局强度 [0,1]，乘在 amp 上 */
+    intensity: number;
+    /** 左右摆动振幅（世界像素） */
+    ampX: number;
+    /** 上下起伏振幅（世界像素） */
+    ampY: number;
+    /** 左右摆动频率（Hz，完整来回周期 = 1/freq） */
+    freqX: number;
+    /** 上下起伏频率（Hz） */
+    freqY: number;
+    /** 左右相位（度） */
+    phaseXDeg: number;
+    /** 上下相位（度） */
+    phaseYDeg: number;
   };
   /**
    * 卡牌美术参数。
@@ -1482,6 +1888,334 @@ export const DEFAULT_CONFIG: RuntimeConfig = Object.freeze({
     panelOpacity: 1,
     showDebugOverlay: false,
   }),
+  cmosShake: Object.freeze({
+    enabled: true,
+    intensity: 1,
+    useGameSpeed: false,
+    mass: 1,
+    angularFreq: 18,
+    dampingRatio: 0.62,
+    rotMass: 1,
+    rotAngularFreq: 22,
+    rotDampingRatio: 0.72,
+    maxOffsetX: 14,
+    maxOffsetY: 14,
+    maxAngleDeg: 1.2,
+    strengthToVelocity: 900,
+    spinToVelocity: 8,
+    maxSpeedXY: 2400,
+    maxSpeedRot: 20,
+    minImpulseIntervalMS: 0,
+    maxDtSec: 0.05,
+    substeps: 4,
+    settlePosPx: 0.15,
+    settleVelPx: 2,
+    settleAngleRad: 0.0005,
+    settleAngVel: 0.01,
+    presets: Object.freeze({
+      tap: Object.freeze({
+        label: "轻点",
+        mode: "impulse" as const,
+        strength: 0.12,
+        spin: 0,
+        dirAngleDeg: 90,
+        dirRadius: 1,
+        count: 1,
+        intervalMS: 50,
+        alternate: false,
+        falloff: 1,
+        posKick: 0,
+        angleKickDeg: 0,
+        durationMS: 0,
+        freqHz: 12,
+        amp: 0,
+        ampRotDeg: 0,
+        decay: 4,
+        phaseDeg: 0,
+      }),
+      scoreTick: Object.freeze({
+        label: "计分",
+        mode: "impulse" as const,
+        strength: 0.22,
+        spin: 0.015,
+        dirAngleDeg: 90,
+        dirRadius: 1,
+        count: 1,
+        intervalMS: 50,
+        alternate: false,
+        falloff: 1,
+        posKick: 0,
+        angleKickDeg: 0,
+        durationMS: 0,
+        freqHz: 12,
+        amp: 0,
+        ampRotDeg: 0,
+        decay: 4,
+        phaseDeg: 0,
+      }),
+      playHand: Object.freeze({
+        label: "出牌",
+        mode: "impulse" as const,
+        strength: 0.4,
+        spin: 0.05,
+        dirAngleDeg: 90,
+        dirRadius: 1,
+        count: 1,
+        intervalMS: 50,
+        alternate: false,
+        falloff: 1,
+        posKick: 0,
+        angleKickDeg: 0,
+        durationMS: 0,
+        freqHz: 12,
+        amp: 0,
+        ampRotDeg: 0,
+        decay: 4,
+        phaseDeg: 0,
+      }),
+      bigHand: Object.freeze({
+        label: "大牌",
+        mode: "impulse" as const,
+        strength: 0.7,
+        spin: 0.09,
+        dirAngleDeg: 90,
+        dirRadius: 1,
+        count: 1,
+        intervalMS: 50,
+        alternate: false,
+        falloff: 1,
+        posKick: 2,
+        angleKickDeg: 0.15,
+        durationMS: 0,
+        freqHz: 12,
+        amp: 0,
+        ampRotDeg: 0,
+        decay: 4,
+        phaseDeg: 0,
+      }),
+      error: Object.freeze({
+        label: "错误",
+        mode: "impulse" as const,
+        strength: 0.28,
+        spin: 0.07,
+        dirAngleDeg: 0,
+        dirRadius: 1,
+        count: 1,
+        intervalMS: 50,
+        alternate: false,
+        falloff: 1,
+        posKick: 1.5,
+        angleKickDeg: 0,
+        durationMS: 0,
+        freqHz: 12,
+        amp: 0,
+        ampRotDeg: 0,
+        decay: 4,
+        phaseDeg: 0,
+      }),
+      /** 点数/花色理牌：轻量 thrash，配合手牌换位动画 */
+      Sort: Object.freeze({
+        label: "理牌",
+        mode: "impulse" as const,
+        strength: 0.26,
+        spin: 0.03,
+        dirAngleDeg: 90,
+        dirRadius: 1,
+        count: 1,
+        intervalMS: 50,
+        alternate: false,
+        falloff: 1,
+        posKick: 0.8,
+        angleKickDeg: 0.08,
+        durationMS: 0,
+        freqHz: 12,
+        amp: 0,
+        ampRotDeg: 0,
+        decay: 4,
+        phaseDeg: 0,
+      }),
+      /** 出牌堆：每张计分牌结算弹簧启动瞬间 */
+      CardSettle: Object.freeze({
+        label: "卡牌结算",
+        mode: "impulse" as const,
+        strength: 0.24,
+        spin: 0.02,
+        dirAngleDeg: 90,
+        dirRadius: 1,
+        count: 1,
+        intervalMS: 50,
+        alternate: false,
+        falloff: 1,
+        posKick: 0.6,
+        angleKickDeg: 0.06,
+        durationMS: 0,
+        freqHz: 12,
+        amp: 0,
+        ampRotDeg: 0,
+        decay: 4,
+        phaseDeg: 0,
+      }),
+      /** 左右角摆：旋转轴衰减正弦 */
+      swayAngle: Object.freeze({
+        label: "左右摆角",
+        mode: "oscillate" as const,
+        strength: 0,
+        spin: 0,
+        dirAngleDeg: 0,
+        dirRadius: 1,
+        count: 1,
+        intervalMS: 50,
+        alternate: false,
+        falloff: 1,
+        posKick: 0,
+        angleKickDeg: 0,
+        durationMS: 420,
+        freqHz: 6,
+        amp: 0,
+        ampRotDeg: 0.9,
+        decay: 3.5,
+        phaseDeg: 0,
+      }),
+      /** 来回平移：交替脉冲 */
+      swayLR: Object.freeze({
+        label: "左右平移",
+        mode: "pulse" as const,
+        strength: 0.35,
+        spin: 0,
+        dirAngleDeg: 0,
+        dirRadius: 1,
+        count: 4,
+        intervalMS: 55,
+        alternate: true,
+        falloff: 0.85,
+        posKick: 1.2,
+        angleKickDeg: 0,
+        durationMS: 0,
+        freqHz: 12,
+        amp: 0,
+        ampRotDeg: 0,
+        decay: 4,
+        phaseDeg: 0,
+      }),
+      /** 上下来回 */
+      bounceUD: Object.freeze({
+        label: "上下来回",
+        mode: "pulse" as const,
+        strength: 0.4,
+        spin: 0,
+        dirAngleDeg: 90,
+        dirRadius: 1,
+        count: 3,
+        intervalMS: 60,
+        alternate: true,
+        falloff: 0.8,
+        posKick: 1.5,
+        angleKickDeg: 0,
+        durationMS: 0,
+        freqHz: 12,
+        amp: 0,
+        ampRotDeg: 0,
+        decay: 4,
+        phaseDeg: 0,
+      }),
+      /** 双重冲击（先踢再反踢） */
+      doubleKick: Object.freeze({
+        label: "双重冲击",
+        mode: "pulse" as const,
+        strength: 0.55,
+        spin: 0.04,
+        dirAngleDeg: 90,
+        dirRadius: 1,
+        count: 2,
+        intervalMS: 70,
+        alternate: true,
+        falloff: 0.9,
+        posKick: 2,
+        angleKickDeg: 0.1,
+        durationMS: 0,
+        freqHz: 12,
+        amp: 0,
+        ampRotDeg: 0,
+        decay: 4,
+        phaseDeg: 0,
+      }),
+      /** 持续微抖 / 地震感：原 dir(0.7,1) ≈ 55° */
+      rumble: Object.freeze({
+        label: "持续微抖",
+        mode: "oscillate" as const,
+        strength: 0,
+        spin: 0,
+        dirAngleDeg: 55,
+        dirRadius: 1,
+        count: 1,
+        intervalMS: 50,
+        alternate: false,
+        falloff: 1,
+        posKick: 0,
+        angleKickDeg: 0,
+        durationMS: 550,
+        freqHz: 18,
+        amp: 2.2,
+        ampRotDeg: 0.25,
+        decay: 2.2,
+        phaseDeg: 30,
+      }),
+      /** 位移顿挫：偏位置踢 */
+      thud: Object.freeze({
+        label: "顿挫",
+        mode: "impulse" as const,
+        strength: 0.18,
+        spin: 0.02,
+        dirAngleDeg: 90,
+        dirRadius: 1,
+        count: 1,
+        intervalMS: 50,
+        alternate: false,
+        falloff: 1,
+        posKick: 4,
+        angleKickDeg: 0.2,
+        durationMS: 0,
+        freqHz: 12,
+        amp: 0,
+        ampRotDeg: 0,
+        decay: 4,
+        phaseDeg: 0,
+      }),
+    // 缺 dirRandom/角度区间字段时由 normalizeCmosShakeEffectPreset 在读时补全
+    }) as unknown as Record<string, CmosShakeEffectPreset>,
+    debugImpulse: Object.freeze({
+      dirAngleDeg: 90,
+      dirRadius: 1,
+      dirRandom: false,
+      dirAngleMin: 0,
+      dirAngleMax: 360,
+      strength: 0.45,
+      spin: 0.05,
+    }),
+  }),
+  screenFollow: Object.freeze({
+    enabled: true,
+    intensity: 1,
+    maxOffsetX: 18,
+    maxOffsetY: 12,
+    /** ~8/s：约 0.15s 逼近目标，跟手但不硬切 */
+    smoothing: 8,
+    invertX: true,
+    invertY: true,
+    deadzone: 0.05,
+  }),
+  screenBreath: Object.freeze({
+    enabled: true,
+    intensity: 1,
+    /** 轻微左右：约 14s 一周期 */
+    ampX: 5,
+    freqX: 0.07,
+    phaseXDeg: 0,
+    /** 略快上下：约 9s 一周期 */
+    ampY: 3.5,
+    freqY: 0.11,
+    phaseYDeg: 40,
+  }),
   cardArt: Object.freeze({
     useSprites: true,
     cornerRadius: 6,
@@ -2121,6 +2855,13 @@ export function cloneConfig(src: RuntimeConfig): RuntimeConfig {
     rules: { ...src.rules },
     animation: { ...src.animation },
     debug: { ...src.debug },
+    cmosShake: {
+      ...src.cmosShake,
+      presets: cloneCmosShakePresets(src.cmosShake.presets),
+      debugImpulse: { ...src.cmosShake.debugImpulse },
+    },
+    screenFollow: { ...src.screenFollow },
+    screenBreath: { ...src.screenBreath },
     cardArt: {
       ...src.cardArt,
       back: { ...src.cardArt.back },
@@ -2317,6 +3058,28 @@ export function applyConfig(source: unknown): void {
   if (incoming.rules) Object.assign(merged.rules, incoming.rules);
   if (incoming.animation) Object.assign(merged.animation, incoming.animation);
   if (incoming.debug) Object.assign(merged.debug, incoming.debug);
+  if (incoming.cmosShake) {
+    const inc = incoming.cmosShake;
+    const base = merged.cmosShake;
+    merged.cmosShake = {
+      ...base,
+      ...inc,
+      presets: mergeCmosShakePresets(base.presets, inc.presets),
+      debugImpulse: normalizeCmosDebugImpulse(inc.debugImpulse, base.debugImpulse),
+    };
+  }
+  if (incoming.screenFollow) {
+    merged.screenFollow = {
+      ...merged.screenFollow,
+      ...incoming.screenFollow,
+    };
+  }
+  if (incoming.screenBreath) {
+    merged.screenBreath = {
+      ...merged.screenBreath,
+      ...incoming.screenBreath,
+    };
+  }
   if (incoming.cardArt) {
     merged.cardArt = {
       ...merged.cardArt,
@@ -2624,6 +3387,9 @@ export function applyConfig(source: unknown): void {
   CONFIG.rules = merged.rules;
   CONFIG.animation = merged.animation;
   CONFIG.debug = merged.debug;
+  CONFIG.cmosShake = merged.cmosShake;
+  CONFIG.screenFollow = merged.screenFollow;
+  CONFIG.screenBreath = merged.screenBreath;
   CONFIG.cardArt = merged.cardArt;
   CONFIG.handLayout = merged.handLayout;
   CONFIG.playfield = merged.playfield;
@@ -2688,6 +3454,28 @@ export function applyShippingDefaults(source: unknown): void {
   if (incoming.rules) Object.assign(activeDefaultConfig.rules, incoming.rules);
   if (incoming.animation) Object.assign(activeDefaultConfig.animation, incoming.animation);
   if (incoming.debug) Object.assign(activeDefaultConfig.debug, incoming.debug);
+  if (incoming.cmosShake) {
+    const inc = incoming.cmosShake;
+    const base = activeDefaultConfig.cmosShake;
+    activeDefaultConfig.cmosShake = {
+      ...base,
+      ...inc,
+      presets: mergeCmosShakePresets(base.presets, inc.presets),
+      debugImpulse: normalizeCmosDebugImpulse(inc.debugImpulse, base.debugImpulse),
+    };
+  }
+  if (incoming.screenFollow) {
+    activeDefaultConfig.screenFollow = {
+      ...activeDefaultConfig.screenFollow,
+      ...incoming.screenFollow,
+    };
+  }
+  if (incoming.screenBreath) {
+    activeDefaultConfig.screenBreath = {
+      ...activeDefaultConfig.screenBreath,
+      ...incoming.screenBreath,
+    };
+  }
   if (incoming.cardArt) {
     activeDefaultConfig.cardArt = {
       ...activeDefaultConfig.cardArt,
