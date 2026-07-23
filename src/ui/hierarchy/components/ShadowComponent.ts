@@ -12,10 +12,12 @@
  *   - sprite 是宿主的 child，自动随宿主 transform 一起变换；不用自己复刻位姿。
  *   - 烤纹理前把 sprite 从宿主上临时摘掉，烤完再挂回去——否则 generateTexture
  *     会把上一次的剪影也抓进新纹理，雪球。
- *   - generateTexture 用 host 的 resolution 提高纹理清晰度；PIXI v8 的
- *     RenderTexture 把 resolution 内化了——sprite 在 local 空间下显示的
- *     大小就是 region.width × region.height（host local 像素），所以
- *     sprite.scale=1 时剪影与本体严格 1:1 重合，不需要任何 1/res 补偿。
+ *   - generateTexture 用「高于屏幕」的 resolution 烤纹理（至少盖过 UIText
+ *     的 resolution），并关闭 MSAA antialias——硬剪影要锐利边，不能
+ *     一边烘焙一边软边再降采样。PIXI v8 的 RenderTexture 把 resolution
+ *     内化了——sprite 在 local 空间下显示大小仍是 region.width × region.height
+ *     （host local 像素），sprite.scale=1 时剪影与本体严格 1:1，不需要
+ *     任何 1/res 补偿。
  *   - sprite.pivot 放在剪影几何中心；sprite.position 也直接给中心点的目标
  *     位置 = region 中心 + (ox, oy)。这样 scale=1 / skew=0 / distance=0
  *     时剪影像素与本体严格重合，distance 的物理意义就是"剪影沿 angle 方向
@@ -301,14 +303,28 @@ export class ShadowComponent extends UIComponent {
 
       let tex: Texture | null = null;
       try {
+        // 锐度关键点：
+        // 1) antialias:false —— 硬剪影不需要 RT MSAA；开了会在 alpha 边
+        //    缘多一层软边，肉眼就是「阴影糊」。
+        // 2) 烘焙 resolution 必须 ≥ UIText（Math.max(3, dpr*2)）。若只
+        //    用 renderer.resolution（≈dpr），高清文字会被降采样后再显示，
+        //    剪影比本体糊一档。
+        // 3) scaleMode:linear —— 仍用线性过滤；高分辨率下亚像素位姿不会
+        //    出现 nearest 的锯齿爬行，同时边沿比低分+linear 更利落。
+        const bakeRes = Math.max(3, (renderer.resolution || 1) * 2);
         tex = renderer.generateTexture({
           target: host,
           frame: region,
-          resolution: renderer.resolution,
-          antialias: true,
-          textureSourceOptions: { autoGarbageCollect: false },
+          resolution: bakeRes,
+          antialias: false,
+          textureSourceOptions: {
+            autoGarbageCollect: false,
+            scaleMode: "linear",
+          },
         });
         tex.source.autoGarbageCollect = false;
+        // generateTexture 部分路径不会吃 textureSourceOptions.scaleMode，双保险。
+        tex.source.scaleMode = "linear";
       } catch (err) {
         console.warn(`[ShadowComponent] generateTexture 失败：`, err);
         return false;

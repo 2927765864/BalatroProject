@@ -58,7 +58,7 @@
     },
     "cmosShake": {
       "enabled": true,
-      "intensity": 1,
+      "intensity": 0.3,
       "useGameSpeed": false,
       "mass": 1,
       "angularFreq": 22,
@@ -163,7 +163,7 @@
     },
     "screenFollow": {
       "enabled": true,
-      "intensity": 1,
+      "intensity": 0.3,
       "maxOffsetX": 15,
       "maxOffsetY": 6,
       "smoothing": 2,
@@ -173,7 +173,7 @@
     },
     "screenBreath": {
       "enabled": true,
-      "intensity": 1,
+      "intensity": 0.3,
       "ampX": 2.5,
       "freqX": 0.07,
       "phaseXDeg": 0,
@@ -2149,7 +2149,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "2784"
+              "text": "8573"
             }
           },
           {
@@ -2235,7 +2235,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "高牌"
+              "text": "两对"
             }
           },
           {

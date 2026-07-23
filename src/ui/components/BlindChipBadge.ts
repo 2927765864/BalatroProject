@@ -20,6 +20,11 @@ import {
   type Ticker,
 } from "pixi.js";
 import { assets } from "@core/AssetManager";
+import {
+  beginDragSession,
+  endDragSession,
+  isDragSessionActive,
+} from "@core/input/DragSession";
 import { CONFIG } from "@game/config";
 import { ElasticRopeMotion } from "@/motion/ElasticRopeMotion";
 import {
@@ -53,6 +58,8 @@ export class BlindChipBadge extends UINode {
   layoutRotation = 0;
 
   isDragging = false;
+  /** 是否已向全局 DragSession 占位（幂等 acquire/release）。 */
+  private dragSessionHeld = false;
   isReturning = false;
 
   private shadowContainer: Container | null;
@@ -354,7 +361,8 @@ export class BlindChipBadge extends UINode {
       }
       this.suppressHoverScaleUntilReenter = false;
       this.refreshMouseLocalFromGlobal();
-      if (this.isDragging) return;
+      // 自身拖拽中，或其它卡牌/徽章拖拽划过：不触发触碰动画。
+      if (this.isDragging || this.isForeignDragHoverSuppressed()) return;
       this.triggerHoverBreathing();
     });
 
@@ -398,6 +406,7 @@ export class BlindChipBadge extends UINode {
     this.isDragging = true;
     this.isReturning = false;
     this.badgeState = BadgeState.Dragging;
+    this.acquireDragSession();
 
     if (this.parent) {
       this.parent.setChildIndex(this, this.parent.children.length - 1);
@@ -495,6 +504,7 @@ export class BlindChipBadge extends UINode {
     }
 
     this.isDragging = false;
+    this.releaseDragSession();
     this.zIndex = 0;
 
     // 拖拽缩放瞬间回 1；触碰入场由 restartHoverScaleEntrance 负责。
@@ -809,6 +819,7 @@ export class BlindChipBadge extends UINode {
 
     const isHovered =
       !this.suppressHoverScaleUntilReenter &&
+      !this.isForeignDragHoverSuppressed() &&
       this.badgeState === BadgeState.Hovered;
 
     const settleScale = visualConf.hoverSettleScale ?? 1.05;
@@ -854,6 +865,7 @@ export class BlindChipBadge extends UINode {
       !!visualConf &&
       !!visualConf.mouse3DTiltEnabled &&
       !this.isDragging &&
+      !this.isForeignDragHoverSuppressed() &&
       this.isMouseOver &&
       this.mouseLocalX !== null &&
       this.mouseLocalY !== null;
@@ -1078,8 +1090,30 @@ export class BlindChipBadge extends UINode {
     return root;
   }
 
+  /** 注册全局拖拽会话，阻止其它卡牌在拖拽期间触发触碰动画。 */
+  private acquireDragSession(): void {
+    if (this.dragSessionHeld) return;
+    beginDragSession();
+    this.dragSessionHeld = true;
+  }
+
+  private releaseDragSession(): void {
+    if (!this.dragSessionHeld) return;
+    endDragSession();
+    this.dragSessionHeld = false;
+  }
+
+  /**
+   * 是否应抑制「他人拖拽划过」带来的 hover 视效。
+   * 自身 isDragging 时不算 foreign。
+   */
+  private isForeignDragHoverSuppressed(): boolean {
+    return isDragSessionActive() && !this.isDragging;
+  }
+
   override destroy(options?: Parameters<UINode["destroy"]>[0]): void {
     this.unbindSelfTicker();
+    this.releaseDragSession();
     if (this.dragData) {
       const stage = this.getRootStage();
       if (stage) {

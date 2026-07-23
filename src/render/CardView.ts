@@ -12,6 +12,11 @@ import {
 import type { CardData } from "@domain/types";
 import { assets } from "@core/AssetManager";
 import { deferDestroyTexture } from "@core/DeferredTextureDestroy";
+import {
+  beginDragSession,
+  endDragSession,
+  isDragSessionActive,
+} from "@core/input/DragSession";
 import { CONFIG, isDrawingCards } from "@game/config";
 import { uiHierarchy } from "@ui/hierarchy";
 import { ElasticRopeMotion } from "@/motion/ElasticRopeMotion";
@@ -128,6 +133,8 @@ export class CardView extends Container {
   layoutY = 0;
   layoutRotation = 0;
   isDragging = false;
+  /** 是否已向全局 DragSession 占位（幂等 acquire/release）。 */
+  private dragSessionHeld = false;
   /**
    * 位置驱动模式：
    *   - internal：旧版 updateDragging lerp/急停（遗留，主场景不再使用）
@@ -683,6 +690,7 @@ export class CardView extends Container {
   }
 
   override destroy(options?: any): void {
+    this.releaseDragSession();
     if (this.shadowGraphics) {
       if (this.shadowGraphics.parent) {
         this.shadowGraphics.parent.removeChild(this.shadowGraphics);
@@ -1555,6 +1563,27 @@ export class CardView extends Container {
     return root;
   }
 
+  /** 注册全局拖拽会话，阻止其它卡牌在拖拽期间触发触碰动画。 */
+  private acquireDragSession(): void {
+    if (this.dragSessionHeld) return;
+    beginDragSession();
+    this.dragSessionHeld = true;
+  }
+
+  private releaseDragSession(): void {
+    if (!this.dragSessionHeld) return;
+    endDragSession();
+    this.dragSessionHeld = false;
+  }
+
+  /**
+   * 是否应抑制「他人拖拽划过」带来的 hover 视效。
+   * 自身处于 isDragging 时不算 foreign（拖拽源自有一套关闭倾斜/呼吸的逻辑）。
+   */
+  private isForeignDragHoverSuppressed(): boolean {
+    return isDragSessionActive() && !this.isDragging;
+  }
+
   private onPointerDown(event: FederatedPointerEvent): void {
     if (event.button !== 0) return;
 
@@ -1578,6 +1607,7 @@ export class CardView extends Container {
     // 按下鼠标左键即刻进入拖拽态（按照需求：只要鼠标处于按下状态，就会进入拖拽态）
     this.isDragging = true;
     this.cardState = CardState.Dragging;
+    this.acquireDragSession();
     this.callbacks.onDragStart?.(this);
 
     // 进入拖拽：弹簧目标 → dragScaleTarget，用 scaleIn 弹簧参数 + 冲量。
@@ -1693,6 +1723,7 @@ export class CardView extends Container {
     }
 
     this.isDragging = false;
+    this.releaseDragSession();
 
     // 退出拖拽：拖拽缩放瞬间回 1（无 scaleOut 回落过程）。
     // 触碰 hover / 呼吸入场仍由下方 restartHoverScaleEntrance 负责。
@@ -2262,8 +2293,10 @@ export class CardView extends Container {
     }
 
     // Hovered，或 Selected 且鼠标仍在牌上。suppress 时强制走回 1.0。
+    // 他人拖拽划过时不算有效悬停，避免邻牌放大。
     const isHovered =
       !this.suppressHoverScaleUntilReenter &&
+      !this.isForeignDragHoverSuppressed() &&
       (this.cardState === CardState.Hovered ||
         (this.isMouseOver && this.cardState === CardState.Selected));
 
@@ -2336,6 +2369,7 @@ export class CardView extends Container {
       !!visualConf &&
       this.isVisualEnabled("mouse3DTilt") &&
       !this.isDragging &&
+      !this.isForeignDragHoverSuppressed() &&
       this.isMouseOver &&
       this.mouseLocalX !== null &&
       this.mouseLocalY !== null;
@@ -2666,7 +2700,8 @@ export class CardView extends Container {
       this.suppressHoverScaleUntilReenter = false;
       // 用缓存全局点立刻刷新本地坐标，避免等 pointermove 才恢复倾斜。
       this.refreshMouseLocalFromGlobal();
-      if (this.isDragging) return;
+      // 自身拖拽中，或其它卡牌/徽章拖拽划过：不触发触碰动画。
+      if (this.isDragging || this.isForeignDragHoverSuppressed()) return;
       // 触发"鼠标触碰呼吸晃动"（独立通道，一次性脱手脉冲）。
       // 每次进入都重置进度与相位，重新从满幅度起跳，可打断上一次未播完的脉冲。
       this.triggerHoverBreathing();
