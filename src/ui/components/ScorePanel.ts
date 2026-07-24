@@ -36,6 +36,12 @@ const SECTION_R = 10;
 /** 内嵌小框圆角 */
 const INSET_R = 8;
 
+/** ScorePanel 侧栏按钮回调（业务可后续接入；当前可仅用于点击反馈）。 */
+export interface ScorePanelOptions {
+  onRunInfo?: () => void;
+  onOptions?: () => void;
+}
+
 // ---- 筹码小图标：优先 chips.png 第一行第一列；素材未就绪时回退矢量 ----------
 //
 //   chipIcon
@@ -135,7 +141,12 @@ export class ScorePanel extends UINode {
   /** 盲注徽章本体（交互 / 伪3D / 阴影）；挂载由 GameController 负责。 */
   readonly blindChipBadge: BlindChipBadge;
 
-  constructor(targetScore: number, plays: number, discards: number) {
+  constructor(
+    targetScore: number,
+    plays: number,
+    discards: number,
+    opts: ScorePanelOptions = {},
+  ) {
     super({ id: "hud.scorePanel", displayName: "得分面板" });
 
     // ============================================================
@@ -566,7 +577,7 @@ export class ScorePanel extends UINode {
       height: sideBtnH,
       activeColor: Theme.colors.runInfoBtn,
       onClick: () => {
-        /* 预留：打开比赛信息 */
+        opts.onRunInfo?.();
       },
     });
     // 覆盖按钮默认字号，两行竖排更贴近参考图
@@ -662,7 +673,7 @@ export class ScorePanel extends UINode {
       height: sideBtnH,
       activeColor: Theme.colors.optionsBtn,
       onClick: () => {
-        /* 预留：打开选项 */
+        opts.onOptions?.();
       },
     });
     optionsBtn.position.set(0, 116);

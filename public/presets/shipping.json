@@ -11,7 +11,7 @@
       "background": {
         "enabled": true,
         "quality": "high",
-        "theme": "smallBlind",
+        "theme": "feltGreen",
         "speed": 0.65,
         "spinAmount": 0.32,
         "spinEase": 0.5,
@@ -24,9 +24,9 @@
         "lighting": 0.07,
         "seedPhase": 0,
         "maxUpdateHz": 60,
-        "colour1": 4890580,
-        "colour2": 2775690,
-        "colour3": 992312
+        "colour1": 5943162,
+        "colour2": 4885350,
+        "colour3": 1719598
       },
       "crt": {
         "enabled": true,
@@ -187,7 +187,7 @@
       "faceColor": 16776427,
       "outlineColor": 13092807,
       "back": {
-        "row": 2,
+        "row": 3,
         "col": 0
       },
       "blindChipAnim": {
@@ -2149,7 +2149,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "8573"
+              "text": "0"
             }
           },
           {
@@ -2235,7 +2235,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "两对"
+              "text": "高牌"
             }
           },
           {
@@ -2304,7 +2304,7 @@
           {
             "type": "textStyle",
             "data": {
-              "text": "0"
+              "text": "15"
             }
           },
           {

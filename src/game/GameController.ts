@@ -250,6 +250,9 @@ export class GameController {
       onDiscard: () => this.discardSelected(),
       onSortByRank: () => this.sortHand("rank"),
       onSortBySuit: () => this.sortHand("suit"),
+      // 比赛信息 / 选项：业务待接入；按下松手仍播理牌 Sort 震动反馈
+      onRunInfo: () => this.screenShake.play("Sort"),
+      onOptions: () => this.screenShake.play("Sort"),
     });
     this.hud.zIndex = Layers.UI;
     this.screenShake.contentRoot.addChild(this.hud);
@@ -489,11 +492,11 @@ export class GameController {
             v.isReturning = false;
           },
           onDragging: (v) => {
-            // 与手牌相同：用视觉中线 view.x 判定换位时机。
-            this.reorderJokersWhileDragging(v, v.x);
+            // 与手牌相同：以鼠标逻辑位置判定换位，不跟被拖牌视觉滞后。
+            this.reorderJokersWhileDragging(v, v.dragLogicalX);
           },
           onDragEnd: (v) => {
-            // 松手用鼠标逻辑位置再兜底一次换位（快速甩动场景）。
+            // 松手再按鼠标逻辑位置判定一次（与拖拽过程一致；覆盖 pointer 丢帧边界）。
             this.reorderJokersWhileDragging(v, v.dragLogicalX);
             v.isReturning = true;
             this.layoutJokers();
@@ -611,6 +614,7 @@ export class GameController {
 
   /**
    * 小丑拖拽换位：与 reorderHandWhileDragging 同构，操作 this.jokers 数组。
+   * dragCenter 同样为鼠标逻辑 X（dragLogicalX），非被拖牌视觉 view.x。
    */
   private reorderJokersWhileDragging(view: CardView, dragCenter: number): void {
     const list = this.jokers;
@@ -849,21 +853,19 @@ export class GameController {
           view.zIndex = 9999;
           view.isReturning = false;
         },
-        onDragging: (view, _x, _y) => {
-          // 拖拽过程中：用 view.x（lerp 平滑后的实际渲染中线）做换位判定。
-          // 这样"换位时机"严格对应卡片视觉中线穿过邻牌中线那一刻，手感清晰不模糊。
-          this.reorderHandWhileDragging(view, view.x);
+        onDragging: (view, x, _y) => {
+          // 拖拽过程中：用鼠标逻辑位置（= 鼠标 - 抓握偏移）做换位判定，
+          // 而不是被拖牌的视觉中线 view.x。牌体会因弹性绳滞后于指针，
+          // 若用 view.x，玩家会感觉「光标已过邻牌中线、顺序却还不换」。
+          // x 与 view.dragLogicalX 等价，均来自 CardView 的 dragTarget。
+          this.reorderHandWhileDragging(view, x);
         },
         onDragEnd: (view) => {
           // 选中状态完全由 toggleSelection 翻转，慢点击/拖拽松手不会改动 view.selected，
           // 因此这里不再需要"兜底同步 store.selected"的逻辑。只负责回弹与重排即可。
           //
-          // 松手瞬间——按「鼠标光标的逻辑位置」(dragLogicalX = 鼠标位置 - 抓握偏移)
-          // 再做一次最终换位判定。这是为了解决「快速甩动鼠标后立刻松手」的场景：
-          // 由于卡牌位置受 lerp/maxSpeed 限制会滞后于鼠标，如果只用拖拽过程中累积的
-          // 换位结果（基于 view.x 计算），最终落位会停留在「卡牌已滑过」而非「鼠标
-          // 到达」的位置——不符合玩家意图。在这里用 dragLogicalX 兜底覆盖一次，
-          // 让最终顺序与玩家鼠标松手时所在的位置一致。
+          // 松手再按鼠标逻辑位置判定一次：与拖拽过程同一判据，覆盖 pointer 丢帧
+          // 或最后一帧未触发 onDragging 的边界情况。
           this.reorderHandWhileDragging(view, view.dragLogicalX);
 
           view.isReturning = true;
@@ -1051,6 +1053,9 @@ export class GameController {
    *      再让每张需要移动的牌走 CardFx.sortMove（距离越大速度越大）。
    */
   sortHand(mode: HandSortMode): void {
+    // 按钮按下松手即反馈：即使理牌无位移 / 被业务 early-return，仍播 Sort 预设。
+    this.screenShake.play("Sort");
+
     if (this.isPlaying) return;
 
     const hand = this.store.getState().hand;
@@ -1075,9 +1080,6 @@ export class GameController {
 
     this.store.setState({ hand: sorted });
 
-    // CMOS 屏幕震动：理牌预设（CONFIG.cmosShake.presets.Sort）
-    this.screenShake.play("Sort");
-
     // 所有最终位置相对当前视觉位置有变化的牌都参与 sortMove。
     // 用当前 view 坐标与即将写入的 layout 目标比距离即可，但此时 layout 尚未算好；
     // 简单起见：全部纳入 sortFor，sortMove 对 dist≈0 的牌会直接置位返回。
@@ -1090,19 +1092,17 @@ export class GameController {
   }
 
   /**
-   * 拖拽中手动理牌：当「拖拽牌中线 dragCenter」穿过左/右邻牌的「槽位中线 layoutX」时，
+   * 拖拽中手动理牌：当「鼠标逻辑中线 dragCenter」穿过左/右邻牌的「槽位中线 layoutX」时，
    * 立即与该邻牌在 hand 数组中互换位置，并触发 layoutHand 让让位牌平滑移动到新槽位。
    *
-   * 双重调用机制：
-   *   - 拖拽过程中（onDragging）：传入 `view.x`（已 lerp 平滑的实际渲染中线）。
-   *     这样"换位时机"严格对应卡片视觉中线真正滑过邻牌中线那一刻，手感明确不模糊。
-   *     除 pointermove 外，CardView.updateDragging 每帧也会回调一次，确保卡牌在
-   *     追赶鼠标的过程中（鼠标已停、牌还在 lerp）仍能持续跨越中线完成换位。
-   *   - 松手瞬间（onDragEnd）：传入 `view.dragLogicalX`（= 鼠标位置 - 抓握偏移）。
-   *     这是为了解决「快速甩动鼠标后立刻松手」时——由于 lerp/maxSpeed 限速，卡牌
-   *     还没追上鼠标——基于 view.x 算出的最终落位会停留在「卡牌已滑过」而非「鼠标
-   *     到达」的位置，不符合玩家意图。松手时用鼠标逻辑位置做一次最终判定，确保
-   *     落位与玩家鼠标光标位置一致。
+   * dragCenter 语义（手牌 / 小丑一致）：
+   *   始终传入「鼠标位置 − 抓握偏移」即 `view.dragLogicalX`（onDragging 的 x 参数与之
+   *   等价），而不是被拖牌的视觉中线 `view.x`。被拖牌由弹性绳追踪指针，视觉上会
+   *   滞后；换位应对玩家光标意图负责，而不是等牌体贴到邻牌中线才动。
+   *
+   * 调用时机：
+   *   - onDragging：pointermove 与每帧 updateDragging 都会回调，判据同一逻辑 X。
+   *   - onDragEnd：松手再判一次，覆盖 pointer 丢帧 / 末帧未回调的边界。
    *
    * 设计要点：
    *   1. 邻牌一侧用 `layoutX` 而非 `view.x`：
@@ -1113,8 +1113,7 @@ export class GameController {
    *      dragCenter 已是一整个 cardSpacing 的距离，天然形成滞回——不会立即反向 swap。
    *
    *   2. 用 while 循环允许「一次性跳多格」——快速划过 2~3 张牌时也能跟手，不会因
-   *      为单帧只换一格而残留视觉错位。松手分支同样依赖这一点：鼠标可能远在 view.x
-   *      右侧好几格，需要一次性补齐。
+   *      为单帧只换一格而残留视觉错位。鼠标可一次跨过多格，需要 while 补齐。
    *
    *   3. 邻牌即便正在播放 swap 动画也可再次被跨越（无「换位墙」）。
    *      旧设计把 isSwapAnimating 邻牌当不可穿越的墙，是为了避免 rise 被反复打断
@@ -1145,7 +1144,7 @@ export class GameController {
     // 而不是默认归位分支（便于维护 isSwapAnimating）。
     const swapFor = new Set<CardView>();
 
-    // 向左检查：拖拽牌中线穿过左邻牌槽位中线 left.layoutX 时换位。
+    // 向左检查：鼠标逻辑中线穿过左邻牌槽位中线 left.layoutX 时换位。
     // 越过则交换，并继续向左追问新左邻；while 支持单次手势跨多格。
     // 不把 isSwapAnimating 邻牌当墙——快速往返必须能立刻反向换位。
     while (newIndex > 0) {

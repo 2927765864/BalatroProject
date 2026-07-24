@@ -30,6 +30,28 @@ import { CardSkin } from "./CardSkin";
 import { getPixelOutlineTexture } from "./PixelOutlineTexture";
 
 /**
+ * 进程内「最近一次指针全局坐标」——跨 CardView 实例共享。
+ *
+ * 每张牌只在自己收到 pointer 事件时更新自身 lastPointerGlobal；快速理牌时
+ * A 松手飞回槽位后用户已在拖 B，A 的缓存仍停在松手点。flushPendingHoverAfterReturn
+ * 若用这份过期坐标做几何命中，会把 isMouseOver/Hovered 误判为 true，随后：
+ *   - 常态卡在「被触碰」缩放；
+ *   - 按下其它牌时 isForeignDragHoverSuppressed 掩盖；
+ *   - 松手后放大又出现（像拖拽缩放逻辑反了）。
+ * 共享坐标由任意牌/stage 的 pointer 事件刷新，足以代表「鼠标现在在哪」。
+ */
+let sharedPointerGlobalX = 0;
+let sharedPointerGlobalY = 0;
+let hasSharedPointerGlobal = false;
+
+function noteSharedPointerGlobal(x: number, y: number): void {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  sharedPointerGlobalX = x;
+  sharedPointerGlobalY = y;
+  hasSharedPointerGlobal = true;
+}
+
+/**
  * 计算卡牌移动旋转的派生上限（弧度，无符号）。
  *   maxRot = (REF_SPEED / 1000) × cardMoveRotation.rotationPerSpeed
  *
@@ -106,22 +128,14 @@ export interface CardViewCallbacks {
   onHoverOut: (view: CardView) => void;
   onDragStart?: (view: CardView) => void;
   /**
-   * 拖拽过程中、每次 pointermove 末尾触发一次。
-   * 用途：手动理牌——GameController 据此判断拖拽牌的中心是否越过相邻牌中线、
-   * 进而 splice hand 数组并触发 layoutHand 让相邻牌让位。
+   * 拖拽过程中、每次 pointermove 末尾触发一次（updateDragging 每帧也会再调一次）。
+   * 用途：手动理牌——GameController 用本回调的 (x, y)（鼠标逻辑目标）判断是否越过
+   * 相邻牌槽位中线，进而 splice hand 数组并触发 layoutHand 让相邻牌让位。
    *
-   * 不在 update tick 里轮询而走事件驱动：
-   *   - 节流粒度与浏览器 pointermove 一致（约 15~20ms 一次），足够顺滑；
-   *   - 控制器代码无需每帧检查所有牌，开销低。
-   *
-   * 参数 (x, y) 是拖拽中卡牌在父容器坐标系下的"逻辑目标位置"（即 dragTargetX/Y，
-   * 等价于鼠标当前位置 - 抓握偏移）。
-   *
-   * 实际用哪个值做换位判定由上层（GameController）决定：当前实现拖拽过程中用
-   * `view.x`（lerp 平滑后的实际渲染中线），让"换位时机"严格对应卡片视觉中线穿过
-   * 邻牌中线那一刻，手感清晰不模糊；而松手瞬间（onDragEnd）则改用 dragLogicalX/Y
-   * （= 鼠标逻辑位置）做一次最终换位，避免"快速甩动后立刻松手时卡牌没追上鼠标
-   * 导致落位偏差"。详见 GameController.reorderHandWhileDragging 的注释。
+   * 参数 (x, y) 是拖拽中卡牌在父容器坐标系下的「逻辑目标位置」（即 dragTargetX/Y，
+   * 等价于鼠标当前位置 - 抓握偏移），与 `view.x/y`（弹性绳滞后后的视觉位置）相对。
+   * 换位判据使用本逻辑坐标，而不是被拖牌视觉中线，以便顺序跟手光标而非跟牌体贴。
+   * 详见 GameController.reorderHandWhileDragging 的注释。
    */
   onDragging?: (view: CardView, x: number, y: number) => void;
   onDragEnd?: (view: CardView) => void;
@@ -278,6 +292,17 @@ export class CardView extends Container {
   // 解除时机：(a) dragScale "out" 弹簧 settle 到 1；(b) 新的 pointerover；(c) pointerout。
   private suppressHoverScaleUntilReenter = false;
 
+  /**
+   * 拖拽/长按松手后归位期间压住 hover 缩放入场。
+   *
+   * 问题：松手瞬间 isMouseOver 仍为 true，若立刻 restartHoverScaleEntrance，
+   * 归位途中会把 currentScale 推向 hoverSettleScale（带冲量过冲），
+   * 且 Pixi dynamic 假 pointermove 有节流，卡牌飞离指针后 pointerout 可能滞后，
+   * 表现为「回原位过程中持续放大 → 到位后瞬间缩回」。
+   * 归位 settle 后若指针仍在牌上，再补一次触碰入场。
+   */
+  private pendingHoverAfterReturn = false;
+
   // 鼠标触碰呼吸晃动（独立通道）：
   // 一次性脱手脉冲：Y / Z-rot 各一条 SpringDamper1D（对齐 playPileSettleEffect 缩放通道）。
   // 触发时设位置/速度冲量，目标恒为 0；欠阻尼自然过冲回落。
@@ -369,16 +394,10 @@ export class CardView extends Container {
 
   /**
    * 拖拽中卡牌在父容器坐标系下的「逻辑目标位置」——等价于鼠标当前位置 - 抓握偏移。
-   * 与 `view.x/y`（经 lerp 平滑后滞后于鼠标的实际渲染位置）相对。
+   * 与 `view.x/y`（弹性绳滞后后的视觉位置）相对。
    *
-   * 暴露为只读 getter，主要供 GameController 在 `onDragEnd` 回调中读取：
-   * 当玩家「快速甩动鼠标后立刻松手」时，由于 lerp/速度上限的存在，卡牌还没追上
-   * 鼠标——此时基于 `view.x` 计算最终换位会让卡牌落在「鼠标已经到了，卡牌还没
-   * 到」的中间位置，不符合玩家操作意图。松手瞬间用此值（= 鼠标逻辑位置）做
-   * 一次最终换位计算，可让落位与玩家鼠标光标位置一致。
-   *
-   * 拖拽过程中的换位判定仍用 `view.x`（见 GameController.reorderHandWhileDragging
-   * 的注释），保证视觉中线穿过邻牌中线的"严格手感"。
+   * 供 GameController 在拖拽中 / 松手时做换位判定：顺序应对准玩家光标意图，
+   * 而不是等被拖牌视觉中线追上邻牌槽位。见 reorderHandWhileDragging。
    */
   get dragLogicalX(): number {
     return this.dragTargetX;
@@ -1704,12 +1723,17 @@ export class CardView extends Container {
     }
   }
 
-  private onPointerUp(): void {
+  private onPointerUp(event?: FederatedPointerEvent): void {
     if (!this.dragData) return;
 
     const duration = Date.now() - this.dragStartTime;
     this.dragData = null;
-    
+
+    // 松手瞬间刷新共享指针（pointerup 事件坐标），避免后续几何判定用过期点
+    if (event) {
+      this.cachePointerGlobal(event);
+    }
+
     // 从 root stage 注销监听器，恢复空闲状态且还原 stage.eventMode
     const stage = this.getRootStage();
     if (stage) {
@@ -1726,8 +1750,18 @@ export class CardView extends Container {
     this.releaseDragSession();
 
     // 退出拖拽：拖拽缩放瞬间回 1（无 scaleOut 回落过程）。
-    // 触碰 hover / 呼吸入场仍由下方 restartHoverScaleEntrance 负责。
     this.snapDragScaleToRest();
+
+    // 用几何命中同步 isMouseOver：拖拽中 pointerout 可能丢失/滞后，
+    // 若只信 isMouseOver 会在松手后把牌钉在 Hovered，表现为「常态被触碰」。
+    const reallyOver = this.isPointerOverSelfNow();
+    if (this.isMouseOver !== reallyOver) {
+      this.isMouseOver = reallyOver;
+      if (!reallyOver) {
+        this.mouseLocalX = null;
+        this.mouseLocalY = null;
+      }
+    }
 
     // 获取配置中的快速点击时间阈值（卡牌操作逻辑专区：不受 gameSpeed 影响）
     const threshold = CONFIG.cardVisuals?.clickThresholdMS ?? 250;
@@ -1743,12 +1777,13 @@ export class CardView extends Container {
       if (this.selected) {
         this.cardState = CardState.Selected;
       } else {
-        this.cardState = this.isMouseOver ? CardState.Hovered : CardState.Normal;
+        this.cardState = reallyOver ? CardState.Hovered : CardState.Normal;
       }
 
       // 短按选中 / 取消选中：鼠标通常未离开，没有新的 pointerover。
-      // 必须强制把 hoverScale progress 打回 0，才能重播入场弹性。
-      if (this.isMouseOver) {
+      // 必须强制把 hoverScale 重播入场弹性（牌基本不动，无需等归位）。
+      this.pendingHoverAfterReturn = false;
+      if (reallyOver) {
         this.restartHoverScaleEntrance({ forceImmediate: true });
       }
       this.callbacks.onDragEnd?.(this);
@@ -1758,16 +1793,138 @@ export class CardView extends Container {
       // 慢点击/拖拽不会顺手把已选中的卡取消掉。
       this.cardState = this.selected
         ? CardState.Selected
-        : this.isMouseOver
+        : reallyOver
           ? CardState.Hovered
           : CardState.Normal;
 
-      // 长按/拖拽松手：dragScale 已瞬间=1，可直接重播触碰缩放/呼吸（不再等 out settle）。
-      if (this.isMouseOver) {
-        this.restartHoverScaleEntrance({ forceImmediate: true });
-      }
+      // 长按/拖拽松手：牌会飞回槽位。禁止立刻重播 hover 缩放/呼吸——
+      // 否则归位途中 currentScale 被推向 hoverSettleScale，出现「回去时放大、
+      // 到位后瞬间缩回」。等绳 settle 后再由 flushPendingHoverAfterReturn 补入场。
+      this.collapseHoverScaleForReturn();
       this.callbacks.onDragEnd?.(this);
     }
+  }
+
+  /**
+   * 拖拽松手进入归位：hover 缩放通道压回 1，并挂起触碰入场直至归位 settle。
+   */
+  private collapseHoverScaleForReturn(): void {
+    this.pendingHoverAfterReturn = true;
+    this.hoverScaleSpring.reset(1, 0);
+    this.currentScale = 1;
+    this.hoverScaleWasHovered = false;
+    this.hoverBreathingActive = false;
+    this.hoverBreathYSpring.reset(0, 0);
+    this.hoverBreathRotSpring.reset(0, 0);
+    this.hoverBreathingY = 0;
+    this.hoverWobbleRot = 0;
+    this.hoverBreathingElapsedMS = 0;
+  }
+
+  /**
+   * 解析「当前」指针全局坐标：优先进程共享采样，其次本实例缓存。
+   * 勿单独依赖本实例 lastPointer——快速连续拖拽其它牌时它会过期。
+   */
+  private resolvePointerGlobal(): { x: number; y: number } | null {
+    if (hasSharedPointerGlobal) {
+      return { x: sharedPointerGlobalX, y: sharedPointerGlobalY };
+    }
+    if (this.hasLastPointerGlobal) {
+      return { x: this.lastPointerGlobalX, y: this.lastPointerGlobalY };
+    }
+    return null;
+  }
+
+  /**
+   * 用当前指针全局坐标 + 卡牌世界变换，几何判定指针是否仍在本牌 hitArea 内。
+   * 比 isMouseOver 可靠：后者在静止指针 + Pixi dynamic 节流下会滞后；
+   * 且本实例 lastPointer 在「用户已去拖别的牌」时会过期。
+   */
+  private isPointerOverSelfNow(): boolean {
+    if (this.destroyed) return false;
+    const global = this.resolvePointerGlobal();
+    if (!global) return false;
+    const local = this.toLocal({ x: global.x, y: global.y });
+    if (!Number.isFinite(local.x) || !Number.isFinite(local.y)) return false;
+    const area = this.hitArea;
+    if (area && typeof (area as { contains?: unknown }).contains === "function") {
+      return (area as { contains: (x: number, y: number) => boolean }).contains(
+        local.x,
+        local.y,
+      );
+    }
+    const W = CardSkin.width;
+    const H = CardSkin.height;
+    return local.x >= 0 && local.x <= W && local.y >= 0 && local.y <= H;
+  }
+
+  /**
+   * 清除「伪悬停」：声明 isMouseOver/Hovered 但几何上指针已不在牌上。
+   * 快速理牌时 Pixi pointerout 可能丢失，或 flush 用过期坐标误置悬停；
+   * 每帧校正可避免常态放大与「按住其它牌才恢复」的反相表现。
+   */
+  private clearStickyHoverIfNeeded(): void {
+    if (this.destroyed || this.isDragging) return;
+    // 归位挂起期间由 flush 统一处理，避免中途与 collapse 打架
+    if (this.pendingHoverAfterReturn) return;
+
+    const claimsHover =
+      this.isMouseOver || this.cardState === CardState.Hovered;
+    if (!claimsHover) return;
+    if (this.isPointerOverSelfNow()) return;
+
+    this.isMouseOver = false;
+    if (this.cardState === CardState.Hovered) {
+      this.cardState = CardState.Normal;
+    }
+    this.mouseLocalX = null;
+    this.mouseLocalY = null;
+    this.hoverScaleWasHovered = false;
+  }
+
+  /**
+   * 归位 settle 后解除挂起，并按几何命中同步悬停态。
+   *
+   * 不可再信滞后的 isMouseOver 去 restartHoverScaleEntrance：
+   * 拖出定住松手后指针不动时，卡牌已飞离指针，但 isMouseOver 常仍为 true
+   * （dynamic 假 pointermove 有节流）→ settle 瞬间误播入场（冲量放大）→
+   * 随后 pointerout 又缩回，表现为落点稳定后闪几帧变大。
+   *
+   * 也不可用本实例过期的 lastPointerGlobal：连续拖第二张牌时，第一张 settle
+   * 时指针已在别处，却仍可能命中「松手点附近的手牌槽」。
+   */
+  private flushPendingHoverAfterReturn(): void {
+    if (!this.pendingHoverAfterReturn) return;
+    // 仍在归位飞行中：继续压制
+    if (this.isReturning) return;
+    this.pendingHoverAfterReturn = false;
+    if (this.isDragging) return;
+
+    const reallyOver = this.isPointerOverSelfNow();
+    if (!reallyOver) {
+      // 丢弃滞后悬停标志，保持 scale=1；真实再进入时由 pointerover 驱动。
+      if (this.isMouseOver || this.cardState === CardState.Hovered) {
+        this.isMouseOver = false;
+        if (this.cardState === CardState.Hovered) {
+          this.cardState = CardState.Normal;
+        }
+        this.mouseLocalX = null;
+        this.mouseLocalY = null;
+      }
+      this.hoverScaleSpring.reset(1, 0);
+      this.currentScale = 1;
+      this.hoverScaleWasHovered = false;
+      return;
+    }
+
+    // 指针几何上仍在牌上（例如松手时几乎未离槽）：同步状态，
+    // 交给 updateHoverScale 边沿入场，禁止带大冲量的 restart 闪一下。
+    this.isMouseOver = true;
+    if (this.cardState === CardState.Normal) {
+      this.cardState = CardState.Hovered;
+    }
+    this.refreshMouseLocalFromGlobal();
+    this.hoverScaleWasHovered = false;
   }
 
   /**
@@ -1803,23 +1960,24 @@ export class CardView extends Container {
 
   /** 缓存指针全局坐标，供选中位移等「无 pointermove」帧刷新本地坐标。 */
   private cachePointerGlobal(event: FederatedPointerEvent): void {
-    this.lastPointerGlobalX = event.global.x;
-    this.lastPointerGlobalY = event.global.y;
+    const x = event.global.x;
+    const y = event.global.y;
+    this.lastPointerGlobalX = x;
+    this.lastPointerGlobalY = y;
     this.hasLastPointerGlobal = true;
+    noteSharedPointerGlobal(x, y);
   }
 
   /**
-   * 用缓存的全局指针位置投影到卡牌本地坐标。
+   * 用当前指针全局坐标投影到卡牌本地。
    * 在 isMouseOver 或 isDragging 时调用：选中上移/下移时鼠标可能不动，
    * 必须每帧重算；悬停时供伪 3D 倾斜使用，拖拽时仍刷新坐标以便松手后立刻接上倾斜。
    */
   private refreshMouseLocalFromGlobal(): void {
-    if (!this.hasLastPointerGlobal) return;
     if (!this.isMouseOver && !this.isDragging) return;
-    const local = this.toLocal({
-      x: this.lastPointerGlobalX,
-      y: this.lastPointerGlobalY,
-    });
+    const global = this.resolvePointerGlobal();
+    if (!global) return;
+    const local = this.toLocal({ x: global.x, y: global.y });
     this.mouseLocalX = local.x;
     this.mouseLocalY = local.y;
   }
@@ -1886,6 +2044,12 @@ export class CardView extends Container {
         this.isReturning = false;
       }
     }
+
+    // 拖拽归位 settle 后：若指针仍在牌上则补播 hover 入场
+    this.flushPendingHoverAfterReturn();
+
+    // 校正粘滞悬停（快速理牌后 isMouseOver/Hovered 可能与真实指针脱节）
+    this.clearStickyHoverIfNeeded();
 
     // 1. 常态化的手牌的呼吸晃动
     this.updateBreathing(dtMS);
@@ -2103,7 +2267,8 @@ export class CardView extends Container {
 
   /**
    * 拖拽中：不写 x/y（由弹性绳 step 写）。
-   * 每帧仍回调 onDragging，使鼠标静止、牌仍在追赶时也能完成换位判定。
+   * 每帧仍回调 onDragging（逻辑目标坐标）；换位判据已改为鼠标逻辑位置，
+   * 指针静止时 dragTarget 不变，回调多为 no-op，保留以兼容上层其它逻辑。
    */
   private updateDragging(dtMS: number): void {
     if (!this.isDragging || dtMS <= 0) return;
@@ -2217,16 +2382,21 @@ export class CardView extends Container {
     const conf = CONFIG.cardVisuals;
     const hoverBreathingOn = this.isVisualEnabled("hoverBreathing");
 
-    // 总开关关闭、拖拽中或未激活：直接清零 hover 通道，但不影响常态呼吸。
+    // 总开关关闭、拖拽中、归位挂起或未激活：直接清零 hover 通道，但不影响常态呼吸。
     if (
       !conf ||
       !hoverBreathingOn ||
       this.cardState === CardState.Dragging ||
+      this.pendingHoverAfterReturn ||
       !this.hoverBreathingActive
     ) {
       this.hoverBreathingY = 0;
       this.hoverWobbleRot = 0;
-      if (!hoverBreathingOn || this.cardState === CardState.Dragging) {
+      if (
+        !hoverBreathingOn ||
+        this.cardState === CardState.Dragging ||
+        this.pendingHoverAfterReturn
+      ) {
         this.hoverBreathingActive = false;
         this.hoverBreathYSpring.reset(0, 0);
         this.hoverBreathRotSpring.reset(0, 0);
@@ -2292,10 +2462,12 @@ export class CardView extends Container {
       return;
     }
 
-    // Hovered，或 Selected 且鼠标仍在牌上。suppress 时强制走回 1.0。
+    // Hovered，或 Selected 且鼠标仍在牌上。suppress / 归位挂起时强制走回 1.0。
     // 他人拖拽划过时不算有效悬停，避免邻牌放大。
+    // pendingHoverAfterReturn：拖拽松手归位途中禁止放大（见 collapseHoverScaleForReturn）。
     const isHovered =
       !this.suppressHoverScaleUntilReenter &&
+      !this.pendingHoverAfterReturn &&
       !this.isForeignDragHoverSuppressed() &&
       (this.cardState === CardState.Hovered ||
         (this.isMouseOver && this.cardState === CardState.Selected));
@@ -2363,12 +2535,14 @@ export class CardView extends Container {
     // 真实鼠标 3D 倾斜：仅悬停、且非拖拽时开启。
     // Selected / 选中上移仍可与倾斜叠加；拖拽（含悬空跟手）必须关闭，
     // 否则鼠标停在牌上会持续驱动角点扭曲，出现「拖着不动也在倾斜」。
+    // 归位途中同样关闭：角点外扩会被当成「放大」，与 hover 缩放 bug 同源。
     // 归零走下方 target→current 平滑插值，松手后接回悬停倾斜不会硬切。
     // 小丑牌通过 isVisualEnabled 叠加 CONFIG.joker.effects 门控。
     const hoverActive =
       !!visualConf &&
       this.isVisualEnabled("mouse3DTilt") &&
       !this.isDragging &&
+      !this.pendingHoverAfterReturn &&
       !this.isForeignDragHoverSuppressed() &&
       this.isMouseOver &&
       this.mouseLocalX !== null &&
@@ -2691,24 +2865,31 @@ export class CardView extends Container {
 
     this.on("pointerdown", this.onPointerDown, this);
 
-    this.on("pointerover", () => {
+    this.on("pointerover", (event: FederatedPointerEvent) => {
+      this.cachePointerGlobal(event);
       this.isMouseOver = true;
       if (this.cardState === CardState.Normal) {
         this.cardState = CardState.Hovered;
       }
       // 鼠标真正重新进入卡牌：解除 hoverScale 抑制，允许下一次正常放大。
       this.suppressHoverScaleUntilReenter = false;
+      // 归位途中若指针又回到牌上：仍等 settle 再入场，避免中途放大。
       // 用缓存全局点立刻刷新本地坐标，避免等 pointermove 才恢复倾斜。
       this.refreshMouseLocalFromGlobal();
       // 自身拖拽中，或其它卡牌/徽章拖拽划过：不触发触碰动画。
+      // 仍写入 isMouseOver，便于松手后几何 reconcile；视效由 isForeignDragHoverSuppressed 门控。
       if (this.isDragging || this.isForeignDragHoverSuppressed()) return;
+      // 归位挂起期间不播触碰呼吸；settle 后由 flushPendingHoverAfterReturn 统一补。
+      if (this.pendingHoverAfterReturn) return;
       // 触发"鼠标触碰呼吸晃动"（独立通道，一次性脱手脉冲）。
       // 每次进入都重置进度与相位，重新从满幅度起跳，可打断上一次未播完的脉冲。
       this.triggerHoverBreathing();
       this.callbacks.onHoverIn(this);
     });
 
-    this.on("pointerout", () => {
+    this.on("pointerout", (event: FederatedPointerEvent) => {
+      // 仍采样指针位置（供其它牌共享），但本牌离开悬停
+      this.cachePointerGlobal(event);
       this.isMouseOver = false;
       if (this.cardState === CardState.Hovered) {
         this.cardState = CardState.Normal;
@@ -2719,7 +2900,8 @@ export class CardView extends Container {
         this.mouseLocalX = null;
         this.mouseLocalY = null;
       }
-      // 鼠标离开卡牌：抑制标志自然失效。
+      // 鼠标离开卡牌：抑制标志自然失效；归位挂起保留到 settle（避免中途 pointerout
+      // 误清后 settle 时又补一次入场，而指针其实已不在牌上——flush 会用几何命中）。
       this.suppressHoverScaleUntilReenter = false;
       if (this.isDragging) return;
       this.callbacks.onHoverOut(this);

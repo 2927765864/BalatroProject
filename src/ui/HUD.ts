@@ -35,6 +35,10 @@ export interface HUDOptions {
   onSortByRank: () => void;
   /** 按花色理牌 */
   onSortBySuit: () => void;
+  /** 比赛信息按钮（可无业务逻辑，仅反馈） */
+  onRunInfo?: () => void;
+  /** 选项按钮（可无业务逻辑，仅反馈） */
+  onOptions?: () => void;
 }
 
 export class HUD extends UINode {
@@ -103,7 +107,10 @@ export class HUD extends UINode {
     this.addChild(this.jokerBar);
 
     // 得分面板：挂在左侧侧栏下，与参考图「侧栏内容」父子关系一致
-    this.scorePanel = new ScorePanel(opts.targetScore, opts.plays, opts.discards);
+    this.scorePanel = new ScorePanel(opts.targetScore, opts.plays, opts.discards, {
+      onRunInfo: opts.onRunInfo,
+      onOptions: opts.onOptions,
+    });
     this.leftPanel.addChild(this.scorePanel);
 
     // 底部按钮：出牌 / 弃牌

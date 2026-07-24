@@ -92,6 +92,8 @@ export class BlindChipBadge extends UINode {
   })();
   private hoverScaleWasHovered = false;
   private suppressHoverScaleUntilReenter = false;
+  /** 拖拽松手归位途中压住 hover 入场（与 CardView 同因：避免回位放大后瞬间缩回）。 */
+  private pendingHoverAfterReturn = false;
 
   private dragScaleAnim: "in" | "out" | null = null;
   private dragScaleSpringTarget = 1;
@@ -363,6 +365,8 @@ export class BlindChipBadge extends UINode {
       this.refreshMouseLocalFromGlobal();
       // 自身拖拽中，或其它卡牌/徽章拖拽划过：不触发触碰动画。
       if (this.isDragging || this.isForeignDragHoverSuppressed()) return;
+      // 归位挂起期间不播触碰呼吸；settle 后由 flushPendingHoverAfterReturn 补。
+      if (this.pendingHoverAfterReturn) return;
       this.triggerHoverBreathing();
     });
 
@@ -507,7 +511,7 @@ export class BlindChipBadge extends UINode {
     this.releaseDragSession();
     this.zIndex = 0;
 
-    // 拖拽缩放瞬间回 1；触碰入场由 restartHoverScaleEntrance 负责。
+    // 拖拽缩放瞬间回 1。
     this.snapDragScaleToRest();
 
     const threshold = CONFIG.cardVisuals?.clickThresholdMS ?? 250;
@@ -517,14 +521,14 @@ export class BlindChipBadge extends UINode {
 
     if (isClick) {
       this.badgeState = this.isMouseOver ? BadgeState.Hovered : BadgeState.Normal;
+      this.pendingHoverAfterReturn = false;
       if (this.isMouseOver) {
         this.restartHoverScaleEntrance({ forceImmediate: true });
       }
     } else {
+      // 长按/拖拽：归位途中禁止 hover 放大，settle 后再补入场。
       this.badgeState = this.isMouseOver ? BadgeState.Hovered : BadgeState.Normal;
-      if (this.isMouseOver) {
-        this.restartHoverScaleEntrance({ forceImmediate: true });
-      }
+      this.collapseHoverScaleForReturn();
     }
 
     this.isReturning = true;
@@ -543,6 +547,7 @@ export class BlindChipBadge extends UINode {
     this.advanceCoinAnim(dtMS);
     this.stepElasticRope(dtMS);
     this.updateDragScale(dtMS);
+    this.flushPendingHoverAfterReturn();
     this.updateBreathing(dtMS);
     this.updateHoverBreathing(dtMS);
     this.refreshMouseLocalFromGlobal();
@@ -674,6 +679,74 @@ export class BlindChipBadge extends UINode {
     this.suppressHoverScaleUntilReenter = false;
   }
 
+  private collapseHoverScaleForReturn(): void {
+    this.pendingHoverAfterReturn = true;
+    this.hoverScaleSpring.reset(1, 0);
+    this.currentScale = 1;
+    this.hoverScaleWasHovered = false;
+    this.hoverBreathingActive = false;
+    this.hoverBreathYSpring.reset(0, 0);
+    this.hoverBreathRotSpring.reset(0, 0);
+    this.hoverBreathingY = 0;
+    this.hoverWobbleRot = 0;
+    this.hoverBreathingElapsedMS = 0;
+  }
+
+  /**
+   * 用缓存全局指针 + 当前世界变换几何判定是否仍在徽章 hitArea 内。
+   * 比滞后的 isMouseOver 可靠（静止指针 + dynamic 节流）。
+   */
+  private isPointerOverSelfNow(): boolean {
+    if (!this.hasLastPointerGlobal || this.destroyed) return false;
+    const local = this.toLocal({
+      x: this.lastPointerGlobalX,
+      y: this.lastPointerGlobalY,
+    });
+    if (!Number.isFinite(local.x) || !Number.isFinite(local.y)) return false;
+    const area = this.hitArea;
+    if (area && typeof (area as { contains?: unknown }).contains === "function") {
+      return (area as { contains: (x: number, y: number) => boolean }).contains(
+        local.x,
+        local.y,
+      );
+    }
+    const S = this.size;
+    const dx = local.x - S / 2;
+    const dy = local.y - S / 2;
+    return dx * dx + dy * dy <= (S / 2) * (S / 2);
+  }
+
+  private flushPendingHoverAfterReturn(): void {
+    if (!this.pendingHoverAfterReturn) return;
+    if (this.isReturning) return;
+    this.pendingHoverAfterReturn = false;
+    if (this.isDragging) return;
+
+    // 勿信滞后 isMouseOver + restart 冲量：否则落点 settle 后会闪几帧放大再缩回。
+    const reallyOver = this.isPointerOverSelfNow();
+    if (!reallyOver) {
+      if (this.isMouseOver) {
+        this.isMouseOver = false;
+        if (this.badgeState === BadgeState.Hovered) {
+          this.badgeState = BadgeState.Normal;
+        }
+        this.mouseLocalX = null;
+        this.mouseLocalY = null;
+      }
+      this.hoverScaleSpring.reset(1, 0);
+      this.currentScale = 1;
+      this.hoverScaleWasHovered = false;
+      return;
+    }
+
+    this.isMouseOver = true;
+    if (this.badgeState === BadgeState.Normal) {
+      this.badgeState = BadgeState.Hovered;
+    }
+    this.refreshMouseLocalFromGlobal();
+    this.hoverScaleWasHovered = false;
+  }
+
   private updateDragScale(dtMS: number): void {
     if (this.dragScaleAnim === "out") {
       this.snapDragScaleToRest();
@@ -752,11 +825,16 @@ export class BlindChipBadge extends UINode {
     if (
       !conf?.hoverBreathingEnabled ||
       this.badgeState === BadgeState.Dragging ||
+      this.pendingHoverAfterReturn ||
       !this.hoverBreathingActive
     ) {
       this.hoverBreathingY = 0;
       this.hoverWobbleRot = 0;
-      if (!conf?.hoverBreathingEnabled || this.badgeState === BadgeState.Dragging) {
+      if (
+        !conf?.hoverBreathingEnabled ||
+        this.badgeState === BadgeState.Dragging ||
+        this.pendingHoverAfterReturn
+      ) {
         this.hoverBreathingActive = false;
         this.hoverBreathYSpring.reset(0, 0);
         this.hoverBreathRotSpring.reset(0, 0);
@@ -819,6 +897,7 @@ export class BlindChipBadge extends UINode {
 
     const isHovered =
       !this.suppressHoverScaleUntilReenter &&
+      !this.pendingHoverAfterReturn &&
       !this.isForeignDragHoverSuppressed() &&
       this.badgeState === BadgeState.Hovered;
 
@@ -865,6 +944,7 @@ export class BlindChipBadge extends UINode {
       !!visualConf &&
       !!visualConf.mouse3DTiltEnabled &&
       !this.isDragging &&
+      !this.pendingHoverAfterReturn &&
       !this.isForeignDragHoverSuppressed() &&
       this.isMouseOver &&
       this.mouseLocalX !== null &&
